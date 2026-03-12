@@ -5,8 +5,8 @@ import tempfile
 import os
 import json
 
-from agent.llm.registry import ModelRegistry, ModelInfo, ProviderInfo
-from agent.llm.router import ProviderRouter, ParsedModelID, ProviderConfig
+from agent_smith.llm.registry import ModelRegistry, ModelInfo, ProviderInfo
+from agent_smith.llm.router import ProviderRouter, ParsedModelID, ProviderConfig
 
 
 class TestModelRegistry:

@@ -1,7 +1,7 @@
 """Tests for context manager."""
 
 import pytest
-from agent.context import ContextManager, ContextStrategy, TokenCounter, MessageToken
+from agent_smith.context import ContextManager, ContextStrategy, TokenCounter, MessageToken
 
 
 class TestTokenCounter:

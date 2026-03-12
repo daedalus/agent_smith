@@ -225,19 +225,20 @@ class ConsoleUI:
             self.color(
                 "cyan",
                 """
-╔═══════════════════════════════════════════════════════════╗
+╔════════════════════════════════════════════════════════════╗
 ║                      Commands                              ║
-╠═══════════════════════════════════════════════════════════╣
+╠════════════════════════════════════════════════════════════╣
 ║  help          - Show this help message                   ║
 ║  exit/quit     - Exit the agent                           ║
 ║  clear         - Clear the terminal                        ║
 ║  history       - Show command history                     ║
 ║  plan <task>   - Create and execute a plan                 ║
+║  provider      - Select AI provider and model              ║
 ║  checkpoint    - List saved checkpoints                    ║
 ║  resume <id>   - Resume from a checkpoint                  ║
 ║  tools         - List available tools                      ║
-╚═══════════════════════════════════════════════════════════╝
-        """,
+╚════════════════════════════════════════════════════════════╝
+                """,
             )
         )
 

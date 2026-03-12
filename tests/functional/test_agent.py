@@ -3,9 +3,9 @@
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 
-from agent.core import AutonomousAgent
-from agent.state import AgentState, ExecutionPlan, TaskStep
-from agent.llm import Message, LLMResponse, ToolCall
+from agent_smith.core import AutonomousAgent
+from agent_smith.state import AgentState, ExecutionPlan, TaskStep
+from agent_smith.llm import Message, LLMResponse, ToolCall
 
 
 class TestAgentState:
@@ -88,7 +88,7 @@ class MockToolExecutor:
         pass
 
     async def execute(self, tool_name: str, args: dict):
-        from agent.tools import ToolResult
+        from agent_smith.tools import ToolResult
         return ToolResult(success=True, content=f"Executed {tool_name}")
 
     def format_result(self, result):
@@ -147,7 +147,7 @@ class TestAutonomousAgentAsync:
     @pytest.fixture
     def agent_with_mock_llm(self):
         """Create agent with mock LLM."""
-        from agent.config import Config
+        from agent_smith.config import Config
         
         with patch("agent.llm.OpenAILLM") as MockOpenAI:
             mock_instance = MockLLM("Test response")
@@ -173,7 +173,7 @@ class TestConfig:
 
     def test_config_get(self):
         """Test config get method."""
-        from agent.config import Config
+        from agent_smith.config import Config
         
         config = Config()
         
@@ -182,7 +182,7 @@ class TestConfig:
 
     def test_config_set(self):
         """Test config set method."""
-        from agent.config import Config
+        from agent_smith.config import Config
         
         config = Config()
         config.set("test.value", "hello")

@@ -5,7 +5,7 @@ import tempfile
 import os
 from pathlib import Path
 
-from agent.tools import Tool, ToolResult, ToolRegistry, ToolExecutor, FuncTool, SyncFuncTool
+from agent_smith.tools import Tool, ToolResult, ToolRegistry, ToolExecutor, FuncTool, SyncFuncTool
 
 
 class TestToolResult:
@@ -208,7 +208,7 @@ class TestBuiltinTools:
     @pytest.mark.asyncio
     async def test_read_file(self, temp_dir):
         """Test read file tool."""
-        from agent.tools.builtin import ReadFileTool
+        from agent_smith.tools.builtin import ReadFileTool
         
         test_file = os.path.join(temp_dir, "test.txt")
         Path(test_file).write_text("Hello, World!")
@@ -222,7 +222,7 @@ class TestBuiltinTools:
     @pytest.mark.asyncio
     async def test_write_file(self, temp_dir):
         """Test write file tool."""
-        from agent.tools.builtin import WriteFileTool
+        from agent_smith.tools.builtin import WriteFileTool
         
         tool = WriteFileTool(root_dir=temp_dir)
         result = await tool.execute(path="output.txt", content="Test content")
@@ -235,7 +235,7 @@ class TestBuiltinTools:
     @pytest.mark.asyncio
     async def test_glob(self, temp_dir):
         """Test glob tool."""
-        from agent.tools.builtin import GlobTool
+        from agent_smith.tools.builtin import GlobTool
         
         Path(os.path.join(temp_dir, "file1.py")).touch()
         Path(os.path.join(temp_dir, "file2.txt")).touch()
@@ -250,7 +250,7 @@ class TestBuiltinTools:
     @pytest.mark.asyncio
     async def test_ls(self, temp_dir):
         """Test ls tool."""
-        from agent.tools.builtin import ListDirTool
+        from agent_smith.tools.builtin import ListDirTool
         
         Path(os.path.join(temp_dir, "file1.txt")).touch()
         Path(os.path.join(temp_dir, "file2.txt")).touch()
