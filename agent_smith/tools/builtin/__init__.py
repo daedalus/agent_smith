@@ -7,7 +7,7 @@ import asyncio
 from pathlib import Path
 from typing import Optional
 
-from agent.tools import Tool, ToolResult, ToolRegistry
+from agent_smith.tools import Tool, ToolResult, ToolRegistry
 
 
 class BashTool(Tool):
@@ -387,8 +387,8 @@ class TodoTool(Tool):
 
 def create_builtin_tools(config: dict = None, file_tracker=None) -> list[Tool]:
     """Create all built-in tools."""
-    from agent.tools.builtin.exa_search import ExaSearchTool, ExaFetchTool
-    from agent.tools.builtin.free_search import FreeExaSearchTool, OpenWebSearchTool
+    from agent_smith.tools.builtin.exa_search import ExaSearchTool, ExaFetchTool
+    from agent_smith.tools.builtin.free_search import FreeExaSearchTool, OpenWebSearchTool
     
     exa_config = config.get("exa", {}) if config else {}
     

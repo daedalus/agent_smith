@@ -4,23 +4,23 @@ import asyncio
 import json
 from typing import Any, Optional
 
-from agent.llm import LLMBase, Message, create_llm
-from agent.tools import ToolRegistry, ToolExecutor
-from agent.tools.builtin import register_builtin_tools
-from agent.tools.file_tracker import FileTracker
-from agent.state import AgentState, AgentStateData, ExecutionPlan
-from agent.planning import TaskPlanner, PlanExecutor, PlanMonitor, PlanningContext
-from agent.mcp import MCPManager, FilesystemMCPServer, GitMCPServer
-from agent.multimodal import MultimodalManager
-from agent.lsp import LSPServerManager
-from agent.context import ContextManager, ContextStrategy
-from agent.config import get_config
+from agent_smith.llm import LLMBase, Message, create_llm
+from agent_smith.tools import ToolRegistry, ToolExecutor
+from agent_smith.tools.builtin import register_builtin_tools
+from agent_smith.tools.file_tracker import FileTracker
+from agent_smith.state import AgentState, AgentStateData, ExecutionPlan
+from agent_smith.planning import TaskPlanner, PlanExecutor, PlanMonitor, PlanningContext
+from agent_smith.mcp import MCPManager, FilesystemMCPServer, GitMCPServer
+from agent_smith.multimodal import MultimodalManager
+from agent_smith.lsp import LSPServerManager
+from agent_smith.context import ContextManager, ContextStrategy
+from agent_smith.config import Config, get_config
 
 
 class AutonomousAgent:
     """Main autonomous agent class."""
 
-    def __init__(self, config: dict = None):
+    def __init__(self, config: Optional[dict] = None):
         self.config = config or get_config()
         self.state = AgentStateData()
         
@@ -43,7 +43,7 @@ class AutonomousAgent:
         default_model = self.config.get("llm.default_model")
         
         if use_registry and default_model:
-            from agent.llm.router import ProviderRouter, get_router
+            from agent_smith.llm.router import ProviderRouter, get_router
             
             providers = self.config.get("llm.providers", {})
             router = get_router()
@@ -53,7 +53,7 @@ class AutonomousAgent:
             
             provider_config = router.get_provider_config(default_model)
             
-            from agent.llm import OpenAILLM, AnthropicLLM, OllamaLLM
+            from agent_smith.llm import OpenAILLM, AnthropicLLM, OllamaLLM
             
             if provider_config.provider == "anthropic":
                 self.llm = AnthropicLLM(

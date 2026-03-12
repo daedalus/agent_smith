@@ -235,7 +235,7 @@ class ContextManager:
 
     async def _create_summary(self, messages: list[MessageToken]) -> str:
         """Create summary of older messages using LLM."""
-        from agent.llm import Message
+        from agent_smith.llm import Message
         
         conversation = "\n".join(
             f"{m.role}: {m.content[:500]}" for m in messages

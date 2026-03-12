@@ -7,7 +7,7 @@ from typing import Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 
-from agent.state import TaskStep, ExecutionPlan, AgentState
+from agent_smith.state import TaskStep, ExecutionPlan, AgentState
 
 
 class PlanStrategy(Enum):
@@ -64,7 +64,7 @@ Respond with a JSON plan in this format:
     ]
 }}"""
 
-        from agent.llm import Message
+        from agent_smith.llm import Message
         response = await self.llm.chat([Message("user", prompt)])
         
         try:
@@ -186,8 +186,8 @@ class PlanExecutor:
 
     async def _execute_llm_step(self, description: str) -> Any:
         """Execute a step that requires LLM reasoning."""
-        from agent.llm import Message
-        from agent.tools import ToolResult
+        from agent_smith.llm import Message
+        from agent_smith.tools import ToolResult
         
         prompt = f"Execute this step: {description}"
         response = await self.planner.llm.chat([Message("user", prompt)])
@@ -219,7 +219,7 @@ class PlanMonitor:
 
     async def evaluate_progress(self, plan: ExecutionPlan, recent_results: list[dict]) -> dict:
         """Evaluate execution progress and determine if replanning is needed."""
-        from agent.llm import Message
+        from agent_smith.llm import Message
         
         prompt = f"""Evaluate the progress of this plan execution:
 
@@ -252,7 +252,7 @@ Respond with:
 
     async def create_replan(self, original_plan: ExecutionPlan, failed_step_id: str, error: str) -> ExecutionPlan:
         """Create a revised plan after a failure."""
-        from agent.llm import Message
+        from agent_smith.llm import Message
         
         prompt = f"""A plan failed. Create a revised plan.
 

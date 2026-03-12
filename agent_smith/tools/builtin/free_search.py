@@ -3,7 +3,7 @@
 import os
 from typing import Optional
 
-from agent.tools import Tool, ToolResult
+from agent_smith.tools import Tool, ToolResult
 
 
 class FreeExaSearchTool(Tool):
@@ -24,6 +24,7 @@ class FreeExaSearchTool(Tool):
         self,
         query: str,
         num_results: int = 5,
+        **kwargs
     ) -> ToolResult:
         """Execute free Exa search."""
         try:

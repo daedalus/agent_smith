@@ -27,7 +27,7 @@ class VisionProcessor:
         
         prompt = prompt or "Describe this image in detail."
         
-        from agent.llm import Message
+        from agent_smith.llm import Message
         content = [
             {"type": "text", "text": prompt},
             {

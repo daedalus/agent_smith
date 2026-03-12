@@ -1,5 +1,5 @@
 [project]
-name = "agent"
+name = "agent_smith"
 version = "0.1.0"
 description = "Autonomous AI agent for console with advanced tool use"
 readme = "README.md"

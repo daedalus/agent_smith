@@ -9,9 +9,9 @@ import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from agent.core import AutonomousAgent
-from agent.cli import InteractiveCLI
-from agent.config import Config
+from agent_smith.core import AutonomousAgent
+from agent_smith.cli import InteractiveCLI
+from agent_smith.config import Config
 
 
 def parse_args():
@@ -64,7 +64,7 @@ async def run_cli(agent):
 def run_ncurses(agent):
     """Run the ncurses interface. Returns True if successful, False if fallback needed."""
     import curses
-    from agent.cli.ncurses import NcursesGUI
+    from agent_smith.cli.ncurses import NcursesGUI
     
     async def handle_message(msg):
         try:

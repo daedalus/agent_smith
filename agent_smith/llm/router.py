@@ -7,7 +7,7 @@ import os
 from typing import Any, Optional
 from dataclasses import dataclass
 
-from agent.llm.registry import ModelRegistry, get_registry
+from agent_smith.llm.registry import ModelRegistry, get_registry
 
 
 PROVIDER_DEFAULTS = {
