@@ -114,7 +114,7 @@ Controls:
 - `Ctrl+C` - Quit
 - `Ctrl+L` - Clear screen
 
-Commands:
+Special Commands (require '/' prefix):
 - `/help` - Show help
 - `/exit/quit` - Exit the agent
 - `/clear` - Clear terminal
@@ -123,6 +123,9 @@ Commands:
 - `/plan <task>` - Execute task with planning
 - `/checkpoint` - List saved checkpoints
 - `/resume <id>` - Resume from checkpoint
+
+Regular Input:
+- Any text NOT starting with '/' is sent directly to the AI agent for processing
 
 ### Programmatic Usage
 

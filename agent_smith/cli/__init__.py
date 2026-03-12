@@ -161,7 +161,7 @@ class ConsoleUI:
         }
         color = state_colors.get(state, "white")
         print(f"\n{self.color(color, '┌─[' + state.upper() + ']')}", end=" ")
-        print(self.color("cyan", "➜ /"), end=" ")
+        print(self.color("cyan", "➜"), end=" ")
         return input()
 
     def print_message(self, role: str, content: str):
@@ -222,7 +222,7 @@ class ConsoleUI:
     def print_help(self):
         """Print help message."""
         help_text = """
-╔══════════════════════════════════════════════════════════════╗
+╔═════════════════════════════════════════════════════════════╗
 ║                      Commands                              ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  /help         - Show this help message                   ║
@@ -235,6 +235,9 @@ class ConsoleUI:
 ║  /resume <id>  - Resume from a checkpoint                  ║
 ║  /tools        - List available tools                      ║
 ╚══════════════════════════════════════════════════════════════╝
+
+NOTE: All commands MUST be prefixed with '/'. 
+      Any text NOT starting with '/' is sent directly to the AI agent.
 """
         print(self.color("cyan", help_text))
 
@@ -292,45 +295,53 @@ class InteractiveCLI:
 
                 self.history.add(user_input)
 
-                if user_input.lower() in ("/exit", "/quit", "/q"):
-                    print(self.ui.color("green", "Goodbye!"))
-                    break
+                # Handle slash-prefixed commands ONLY
+                if user_input.startswith("/"):
+                    command = user_input.lower()
+                    if command in ("/exit", "/quit", "/q"):
+                        print(self.ui.color("green", "Goodbye!"))
+                        break
 
-                if user_input.lower() == "/help":
-                    self.ui.print_help()
-                    continue
+                    if command == "/help":
+                        self.ui.print_help()
+                        continue
 
-                if user_input.lower() == "/clear":
-                    os.system("clear" if os.name == "posix" else "cls")
-                    continue
+                    if command == "/clear":
+                        os.system("clear" if os.name == "posix" else "cls")
+                        continue
 
-                if user_input.lower() == "/history":
-                    self._print_history()
-                    continue
+                    if command == "/history":
+                        self._print_history()
+                        continue
 
-                if user_input.lower() == "/tools":
-                    self._print_tools()
-                    continue
+                    if command == "/tools":
+                        self._print_tools()
+                        continue
 
-                if user_input.lower() == "/provider":
-                    await self._provider_command()
-                    continue
+                    if command == "/provider":
+                        await self._provider_command()
+                        continue
 
-                if user_input.lower().startswith("/plan "):
-                    task = user_input[6:]
-                    await self._execute_task(task)
-                    continue
+                    if command.startswith("/plan "):
+                        task = user_input[6:]
+                        await self._execute_task(task)
+                        continue
 
-                if user_input.lower().startswith("/resume "):
-                    checkpoint_id = user_input[8:]
-                    await self._resume_checkpoint(checkpoint_id)
-                    continue
+                    if command.startswith("/resume "):
+                        checkpoint_id = user_input[8:]
+                        await self._resume_checkpoint(checkpoint_id)
+                        continue
 
-                if user_input.lower() == "/checkpoint":
-                    self._list_checkpoints()
-                    continue
+                    if command == "/checkpoint":
+                        self._list_checkpoints()
+                        continue
 
-                await self._process_input(user_input)
+                    # If it starts with "/" but doesn't match any known command, treat as regular input
+                    await self._process_input(user_input)
+                else:
+                    # Treat ALL non-slash-prefixed input as regular agent input
+                    # Do NOT convert "help" to "/help" or treat any plain text as commands
+                    await self._process_input(user_input)
 
             except KeyboardInterrupt:
                 print("\n" + self.ui.color("yellow", "Use 'exit' to quit"))
