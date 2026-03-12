@@ -115,14 +115,14 @@ Controls:
 - `Ctrl+L` - Clear screen
 
 Commands:
-- `help` - Show help
-- `exit/quit` - Exit the agent
-- `clear` - Clear terminal
-- `history` - Show command history
-- `tools` - List available tools
-- `plan <task>` - Execute task with planning
-- `checkpoint` - List saved checkpoints
-- `resume <id>` - Resume from checkpoint
+- `/help` - Show help
+- `/exit/quit` - Exit the agent
+- `/clear` - Clear terminal
+- `/history` - Show command history
+- `/tools` - List available tools
+- `/plan <task>` - Execute task with planning
+- `/checkpoint` - List saved checkpoints
+- `/resume <id>` - Resume from checkpoint
 
 ### Programmatic Usage
 

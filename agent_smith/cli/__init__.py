@@ -161,7 +161,7 @@ class ConsoleUI:
         }
         color = state_colors.get(state, "white")
         print(f"\n{self.color(color, '┌─[' + state.upper() + ']')}", end=" ")
-        print(self.color("cyan", "➜"), end=" ")
+        print(self.color("cyan", "➜ /"), end=" ")
         return input()
 
     def print_message(self, role: str, content: str):
@@ -221,26 +221,22 @@ class ConsoleUI:
 
     def print_help(self):
         """Print help message."""
-        print(
-            self.color(
-                "cyan",
-                """
-╔════════════════════════════════════════════════════════════╗
+        help_text = """
+╔══════════════════════════════════════════════════════════════╗
 ║                      Commands                              ║
-╠════════════════════════════════════════════════════════════╣
-║  help          - Show this help message                   ║
-║  exit/quit     - Exit the agent                           ║
-║  clear         - Clear the terminal                        ║
-║  history       - Show command history                     ║
-║  plan <task>   - Create and execute a plan                 ║
-║  provider      - Select AI provider and model              ║
-║  checkpoint    - List saved checkpoints                    ║
-║  resume <id>   - Resume from a checkpoint                  ║
-║  tools         - List available tools                      ║
-╚════════════════════════════════════════════════════════════╝
-                """,
-            )
-        )
+╠══════════════════════════════════════════════════════════════╣
+║  /help         - Show this help message                   ║
+║  /exit/quit    - Exit the agent                           ║
+║  /clear        - Clear the terminal                        ║
+║  /history      - Show command history                     ║
+║  /plan <task>  - Create and execute a plan                 ║
+║  /provider     - Select AI provider and model              ║
+║  /checkpoint   - List saved checkpoints                    ║
+║  /resume <id>  - Resume from a checkpoint                  ║
+║  /tools        - List available tools                      ║
+╚══════════════════════════════════════════════════════════════╝
+"""
+        print(self.color("cyan", help_text))
 
 
 class CommandHistory:
@@ -296,41 +292,41 @@ class InteractiveCLI:
 
                 self.history.add(user_input)
 
-                if user_input.lower() in ("exit", "quit", "q"):
+                if user_input.lower() in ("/exit", "/quit", "/q"):
                     print(self.ui.color("green", "Goodbye!"))
                     break
 
-                if user_input.lower() == "help":
+                if user_input.lower() == "/help":
                     self.ui.print_help()
                     continue
 
-                if user_input.lower() == "clear":
+                if user_input.lower() == "/clear":
                     os.system("clear" if os.name == "posix" else "cls")
                     continue
 
-                if user_input.lower() == "history":
+                if user_input.lower() == "/history":
                     self._print_history()
                     continue
 
-                if user_input.lower() == "tools":
+                if user_input.lower() == "/tools":
                     self._print_tools()
                     continue
 
-                if user_input.lower() == "provider":
+                if user_input.lower() == "/provider":
                     await self._provider_command()
                     continue
 
-                if user_input.lower().startswith("plan "):
-                    task = user_input[5:]
+                if user_input.lower().startswith("/plan "):
+                    task = user_input[6:]
                     await self._execute_task(task)
                     continue
 
-                if user_input.lower().startswith("resume "):
-                    checkpoint_id = user_input[7:]
+                if user_input.lower().startswith("/resume "):
+                    checkpoint_id = user_input[8:]
                     await self._resume_checkpoint(checkpoint_id)
                     continue
 
-                if user_input.lower() == "checkpoint":
+                if user_input.lower() == "/checkpoint":
                     self._list_checkpoints()
                     continue
 
