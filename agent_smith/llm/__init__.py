@@ -7,6 +7,8 @@ import os
 
 import httpx
 
+from agent_smith.retry import RetryConfig, retry_with_backoff, create_error_from_response, RateLimitError, ProviderOverloadedError
+
 
 class ToolCall:
     """Represents a tool call from the LLM."""
@@ -70,11 +72,12 @@ class LLMResponse:
 class LLMBase(ABC):
     """Abstract base class for LLM providers."""
 
-    def __init__(self, api_key: str = None, base_url: str = None, model: str = None, **kwargs):
+    def __init__(self, api_key: str = None, base_url: str = None, model: str = None, retry_config: RetryConfig = None, **kwargs):
         self.api_key = api_key or os.getenv("API_KEY")
         self.base_url = base_url
         self.model = model
         self.extra_kwargs = kwargs
+        self.retry_config = retry_config or RetryConfig.default()
 
     @abstractmethod
     async def chat(self, messages: list, tools: list[dict] = None, **kwargs) -> LLMResponse:
@@ -98,6 +101,45 @@ class LLMBase(ABC):
     def supports_json_mode(self) -> bool:
         """Check if provider supports JSON mode."""
         return False
+
+    async def _request_with_retry(
+        self,
+        method: str,
+        url: str,
+        headers: dict = None,
+        json: dict = None,
+        **kwargs,
+    ) -> httpx.Response:
+        """Make an HTTP request with retry logic."""
+        async def make_request():
+            async with httpx.AsyncClient() as client:
+                response = await client.request(
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    json=json,
+                    timeout=120.0,
+                    **kwargs,
+                )
+                
+                if response.status_code == 429:
+                    retry_after = response.headers.get("retry-after")
+                    error = RateLimitError(
+                        f"Rate limited: {response.text[:200]}",
+                        retry_after=float(retry_after) if retry_after else None,
+                    )
+                    raise error
+                
+                if response.status_code == 503 or "overloaded" in response.text.lower():
+                    raise ProviderOverloadedError(f"Provider overloaded: {response.text[:200]}")
+                
+                response.raise_for_status()
+                return response
+        
+        if self.retry_config.max_retries > 0:
+            return await retry_with_backoff(make_request, self.retry_config)
+        else:
+            return await make_request()
 
     def _normalize_messages(self, messages: list) -> list[Message]:
         """Normalize messages to Message objects."""
@@ -137,15 +179,13 @@ class OpenAILLM(LLMBase):
         if tools:
             payload["tools"] = tools
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.base_url}/chat/completions",
-                json=payload,
-                headers=headers,
-                timeout=120.0,
-            )
-            response.raise_for_status()
-            data = response.json()
+        response = await self._request_with_retry(
+            "POST",
+            f"{self.base_url}/chat/completions",
+            headers=headers,
+            json=payload,
+        )
+        data = response.json()
 
         choice = data["choices"][0]
         msg_data = choice["message"]
