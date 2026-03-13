@@ -289,6 +289,7 @@ class InteractiveCLI:
         self.ui = ConsoleUI()
         self.history = CommandHistory()
         self.last_error_trace: Optional[str] = None
+        self.compact_threshold: float = 85.0
 
     async def run(self):
         """Run the CLI."""
@@ -395,6 +396,8 @@ class InteractiveCLI:
             spinner.stop()
 
         self.ui.print_message("assistant", response)
+
+        await self._check_and_compact_context()
 
     async def _execute_task(self, task: str):
         """Execute a task with planning."""
@@ -865,3 +868,19 @@ class InteractiveCLI:
             )
         except Exception as e:
             self.ui.print_error(f"Failed to compact context: {e}")
+
+    async def _check_and_compact_context(self):
+        """Check context usage and auto-compact if threshold is reached."""
+        try:
+            ctx_mgr = getattr(self.agent, "context_manager", None)
+            if not ctx_mgr:
+                return
+
+            usage = ctx_mgr.get_token_usage()
+            usage_percent = usage.get("context_usage_percent", 0)
+
+            if usage_percent >= self.compact_threshold:
+                self.ui.print_info(f"Context usage at {usage_percent:.1f}%, compacting...")
+                await self._compact_context()
+        except Exception:
+            pass

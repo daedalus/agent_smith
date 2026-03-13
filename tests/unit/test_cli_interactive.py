@@ -294,3 +294,68 @@ class TestCompactCommand:
             assert "Compact context" in output
         finally:
             sys.stdout = old_stdout
+
+
+class TestAutoCompact:
+    """Test auto-compaction functionality."""
+
+    def test_auto_compact_threshold_default(self):
+        """Test default compact threshold is 85."""
+        mock_agent = Mock()
+        cli = InteractiveCLI(mock_agent)
+        assert cli.compact_threshold == 85.0
+
+    def test_auto_compact_threshold_custom(self):
+        """Test custom compact threshold."""
+        mock_agent = Mock()
+        cli = InteractiveCLI(mock_agent)
+        cli.compact_threshold = 70.0
+        assert cli.compact_threshold == 70.0
+
+    def test_auto_compact_when_threshold_reached(self):
+        """Test auto-compact triggers when threshold is reached."""
+        mock_agent = Mock()
+        mock_ctx = Mock()
+        mock_ctx._messages = [Mock(), Mock()]
+        mock_ctx.get_token_usage.return_value = {"context_usage_percent": 90.0}
+        mock_ctx._compact_async = AsyncMock()
+        mock_agent.context_manager = mock_ctx
+
+        cli = InteractiveCLI(mock_agent)
+        cli.compact_threshold = 85.0
+
+        import asyncio
+
+        asyncio.run(cli._check_and_compact_context())
+
+        mock_ctx._compact_async.assert_called_once()
+
+    def test_auto_compact_when_below_threshold(self):
+        """Test auto-compact does not trigger when below threshold."""
+        mock_agent = Mock()
+        mock_ctx = Mock()
+        mock_ctx._messages = [Mock(), Mock()]
+        mock_ctx.get_token_usage.return_value = {"context_usage_percent": 50.0}
+        mock_ctx._compact_async = AsyncMock()
+        mock_agent.context_manager = mock_ctx
+
+        cli = InteractiveCLI(mock_agent)
+        cli.compact_threshold = 85.0
+
+        import asyncio
+
+        asyncio.run(cli._check_and_compact_context())
+
+        mock_ctx._compact_async.assert_not_called()
+
+    def test_auto_compact_no_context_manager(self):
+        """Test auto-compact with no context manager does not error."""
+        mock_agent = Mock()
+        mock_agent.context_manager = None
+
+        cli = InteractiveCLI(mock_agent)
+        cli.compact_threshold = 85.0
+
+        import asyncio
+
+        asyncio.run(cli._check_and_compact_context())
