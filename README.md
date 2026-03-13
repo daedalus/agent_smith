@@ -130,8 +130,8 @@ Regular Input:
 ### Programmatic Usage
 
 ```python
-from agent.core import AutonomousAgent
-from agent.config import Config
+from agent_smith.core import AutonomousAgent
+from agent_smith.config import Config
 
 config = Config("config.yaml")
 agent = AutonomousAgent(config)
@@ -159,7 +159,7 @@ config.set("llm.providers.lm-studio.base_url", "http://localhost:1234/v1")
 The agent supports the `provider/model` format for flexible model selection:
 
 ```python
-from agent.llm import create_llm_from_model_id
+from agent_smith.llm import create_llm_from_model_id
 
 # Use any model from models.dev
 llm, config = await create_llm_from_model_id("openai/gpt-4o")
