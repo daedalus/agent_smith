@@ -35,9 +35,11 @@ A fully autonomous AI agent for console with advanced tool use, multi-provider L
 - Connect to any MCP server
 
 ### LSP (Language Server Protocol)
-- LSP client for code intelligence
-- Completions, definitions, diagnostics
-- Support for pyright, rust-analyzer, etc.
+- Out-of-the-box LSP support for code intelligence
+- Auto-detection of LSP servers based on file extensions
+- Built-in support for: pyright, typescript, deno, gopls, rust-analyzer, clangd, jedi-language-server, omnisharp
+- LSP tool operations: `definition`, `references`, `hover`, `completion`, `symbols`, `workspace_symbol`, `implementation`, `diagnostics`
+- Configurable LSP servers in `config.yaml`
 
 ### Multimodal Support
 - Image understanding (vision models)
@@ -131,6 +133,36 @@ planning:
   max_steps: 20
   max_retries: 3
   checkpoint_enabled: true
+
+# LSP Configuration (optional - auto-detects available servers)
+lsp:
+  pyright:
+    command: ["pyright", "--langserver", "-v"]
+  typescript:
+    command: ["typescript-language-server", "--stdio"]
+```
+
+#### Using the LSP Tool
+
+The agent can use the `lsp` tool for code intelligence:
+
+```python
+# Via the agent's tool system
+result = await tool_executor.execute("lsp", {
+    "operation": "definition",
+    "file_path": "/path/to/file.py",
+    "line": 10,
+    "character": 5,
+})
+
+# Other operations:
+# - "references" - Find all references to a symbol
+# - "hover" - Get hover information
+# - "completion" - Get completions at position
+# - "symbols" - List all symbols in a file
+# - "workspace_symbol" - Search symbols across workspace
+# - "implementation" - Find implementations
+# - "diagnostics" - Get diagnostics/errors
 ```
 
 ## Usage
@@ -258,6 +290,8 @@ AGENT_CONFIG=config.yaml      # Custom config path
 ```
 
 ## Running Tests
+
+This tool relies heavily on testing.
 
 ```bash
 # Run all tests

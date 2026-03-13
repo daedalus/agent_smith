@@ -31,6 +31,7 @@ class AutonomousAgent:
         self._init_storage()
         self._init_file_tracker()
         self._init_llm()
+        self._init_lsp()
         self._init_tools()
         self._init_context()
         self._init_mcp()
@@ -42,6 +43,22 @@ class AutonomousAgent:
         self.agent_registry = get_agent_registry()
         self.current_agent = self.agent_registry.get_default()
         self.permission_handler = PermissionHandler()
+
+    def _init_lsp(self):
+        """Initialize LSP server manager."""
+        self.lsp_manager = LSPServerManager()
+        
+        lsp_config = self.config.get("lsp", {})
+        if lsp_config is not None:
+            for server_id, server_config in lsp_config.items():
+                if isinstance(server_config, dict):
+                    if server_config.get("disabled", False):
+                        self.lsp_manager.configure_server(server_id, disabled=True)
+                    elif "command" in server_config:
+                        self.lsp_manager.configure_server(
+                            server_id,
+                            command=server_config["command"],
+                        )
 
     def switch_agent(self, agent_name: str) -> bool:
         """Switch to a different agent."""
@@ -130,7 +147,7 @@ class AutonomousAgent:
         self.tool_registry = ToolRegistry()
         self.tool_executor = ToolExecutor(self.tool_registry)
         
-        register_builtin_tools(self.tool_registry, self.config.tools, self.file_tracker)
+        register_builtin_tools(self.tool_registry, self.config.tools, self.file_tracker, self.lsp_manager)
         
         self.tool_registry.register_handler("mcp", self._handle_mcp_tool)
 

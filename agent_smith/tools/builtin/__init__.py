@@ -385,8 +385,151 @@ class TodoTool(Tool):
             return ToolResult(success=False, content=None, error="Invalid action")
 
 
-def create_builtin_tools(config: dict = None, file_tracker=None) -> list[Tool]:
-    """Create all built-in tools."""
+class LSPTool(Tool):
+    """LSP operations tool."""
+
+    def __init__(self, lsp_manager=None):
+        super().__init__(
+            name="lsp",
+            description="Perform LSP operations like go-to-definition, find-references, hover, and more",
+        )
+        self.lsp_manager = lsp_manager
+
+    async def execute(self, operation: str, file_path: str, line: int = 1, character: int = 1, query: str = None) -> ToolResult:
+        """Perform LSP operation."""
+        if self.lsp_manager is None:
+            return ToolResult(success=False, content=None, error="LSP manager not configured")
+
+        try:
+            from agent_smith.lsp import path_to_file_uri, file_uri_to_path
+            
+            file_path = str(Path(file_path).resolve())
+            uri = path_to_file_uri(file_path)
+            
+            client = self.lsp_manager.get_server_for_file(file_path)
+            if client is None:
+                client = await self.lsp_manager.auto_start_for_file(file_path)
+            
+            if client is None:
+                return ToolResult(success=False, content=None, error="No LSP server available for this file type")
+
+            if isinstance(client, tuple):
+                client = client[0]
+
+            if operation == "definition":
+                result = await client.text_document__definition(uri, line - 1, character - 1)
+                if not result:
+                    return ToolResult(success=True, content="No definition found")
+                locations = []
+                for loc in result:
+                    locations.append({
+                        "file": file_uri_to_path(loc.uri),
+                        "range": loc.range,
+                    })
+                return ToolResult(success=True, content=locations, metadata={"count": len(locations)})
+
+            elif operation == "references":
+                result = await client.text_document__references(uri, line - 1, character - 1)
+                if not result:
+                    return ToolResult(success=True, content="No references found")
+                locations = []
+                for loc in result:
+                    locations.append({
+                        "file": file_uri_to_path(loc.uri),
+                        "range": loc.range,
+                    })
+                return ToolResult(success=True, content=locations, metadata={"count": len(locations)})
+
+            elif operation == "hover":
+                result = await client.text_document__hover(uri, line - 1, character - 1)
+                content = result.contents
+                if isinstance(content, dict):
+                    content = content.get("value", str(content))
+                elif isinstance(content, list):
+                    content = "\n".join(str(c) for c in content)
+                return ToolResult(success=True, content=content, metadata={"range": result.range})
+
+            elif operation == "completion":
+                result = await client.text_document__completion(uri, line - 1, character - 1)
+                if not result:
+                    return ToolResult(success=True, content=[])
+                items = []
+                for item in result:
+                    items.append({
+                        "label": item.label,
+                        "kind": item.kind,
+                        "detail": item.detail,
+                    })
+                return ToolResult(success=True, content=items, metadata={"count": len(items)})
+
+            elif operation == "symbols":
+                result = await client.text_document__symbol(uri)
+                if not result:
+                    return ToolResult(success=True, content="No symbols found")
+                symbols = []
+                for sym in result:
+                    symbols.append({
+                        "name": sym.name,
+                        "kind": sym.kind,
+                        "location": {
+                            "file": file_uri_to_path(sym.location.uri),
+                            "range": sym.location.range,
+                        },
+                    })
+                return ToolResult(success=True, content=symbols, metadata={"count": len(symbols)})
+
+            elif operation == "workspace_symbol":
+                if not query:
+                    return ToolResult(success=False, content=None, error="query is required for workspace_symbol")
+                result = await client.workspace__symbol(query)
+                if not result:
+                    return ToolResult(success=True, content="No symbols found")
+                symbols = []
+                for sym in result:
+                    symbols.append({
+                        "name": sym.name,
+                        "kind": sym.kind,
+                        "location": {
+                            "file": file_uri_to_path(sym.location.uri),
+                            "range": sym.location.range,
+                        },
+                    })
+                return ToolResult(success=True, content=symbols, metadata={"count": len(symbols)})
+
+            elif operation == "implementation":
+                result = await client.text_document__implementation(uri, line - 1, character - 1)
+                if not result:
+                    return ToolResult(success=True, content="No implementation found")
+                locations = []
+                for loc in result:
+                    locations.append({
+                        "file": file_uri_to_path(loc.uri),
+                        "range": loc.range,
+                    })
+                return ToolResult(success=True, content=locations, metadata={"count": len(locations)})
+
+            elif operation == "diagnostics":
+                result = await client.text_document__diagnostics(uri)
+                if not result:
+                    return ToolResult(success=True, content="No diagnostics")
+                diags = []
+                for diag in result:
+                    diags.append({
+                        "message": diag.message,
+                        "severity": diag.severity,
+                        "range": diag.range,
+                        "code": diag.code,
+                    })
+                return ToolResult(success=True, content=diags, metadata={"count": len(diags)})
+
+            else:
+                return ToolResult(success=False, content=None, error=f"Unknown operation: {operation}")
+
+        except Exception as e:
+            return ToolResult(success=False, content=None, error=str(e))
+
+
+def create_builtin_tools(config: dict = None, file_tracker=None, lsp_manager=None) -> list[Tool]:
     from agent_smith.tools.builtin.exa_search import ExaSearchTool, ExaFetchTool
     from agent_smith.tools.builtin.free_search import FreeExaSearchTool, OpenWebSearchTool
     
@@ -412,13 +555,15 @@ def create_builtin_tools(config: dict = None, file_tracker=None) -> list[Tool]:
         FreeExaSearchTool(),
         OpenWebSearchTool(),
         TodoTool(),
+        # LSP tool
+        LSPTool(lsp_manager=lsp_manager),
     ]
     return tools
 
 
-def register_builtin_tools(registry: ToolRegistry, config: dict = None, file_tracker=None):
+def register_builtin_tools(registry: ToolRegistry, config: dict = None, file_tracker=None, lsp_manager=None):
     """Register all built-in tools."""
-    for tool in create_builtin_tools(config, file_tracker):
+    for tool in create_builtin_tools(config, file_tracker, lsp_manager):
         registry.register(tool)
     
     try:
