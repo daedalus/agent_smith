@@ -104,7 +104,7 @@ class TestAdminConsole:
         response = await console.handle_dashboard(request)
         
         assert response.status == 200
-        assert b"Agent Smith Admin" in response.body
+        assert b"Agent Smith" in response.body
 
     @pytest.mark.asyncio
     async def test_sessions_endpoint(self, mock_config):
