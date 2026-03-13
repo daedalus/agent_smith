@@ -95,6 +95,11 @@ class Config:
         """Get file watcher configuration."""
         return self.get("file_watcher", {})
 
+    @property
+    def admin(self) -> dict:
+        """Get admin console configuration."""
+        return self.get("admin", {})
+
 
 _config: Optional[Config] = None
 

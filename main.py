@@ -86,6 +86,23 @@ def parse_args():
         help="Publish service via mDNS",
     )
     parser.add_argument(
+        "--admin",
+        action="store_true",
+        help="Start admin console",
+    )
+    parser.add_argument(
+        "--admin-host",
+        type=str,
+        default="127.0.0.1",
+        help="Admin console host (default: 127.0.0.1)",
+    )
+    parser.add_argument(
+        "--admin-port",
+        type=int,
+        default=7890,
+        help="Admin console port (default: 7890)",
+    )
+    parser.add_argument(
         "--cwd",
         type=str,
         default=".",
@@ -181,6 +198,23 @@ async def main():
         config = Config(args.config)
         agent = AutonomousAgent(config)
         await run_acp(agent)
+        return
+    
+    if args.admin:
+        os.chdir(args.cwd)
+        config = Config(args.config)
+        from agent_smith.admin import start_admin_console
+        runner = await start_admin_console(
+            config=config,
+            host=args.admin_host,
+            port=args.admin_port,
+        )
+        try:
+            await asyncio.Event().wait()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            await runner.cleanup()
         return
     
     config = Config(args.config)

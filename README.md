@@ -253,6 +253,25 @@ API endpoints:
 - `POST /sessions` - Create session
 - `POST /sessions/{id}/prompt` - Send prompt
 
+### Admin Console
+
+```bash
+# Start admin console on default port (7890)
+python3 main.py --admin
+
+# Custom host and port
+python3 main.py --admin --admin-host "127.0.0.1" --admin-port 7890
+```
+
+The admin console provides a local web interface for:
+- **Dashboard** - Overview with usage statistics and recent sessions
+- **Sessions** - Browse and manage conversation sessions
+- **Usage** - View token usage and cost analytics
+- **Config** - Edit configuration via web interface
+- **API Keys** - Manage provider API keys
+
+Access at: http://127.0.0.1:7890
+
 ### ACP Server Mode (for Zed, VSCode)
 
 ```bash
@@ -377,19 +396,6 @@ agent/
 ├── retry/           # Retry logic with backoff
 ├── skills/          # Skills system
 ├── snapshot/        # Git-based snapshots
-└── cli/             # Console interface
-```
-agent/
-├── core.py           # Main agent loop
-├── config.py         # Configuration management
-├── state.py          # State machine
-├── context.py        # Context management
-├── llm/             # Multi-provider LLM layer
-├── tools/           # Tool system
-├── mcp/             # MCP protocol client
-├── lsp/             # LSP client
-├── planning/        # Task planning engine
-├── multimodal/      # Vision, audio, documents
 └── cli/             # Console interface
 ```
 
