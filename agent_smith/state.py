@@ -10,6 +10,7 @@ from pathlib import Path
 
 class AgentState(Enum):
     """Agent execution states."""
+
     IDLE = auto()
     PLANNING = auto()
     EXECUTING = auto()
@@ -22,6 +23,7 @@ class AgentState(Enum):
 @dataclass
 class TaskStep:
     """A single step in task execution."""
+
     id: str
     description: str
     tool: Optional[str] = None
@@ -36,6 +38,7 @@ class TaskStep:
 @dataclass
 class ExecutionPlan:
     """A plan containing multiple steps."""
+
     id: str
     goal: str
     steps: list[TaskStep] = field(default_factory=list)
@@ -95,12 +98,14 @@ class ExecutionPlan:
 @dataclass
 class AgentStateData:
     """Complete agent state data."""
+
     state: AgentState = AgentState.IDLE
     task: Optional[str] = None
     plan: Optional[ExecutionPlan] = None
     messages: list[dict] = field(default_factory=list)
     context: dict = field(default_factory=dict)
     error: Optional[str] = None
+    last_traceback: Optional[str] = None
     last_update: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict:

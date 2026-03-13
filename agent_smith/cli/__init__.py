@@ -439,6 +439,9 @@ class InteractiveCLI:
         finally:
             spinner.stop()
 
+        if response.startswith("Error:") and self.agent.state.last_traceback:
+            self.last_error_trace = self.agent.state.last_traceback
+
         self.ui.print_message("assistant", response)
 
         await self._check_and_compact_context()
