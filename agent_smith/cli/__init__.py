@@ -7,6 +7,7 @@ import threading
 import json
 import httpx
 import yaml
+import traceback
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -238,6 +239,7 @@ class ConsoleUI:
 ║  /snapshot     - Create a new snapshot                     ║
 ║  /snapshots    - List available snapshots                  ║
 ║  /revert <hash> - Revert to a snapshot (hash or 'latest')║
+║  /trace        - Show last error trace                     ║
 ╚══════════════════════════════════════════════════════════════╝
 
 NOTE: All commands MUST be prefixed with '/'. 
@@ -285,6 +287,7 @@ class InteractiveCLI:
         self.agent = agent
         self.ui = ConsoleUI()
         self.history = CommandHistory()
+        self.last_error_trace: Optional[str] = None
 
     async def run(self):
         """Run the CLI."""
@@ -357,6 +360,10 @@ class InteractiveCLI:
                         await self._list_snapshots()
                         continue
 
+                    if command == "/trace":
+                        self._print_trace()
+                        continue
+
                     # If it starts with "/" but doesn't match any known command, treat as regular input
                     await self._process_input(user_input)
                 else:
@@ -367,6 +374,7 @@ class InteractiveCLI:
             except KeyboardInterrupt:
                 print("\n" + self.ui.color("yellow", "Use 'exit' to quit"))
             except Exception as e:
+                self.last_error_trace = traceback.format_exc()
                 self.ui.print_error(str(e))
 
     async def _process_input(self, user_input: str):
@@ -740,14 +748,15 @@ class InteractiveCLI:
         """List available skills."""
         try:
             from agent_smith.skills import create_skills_manager
+
             manager = create_skills_manager()
             skills = manager.list_skills()
-            
+
             if not skills:
                 print(self.ui.color("yellow", "\nNo skills found."))
                 print("Create skills in .agent/skills/<skill-name>/skill.md")
                 return
-            
+
             print(self.ui.color("cyan", "\nAvailable Skills:"))
             print(self.ui.color("gray", "─" * 40))
             for skill in skills:
@@ -760,9 +769,10 @@ class InteractiveCLI:
         """Create a new snapshot."""
         try:
             from agent_smith.snapshot import create_snapshot_manager
+
             manager = create_snapshot_manager()
             snapshot_hash = await manager.track()
-            
+
             if snapshot_hash:
                 self.ui.print_success(f"Snapshot created: {snapshot_hash[:8]}")
             else:
@@ -775,20 +785,21 @@ class InteractiveCLI:
         if not snapshot_hash:
             self.ui.print_error("Snapshot hash required. Use /snapshots to list available.")
             return
-        
+
         try:
             from agent_smith.snapshot import create_snapshot_manager
+
             manager = create_snapshot_manager()
-            
+
             if snapshot_hash == "latest":
                 snapshots = await manager.list_snapshots()
                 if not snapshots:
                     self.ui.print_error("No snapshots available")
                     return
                 snapshot_hash = snapshots[0]["hash"]
-            
+
             success = await manager.restore(snapshot_hash)
-            
+
             if success:
                 self.ui.print_success(f"Reverted to snapshot: {snapshot_hash[:8]}")
             else:
@@ -800,17 +811,26 @@ class InteractiveCLI:
         """List available snapshots."""
         try:
             from agent_smith.snapshot import create_snapshot_manager
+
             manager = create_snapshot_manager()
             snapshots = await manager.list_snapshots()
-            
+
             if not snapshots:
                 print(self.ui.color("yellow", "\nNo snapshots available."))
                 print("Use /snapshot to create one.")
                 return
-            
+
             print(self.ui.color("cyan", "\nAvailable Snapshots:"))
             print(self.ui.color("gray", "─" * 40))
             for s in snapshots:
                 print(f"  • {self.ui.color('magenta', s['hash'][:8])} ({s['timestamp']})")
         except Exception as e:
             self.ui.print_error(f"Error: {e}")
+
+    def _print_trace(self):
+        """Print the last error trace."""
+        if self.last_error_trace:
+            print(self.ui.color("red", "\n═══ Error Trace ═══"))
+            print(self.last_error_trace)
+        else:
+            print(self.ui.color("gray", "\nNo error trace available."))

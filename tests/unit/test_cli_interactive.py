@@ -4,6 +4,7 @@ import pytest
 from unittest.mock import Mock, AsyncMock, patch
 import sys
 import os
+import traceback
 
 # Add the agent directory to the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -137,5 +138,88 @@ class TestInteractiveCLI:
             assert "/plan" in output
             assert "/resume" in output
             assert "/checkpoint" in output
+            assert "/trace" in output
+        finally:
+            sys.stdout = old_stdout
+
+
+class TestTraceCommand:
+    """Test /trace command functionality."""
+
+    def test_trace_no_error(self):
+        """Test /trace command when no error has occurred."""
+        mock_agent = Mock()
+        cli = InteractiveCLI(mock_agent)
+        cli.last_error_trace = None
+
+        import io
+        import sys
+
+        old_stdout = sys.stdout
+        sys.stdout = buffer = io.StringIO()
+
+        try:
+            cli._print_trace()
+            output = buffer.getvalue()
+            assert "No error trace available" in output
+        finally:
+            sys.stdout = old_stdout
+
+    def test_trace_with_error(self):
+        """Test /trace command when an error has occurred."""
+        mock_agent = Mock()
+        cli = InteractiveCLI(mock_agent)
+        cli.last_error_trace = "Traceback (most recent call last):\n  File \"test.py\", line 1, in <module>\n    raise ValueError('test error')\nValueError: test error"
+
+        import io
+        import sys
+
+        old_stdout = sys.stdout
+        sys.stdout = buffer = io.StringIO()
+
+        try:
+            cli._print_trace()
+            output = buffer.getvalue()
+            assert "Error Trace" in output
+            assert "ValueError: test error" in output
+        finally:
+            sys.stdout = old_stdout
+
+    def test_trace_stores_error_on_exception(self):
+        """Test that exceptions store their trace."""
+        mock_agent = Mock()
+        cli = InteractiveCLI(mock_agent)
+
+        async def raise_error():
+            raise ValueError("test error")
+
+        async def test():
+            try:
+                await raise_error()
+            except Exception:
+                cli.last_error_trace = traceback.format_exc()
+
+        import asyncio
+
+        asyncio.run(test())
+
+        assert cli.last_error_trace is not None
+        assert "ValueError: test error" in cli.last_error_trace
+
+    def test_trace_command_in_help(self):
+        """Test that /trace appears in help text."""
+        ui = ConsoleUI()
+
+        import io
+        import sys
+
+        old_stdout = sys.stdout
+        sys.stdout = buffer = io.StringIO()
+
+        try:
+            ui.print_help()
+            output = buffer.getvalue()
+            assert "/trace" in output
+            assert "Show last error trace" in output
         finally:
             sys.stdout = old_stdout
