@@ -115,3 +115,9 @@ admin:
   enabled: true
   host: 127.0.0.1
   port: 7890
+
+github:
+  # token: ${GITHUB_TOKEN}  # Set via environment variable or here
+  # app_id: ""              # GitHub App ID
+  # app_private_key: ""      # GitHub App private key
+  # installation_id: ""      # GitHub App installation ID

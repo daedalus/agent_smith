@@ -100,6 +100,11 @@ class Config:
         """Get admin console configuration."""
         return self.get("admin", {})
 
+    @property
+    def github(self) -> dict:
+        """Get GitHub configuration."""
+        return self.get("github", {})
+
 
 _config: Optional[Config] = None
 

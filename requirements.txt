@@ -6,3 +6,4 @@ exa-py>=1.0.0
 watchdog>=4.0.0
 aiohttp>=3.9.0
 aiohttp-jinja2>=1.6.0
+PyGithub>=2.0.0

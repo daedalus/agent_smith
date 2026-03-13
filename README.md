@@ -131,15 +131,26 @@ file_watcher:
   ignore:
     - .git
     - __pycache__
-    - "*.pyc"
-    - .pytest_cache
-    - node_modules
-    - .DS_Store
-    - "*.swp"
-    - "*.tmp"
-    - .venv
-    - venv
 ```
+
+### GitHub Integration
+- GitHub OAuth and Personal Access Token (PAT) authentication
+- GitHub App authentication support
+- Pull Request operations: list, create, view, merge, close
+- Issue management: list, create, view
+- Comment on issues and PRs
+- Repository information lookup
+- Uses PyGithub library
+
+```yaml
+github:
+  token: ${GITHUB_TOKEN}  # Set via environment variable
+  # app_id: ""              # For GitHub App auth
+  # app_private_key: ""     # For GitHub App auth
+  # installation_id: ""     # For GitHub App auth
+```
+
+The agent can use the `github` tool for GitHub operations:
 
 ### Snapshot/Revert
 - Capture and rollback changes using Git
