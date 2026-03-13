@@ -12,6 +12,13 @@ from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
+try:
+    import readline
+
+    READLINE_AVAILABLE = True
+except ImportError:
+    READLINE_AVAILABLE = False
+
 
 class PromptHandler:
     """Simple prompt handler to mimic @clack/prompts functionality."""
@@ -124,6 +131,37 @@ class ConsoleUI:
     def __init__(self, use_colors: bool = True):
         self.use_colors = use_colors and sys.stdout.isatty()
         self.prompts = PromptHandler()
+        self._setup_readline()
+
+    def _setup_readline(self):
+        """Setup readline for history support."""
+        if not READLINE_AVAILABLE:
+            return
+        try:
+            readline.parse_and_bind("tab: complete")
+            if hasattr(readline, "set_history_length"):
+                readline.set_history_length(100)
+        except Exception:
+            pass
+
+    def add_to_history(self, command: str):
+        """Add a command to readline history."""
+        if not READLINE_AVAILABLE or not command.strip():
+            return
+        try:
+            readline.add_history(command)
+        except Exception:
+            pass
+
+    def clear_history(self):
+        """Clear readline history."""
+        if not READLINE_AVAILABLE:
+            return
+        try:
+            if hasattr(readline, "clear_history"):
+                readline.clear_history()
+        except Exception:
+            pass
 
     def print_warning(self, message: str):
         """Print warning message."""
@@ -161,9 +199,15 @@ class ConsoleUI:
             "error": "red",
         }
         color = state_colors.get(state, "white")
-        print(f"\n{self.color(color, '┌─[' + state.upper() + ']')}", end=" ")
-        print(self.color("cyan", "➜"), end=" ")
-        return input()
+        prompt_str = (
+            f"\n{self.color(color, '┌─[' + state.upper() + ']')} {self.color('cyan', '➜')} "
+        )
+        if READLINE_AVAILABLE:
+            try:
+                return input(prompt_str)
+            except Exception:
+                return input()
+        return input(prompt_str)
 
     def print_message(self, role: str, content: str):
         """Print a message."""

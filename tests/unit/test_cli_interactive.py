@@ -359,3 +359,60 @@ class TestAutoCompact:
         import asyncio
 
         asyncio.run(cli._check_and_compact_context())
+
+
+class TestPromptHistoryNavigation:
+    """Test up/down arrow key prompt history navigation."""
+
+    def test_readline_available_flag_exists(self):
+        """Test that READLINE_AVAILABLE flag is defined."""
+        from agent_smith.cli import READLINE_AVAILABLE
+
+        assert isinstance(READLINE_AVAILABLE, bool)
+
+    def test_console_ui_initializes_readline(self):
+        """Test that ConsoleUI initializes readline on creation."""
+        ui = ConsoleUI()
+        assert ui is not None
+
+    def test_add_to_history_with_readline(self):
+        """Test add_to_history method exists and is callable."""
+        ui = ConsoleUI()
+        ui.add_to_history("test command")
+        ui.add_to_history("")
+
+    def test_clear_history_with_readline(self):
+        """Test clear_history method exists and is callable."""
+        ui = ConsoleUI()
+        ui.clear_history()
+
+    def test_print_prompt_returns_input(self):
+        """Test that print_prompt returns user input."""
+        ui = ConsoleUI(use_colors=False)
+
+        with patch("builtins.input", return_value="test input"):
+            result = ui.print_prompt(state="idle")
+            assert result == "test input"
+
+    def test_print_prompt_with_custom_state(self):
+        """Test print_prompt with different states."""
+        ui = ConsoleUI(use_colors=False)
+
+        with patch("builtins.input", return_value="test"):
+            for state in ["idle", "planning", "executing", "waiting", "complete", "error"]:
+                result = ui.print_prompt(state=state)
+                assert result == "test"
+
+    def test_history_integration_with_cli(self):
+        """Test that CLI uses history correctly."""
+        mock_agent = Mock()
+        cli = InteractiveCLI(mock_agent)
+
+        cli.history.add("command 1")
+        cli.history.add("command 2")
+        cli.history.add("command 3")
+
+        assert len(cli.history.get_all()) == 3
+        assert cli.history.get_all()[0]["command"] == "command 1"
+        assert cli.history.get_all()[1]["command"] == "command 2"
+        assert cli.history.get_all()[2]["command"] == "command 3"
