@@ -8,7 +8,6 @@ import aiohttp
 from typing import Optional, Any
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
 
 
 SHARE_API_BASE = os.environ.get("OPENCODE_SHARE_URL", "https://opncd.ai")
@@ -99,6 +98,7 @@ class ShareManager:
     _instance: Optional["ShareManager"] = None
     _shares: dict[str, ShareInfo] = {}
     _queue: ShareQueue = ShareQueue()
+    _storage = None
 
     def __new__(cls) -> "ShareManager":
         if cls._instance is None:
@@ -113,11 +113,36 @@ class ShareManager:
         self._initialized = True
         self._queue.set_sync_callback(self._do_sync)
 
+    def set_storage(self, storage):
+        """Set the storage for persisting shares."""
+        self._storage = storage
+
     def reset(self):
         """Reset the share manager."""
         self._shares.clear()
         self._queue = ShareQueue()
         self._queue.set_sync_callback(self._do_sync)
+
+    async def load_from_storage(self):
+        """Load shares from persistent storage."""
+        if not self._storage:
+            return
+
+        try:
+            db = await self._storage.get_storage()
+            sessions = await db.get_all_sessions()
+            for session in sessions:
+                share = await db.get_share(session.id)
+                if share:
+                    self._shares[session.id] = ShareInfo(
+                        session_id=share.session_id,
+                        share_id=share.share_id,
+                        secret=share.secret,
+                        url=share.url,
+                        created_at=share.created_at,
+                    )
+        except Exception:
+            pass
 
     @property
     def disabled(self) -> bool:
@@ -156,9 +181,15 @@ class ShareManager:
 
         self._shares[session_id] = share_info
 
+        if self._storage:
+            try:
+                await self._storage.save_share(session_id, share_id, secret, share_info.url)
+            except Exception:
+                pass
+
         try:
             await self._create_remote(session_id, share_info)
-        except Exception as e:
+        except Exception:
             pass
 
         await self.full_sync(session_id)
@@ -168,9 +199,32 @@ class ShareManager:
     async def remove(self, session_id: str):
         """Remove a share for a session."""
         if session_id not in self._shares:
+            if self._storage:
+                try:
+                    db_share = await self._storage.get_share(session_id)
+                    if db_share:
+                        share_info = ShareInfo(
+                            session_id=session_id,
+                            share_id=db_share.share_id,
+                            secret=db_share.secret,
+                            url=db_share.url,
+                        )
+                        try:
+                            await self._remove_remote(share_info)
+                        except Exception:
+                            pass
+                        await self._storage.delete_share(session_id)
+                except Exception:
+                    pass
             return
 
         share_info = self._shares.pop(session_id)
+
+        if self._storage:
+            try:
+                await self._storage.delete_share(session_id)
+            except Exception:
+                pass
 
         try:
             await self._remove_remote(share_info)
@@ -260,6 +314,16 @@ def get_share_manager() -> ShareManager:
     return _manager
 
 
+def set_share_storage(storage):
+    """Set the storage for persisting shares."""
+    get_share_manager().set_storage(storage)
+
+
+async def load_shares_from_storage():
+    """Load shares from persistent storage."""
+    await get_share_manager().load_from_storage()
+
+
 async def create_share(session_id: str) -> ShareInfo:
     """Create a share for a session."""
     return await get_share_manager().create(session_id)
@@ -293,3 +357,63 @@ async def sync_share(session_id: str, data: dict[str, Any]):
 def generate_share_url(share_id: str) -> str:
     """Generate a share URL."""
     return f"{SHARE_API_BASE}/share/{share_id}"
+
+
+class ForkError(Exception):
+    """Base exception for fork errors."""
+
+    pass
+
+
+class ForkManager:
+    """Manages session forking."""
+
+    _instance: Optional["ForkManager"] = None
+    _storage = None
+
+    def __new__(cls) -> "ForkManager":
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self):
+        if self._initialized:
+            return
+        self._initialized = True
+
+    def set_storage(self, storage):
+        """Set the storage for forking sessions."""
+        self._storage = storage
+
+    async def fork_session(self, session_id: str, new_title: str = None) -> str:
+        """Fork/duplicate a session."""
+        if not self._storage:
+            raise ForkError("Storage not configured")
+
+        new_session = await self._storage.fork_session(session_id, new_title)
+        if not new_session:
+            raise ForkError(f"Session not found: {session_id}")
+
+        return new_session.id
+
+
+_fork_manager: Optional[ForkManager] = None
+
+
+def get_fork_manager() -> ForkManager:
+    """Get the global fork manager."""
+    global _fork_manager
+    if _fork_manager is None:
+        _fork_manager = ForkManager()
+    return _fork_manager
+
+
+def set_fork_storage(storage):
+    """Set the storage for forking sessions."""
+    get_fork_manager().set_storage(storage)
+
+
+async def fork_session(session_id: str, new_title: str = None) -> str:
+    """Fork/duplicate a session and return the new session ID."""
+    return await get_fork_manager().fork_session(session_id, new_title)
