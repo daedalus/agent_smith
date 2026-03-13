@@ -79,6 +79,20 @@ file_tracker:
   cache_dir: .agent/cache
   enabled: true
 
+file_watcher:
+  enabled: true
+  ignore:
+    - .git
+    - __pycache__
+    - "*.pyc"
+    - .pytest_cache
+    - node_modules
+    - .DS_Store
+    - "*.swp"
+    - "*.tmp"
+    - .venv
+    - venv
+
 exa:
   api_key: ${EXA_API_KEY}
   num_results: 10

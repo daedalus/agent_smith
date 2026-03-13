@@ -22,10 +22,21 @@ class FileCacheEntry:
 class FileTracker:
     """Track file modifications for auto-reload."""
 
-    def __init__(self, cache_dir: str = ".agent/cache"):
+    def __init__(self, cache_dir: str = ".agent/cache", file_watcher=None):
         self._cache: dict[str, FileCacheEntry] = {}
         self._cache_dir = cache_dir
+        self._file_watcher = file_watcher
         self._ensure_cache_dir()
+        
+        if self._file_watcher:
+            self._file_watcher.add_callback(self._on_file_change)
+
+    def _on_file_change(self, event):
+        """Callback for file watcher events to invalidate cache."""
+        if event.event_type == "change":
+            self.invalidate(event.file)
+        elif event.event_type == "unlink":
+            self.invalidate(event.file)
 
     def _ensure_cache_dir(self):
         """Ensure cache directory exists."""

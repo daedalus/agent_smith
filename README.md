@@ -118,6 +118,29 @@ This skill returns a greeting.
 
 Use `/skills` CLI command to list available skills.
 
+### File Watcher
+- Real-time file system monitoring using the `watchdog` library
+- Automatically invalidates file caches when files are modified externally
+- Supports cross-platform file watching (Linux: inotify, macOS: FSEvents, Windows: ReadDirectoryChangesW)
+- Configurable ignore patterns for directories and file types
+- Events: `add`, `change`, `unlink` (create, modify, delete)
+
+```yaml
+file_watcher:
+  enabled: true
+  ignore:
+    - .git
+    - __pycache__
+    - "*.pyc"
+    - .pytest_cache
+    - node_modules
+    - .DS_Store
+    - "*.swp"
+    - "*.tmp"
+    - .venv
+    - venv
+```
+
 ### Snapshot/Revert
 - Capture and rollback changes using Git
 - Uses a separate git repository for snapshot tracking

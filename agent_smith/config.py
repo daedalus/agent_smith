@@ -90,6 +90,11 @@ class Config:
         """Get permission configuration."""
         return self.get("permission", {})
 
+    @property
+    def file_watcher(self) -> dict:
+        """Get file watcher configuration."""
+        return self.get("file_watcher", {})
+
 
 _config: Optional[Config] = None
 
