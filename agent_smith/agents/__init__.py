@@ -159,6 +159,7 @@ def create_default_agents() -> AgentRegistry:
                     permission="read", pattern="*.env.example", action=PermissionAction.ALLOW
                 ),
                 PermissionRule(permission="task", pattern="*", action=PermissionAction.ALLOW),
+                PermissionRule(permission="doom_loop", action=PermissionAction.ASK),
             ],
         )
     )
@@ -178,6 +179,7 @@ def create_default_agents() -> AgentRegistry:
                 PermissionRule(permission="bash", action=PermissionAction.ASK),
                 PermissionRule(permission="read", pattern="*.env", action=PermissionAction.ASK),
                 PermissionRule(permission="read", pattern="*.env.*", action=PermissionAction.ASK),
+                PermissionRule(permission="doom_loop", action=PermissionAction.ASK),
             ],
         )
     )

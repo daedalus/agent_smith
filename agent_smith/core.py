@@ -25,6 +25,7 @@ from agent_smith.agents.permission import (
     PermissionReplyType,
 )
 from agent_smith.session_summary import SessionSummaryGenerator
+from agent_smith.doom_loop import DoomLoopHandler
 
 
 class AutonomousAgent:
@@ -153,6 +154,7 @@ class AutonomousAgent:
     def _init_tools(self):
         """Initialize tool system."""
         from agent_smith.tools.task import create_task_tool
+        from agent_smith.doom_loop import create_doom_loop_handler
 
         self.tool_registry = ToolRegistry()
         self.tool_executor = ToolExecutor(self.tool_registry)
@@ -165,6 +167,8 @@ class AutonomousAgent:
         self.tool_registry.register(self.task_tool)
 
         self.tool_registry.register_handler("mcp", self._handle_mcp_tool)
+
+        self.doom_loop_handler = create_doom_loop_handler()
 
     def _init_context(self):
         """Initialize context manager."""
@@ -211,11 +215,33 @@ class AutonomousAgent:
         return {"status": "not implemented"}
 
     async def _handle_tool_calls(self, tool_calls: list) -> list[dict]:
-        """Handle tool calls from LLM with permission checking."""
+        """Handle tool calls from LLM with permission checking and doom loop detection."""
         results = []
         for tc in tool_calls:
             tool_name = tc.name
             args = tc.arguments
+
+            is_doom_loop = self.doom_loop_handler.check_tool_call(tool_name, args)
+            if is_doom_loop:
+                warning = self.doom_loop_handler.get_loop_warning()
+                if warning:
+                    print(f"\n\033[91m{warning}\033[0m\n")
+
+                if self.current_agent:
+                    doom_action = self.permission_handler.check_permission(
+                        self.current_agent, "doom_loop", {"tool": tool_name, "args": args}
+                    )
+                    if doom_action == PermissionAction.DENY:
+                        results.append(
+                            {
+                                "tool_call_id": tc.id,
+                                "tool_name": tool_name,
+                                "result": f"Error: Doom loop detected - tool '{tool_name}' called repeatedly with same arguments. Permission denied.",
+                                "success": False,
+                            }
+                        )
+                        self.doom_loop_handler.reset(tool_name)
+                        continue
 
             if self.current_agent:
                 action = self.permission_handler.check_permission(
