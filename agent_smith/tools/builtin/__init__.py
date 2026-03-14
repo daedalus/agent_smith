@@ -4,10 +4,49 @@ import os
 import json
 import subprocess
 import asyncio
+import tempfile
 from pathlib import Path
 from typing import Optional
 
 from agent_smith.tools import Tool, ToolResult, ToolRegistry
+
+
+def atomic_write(file_path: Path, content: str) -> None:
+    """Write content to a file atomically using temp file + rename."""
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    fd, temp_path = tempfile.mkstemp(
+        dir=file_path.parent, prefix=f".{file_path.name}.", suffix=".tmp"
+    )
+    try:
+        os.write(fd, content.encode("utf-8"))
+        os.fsync(fd)
+        os.close(fd)
+        os.rename(temp_path, str(file_path))
+    except Exception:
+        os.close(fd)
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+        raise
+
+
+def atomic_read(file_path: Path) -> str:
+    """Read file content atomically using copy to temp file."""
+    import shutil
+
+    temp_fd, temp_path = tempfile.mkstemp(suffix=".tmp")
+    try:
+        os.close(temp_fd)
+
+        with open(file_path, "rb") as src:
+            with open(temp_path, "wb") as dst:
+                shutil.copyfileobj(src, dst)
+
+        with open(temp_path, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read()
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
 
 
 class BashTool(Tool):
@@ -267,11 +306,10 @@ class WriteFileTool(Tool):
         self.file_tracker = file_tracker
 
     async def execute(self, path: str, content: str, mode: str = "w") -> ToolResult:
-        """Write to a file."""
+        """Write to a file atomically."""
         try:
             file_path = self.root_dir / path
-            file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_path.write_text(content)
+            atomic_write(file_path, content)
 
             if self.file_tracker:
                 self.file_tracker.invalidate(str(file_path.resolve()))
@@ -297,7 +335,7 @@ class EditFileTool(Tool):
         self.file_tracker = None
 
     async def execute(self, path: str, old: str, new: str) -> ToolResult:
-        """Edit a file."""
+        """Edit a file atomically."""
         try:
             file_path = self.root_dir / path
             if not file_path.exists():
@@ -307,15 +345,15 @@ class EditFileTool(Tool):
 
             if self.file_tracker and not self.file_tracker.is_modified(full_path):
                 cached = self.file_tracker.get(full_path)
-                content = cached.content if cached else file_path.read_text()
+                content = cached.content if cached else atomic_read(file_path)
             else:
-                content = file_path.read_text()
+                content = atomic_read(file_path)
 
             if old not in content:
                 return ToolResult(success=False, content=None, error="Old string not found in file")
 
             new_content = content.replace(old, new, 1)
-            file_path.write_text(new_content)
+            atomic_write(file_path, new_content)
 
             if self.file_tracker:
                 self.file_tracker.invalidate(full_path)
