@@ -24,6 +24,7 @@ from agent_smith.agents.permission import (
     PermissionReply,
     PermissionReplyType,
 )
+from agent_smith.session_summary import SessionSummaryGenerator
 
 
 class AutonomousAgent:
@@ -151,12 +152,17 @@ class AutonomousAgent:
 
     def _init_tools(self):
         """Initialize tool system."""
+        from agent_smith.tools.task import create_task_tool
+
         self.tool_registry = ToolRegistry()
         self.tool_executor = ToolExecutor(self.tool_registry)
 
         register_builtin_tools(
             self.tool_registry, self.config.tools, self.file_tracker, self.lsp_manager
         )
+
+        self.task_tool = create_task_tool(self.agent_registry, self.permission_handler)
+        self.tool_registry.register(self.task_tool)
 
         self.tool_registry.register_handler("mcp", self._handle_mcp_tool)
 
@@ -254,12 +260,23 @@ class AutonomousAgent:
 
         return results
 
-    async def process_input(self, user_input: str) -> str:
+    def _format_thinking(self, thinking: str) -> str:
+        """Format thinking content for display."""
+        lines = thinking.strip().split("\n")
+        formatted = "\n".join(f"  {line}" for line in lines)
+        return f"\033[90m\033[3mThinking:\n{formatted}\033[0m"
+
+    async def process_input(self, user_input: str, show_thinking: bool = True) -> str:
         """Process a user input through the agent."""
         self.state.state = AgentState.EXECUTING
         self.state.task = user_input
 
+        if hasattr(self, "task_tool"):
+            self.task_tool.update_description(self.current_agent)
+
         self.context_manager.add_message("user", user_input)
+
+        tool_results_history = []
 
         try:
             tools = self.tool_registry.get_schemas()
@@ -270,8 +287,12 @@ class AutonomousAgent:
                 tools=tools if tools else None,
             )
 
+            if response.thinking and show_thinking:
+                print(f"\n{self._format_thinking(response.thinking)}")
+
             if response.has_tool_calls:
                 tool_results = await self._handle_tool_calls(response.tool_calls)
+                tool_results_history.extend(tool_results)
 
                 for tr in tool_results:
                     result_content = tr["result"]
@@ -289,6 +310,9 @@ class AutonomousAgent:
                 content = response.content
 
             self.context_manager.add_message("assistant", content)
+
+            await self._generate_summary(tool_results_history)
+
             self.state.state = AgentState.COMPLETE
 
             return content
@@ -357,3 +381,30 @@ class AutonomousAgent:
     def get_state(self) -> dict:
         """Get current agent state."""
         return self.state.to_dict()
+
+    async def _generate_summary(self, tool_results: list = None):
+        """Generate a session summary after processing."""
+        if not hasattr(self, "_summary_generator"):
+            self._summary_generator = SessionSummaryGenerator(self.llm)
+
+        messages = []
+        for msg in self.context_manager._messages:
+            messages.append(
+                {
+                    "role": msg.role,
+                    "content": msg.get_text_content()
+                    if hasattr(msg, "get_text_content")
+                    else str(msg),
+                }
+            )
+
+        try:
+            summary = await self._summary_generator.summarize(messages, tool_results)
+            self.state.last_summary = {
+                "additions": summary.additions,
+                "deletions": summary.deletions,
+                "files": summary.files,
+                "text": summary.text,
+            }
+        except Exception:
+            pass

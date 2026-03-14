@@ -17,23 +17,24 @@ from agent_smith.server import run_server
 
 def parse_args():
     """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Autonomous AI Agent with advanced tool use"
-    )
+    parser = argparse.ArgumentParser(description="Autonomous AI Agent with advanced tool use")
     parser.add_argument(
-        "--config", "-c",
+        "--config",
+        "-c",
         type=str,
         default="config.yaml",
         help="Path to config file",
     )
     parser.add_argument(
-        "--provider", "-p",
+        "--provider",
+        "-p",
         type=str,
         choices=["openai", "anthropic", "ollama", "lm-studio"],
         help="LLM provider to use",
     )
     parser.add_argument(
-        "--model", "-m",
+        "--model",
+        "-m",
         type=str,
         help="Model to use",
     )
@@ -43,12 +44,20 @@ def parse_args():
         help="Disable planning phase",
     )
     parser.add_argument(
-        "--verbose", "-v",
+        "--verbose",
+        "-v",
         action="store_true",
         help="Verbose output",
     )
     parser.add_argument(
-        "--gui", "-g",
+        "--thinking",
+        "-t",
+        action="store_true",
+        help="Show thinking/reasoning blocks",
+    )
+    parser.add_argument(
+        "--gui",
+        "-g",
         choices=["ncurses", "cli"],
         default="cli",
         help="UI mode (default: cli)",
@@ -111,16 +120,16 @@ def parse_args():
     return parser.parse_args()
 
 
-async def run_cli(agent):
+async def run_cli(agent, show_thinking: bool = True):
     """Run the CLI interface."""
-    cli = InteractiveCLI(agent)
+    cli = InteractiveCLI(agent, show_thinking=show_thinking)
     await cli.run()
 
 
 async def run_acp(agent):
     """Run the ACP server."""
     from agent_smith.acp import ACPServer
-    
+
     print("Starting ACP server...")
     server = ACPServer(agent)
     await server.start()
@@ -130,20 +139,20 @@ def run_ncurses(agent):
     """Run the ncurses interface. Returns True if successful, False if fallback needed."""
     import curses
     from agent_smith.cli.ncurses import NcursesGUI
-    
+
     async def handle_message(msg):
         try:
             response = await agent.process_input(msg)
         except Exception as e:
             response = f"Error: {str(e)}"
         return response
-    
+
     gui = NcursesGUI(agent, handle_message)
-    
+
     try:
         stdscr = curses.initscr()
         curses.endwin()
-        
+
         stdscr = curses.initscr()
         gui.run(stdscr)
         return True
@@ -159,11 +168,11 @@ def run_ncurses(agent):
 async def main():
     """Main entry point."""
     args = parse_args()
-    
+
     if args.serve:
         os.chdir(args.cwd)
         config = Config(args.config)
-        
+
         auth_username = None
         auth_password = None
         if args.serve_auth:
@@ -171,19 +180,20 @@ async def main():
                 auth_username, auth_password = args.serve_auth.split(":", 1)
             else:
                 auth_username = args.serve_auth
-        
+
         agent = AutonomousAgent(config)
-        
+
         if args.mdns:
             try:
                 from agent_smith.mdns import get_manager
+
                 mdns = get_manager()
                 await mdns.start()
                 mdns.publish(args.serve_port)
                 print(f"Published via mDNS on port {args.serve_port}")
             except ImportError:
                 print("mDNS not available. Install: pip install zeroconf")
-        
+
         await run_server(
             host=args.serve_host,
             port=args.serve_port,
@@ -192,18 +202,19 @@ async def main():
             auth_password=auth_password,
         )
         return
-    
+
     if args.acp:
         os.chdir(args.cwd)
         config = Config(args.config)
         agent = AutonomousAgent(config)
         await run_acp(agent)
         return
-    
+
     if args.admin:
         os.chdir(args.cwd)
         config = Config(args.config)
         from agent_smith.admin import start_admin_console
+
         runner = await start_admin_console(
             config=config,
             host=args.admin_host,
@@ -216,23 +227,25 @@ async def main():
         finally:
             await runner.cleanup()
         return
-    
+
     config = Config(args.config)
-    
+
     if args.provider:
         config.set("llm.default_provider", args.provider)
     if args.model:
         config.set(f"llm.providers.{args.provider or config.default_provider}.model", args.model)
-    
+
     agent = AutonomousAgent(config)
-    
+
+    show_thinking = getattr(args, "thinking", True)
+
     if args.gui == "ncurses":
         success = run_ncurses(agent)
         if not success:
             print("Using CLI mode instead...")
-            await run_cli(agent)
+            await run_cli(agent, show_thinking=show_thinking)
     else:
-        await run_cli(agent)
+        await run_cli(agent, show_thinking=show_thinking)
 
 
 if __name__ == "__main__":

@@ -106,6 +106,7 @@ class AgentStateData:
     context: dict = field(default_factory=dict)
     error: Optional[str] = None
     last_traceback: Optional[str] = None
+    last_summary: Optional[dict] = None
     last_update: datetime = field(default_factory=datetime.now)
 
     def to_dict(self) -> dict:
@@ -117,5 +118,6 @@ class AgentStateData:
             "messages": self.messages,
             "context": self.context,
             "error": self.error,
+            "last_summary": self.last_summary,
             "last_update": self.last_update.isoformat(),
         }

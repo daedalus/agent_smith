@@ -353,12 +353,13 @@ class CommandHistory:
 class InteractiveCLI:
     """Main CLI for the agent."""
 
-    def __init__(self, agent):
+    def __init__(self, agent, show_thinking: bool = True):
         self.agent = agent
         self.ui = ConsoleUI()
         self.history = CommandHistory()
         self.last_error_trace: Optional[str] = None
         self.compact_threshold: float = 85.0
+        self.show_thinking = show_thinking
 
     async def run(self):
         """Run the CLI."""
@@ -462,7 +463,7 @@ class InteractiveCLI:
         spinner.start(self.ui)
 
         try:
-            response = await self.agent.process_input(user_input)
+            response = await self.agent.process_input(user_input, show_thinking=self.show_thinking)
         finally:
             spinner.stop()
 

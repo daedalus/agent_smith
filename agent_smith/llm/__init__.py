@@ -72,10 +72,17 @@ class Message:
 class LLMResponse:
     """Standardized LLM response."""
 
-    def __init__(self, content: str, tool_calls: list[ToolCall] = None, finish_reason: str = None):
+    def __init__(
+        self,
+        content: str,
+        tool_calls: list[ToolCall] = None,
+        finish_reason: str = None,
+        thinking: str = None,
+    ):
         self.content = content
         self.tool_calls = tool_calls or []
         self.finish_reason = finish_reason
+        self.thinking = thinking
 
     @property
     def has_tool_calls(self) -> bool:
@@ -233,6 +240,7 @@ class OpenAILLM(LLMBase):
             content=msg_data.get("content", ""),
             tool_calls=tool_calls,
             finish_reason=choice.get("finish_reason"),
+            thinking=msg_data.get("reasoning"),
         )
 
     async def chat_stream(
@@ -327,6 +335,7 @@ class AnthropicLLM(LLMBase):
                 tool_calls.append(ToolCall(name=tc.get("name", ""), arguments=tc.get("input", {})))
 
         content_parts = []
+        thinking = None
         for block in data.get("content", []):
             if block.get("type") == "text":
                 content_parts.append(block.get("text", ""))
@@ -334,11 +343,14 @@ class AnthropicLLM(LLMBase):
                 tool_calls.append(
                     ToolCall(name=block.get("name", ""), arguments=block.get("input", {}))
                 )
+            elif block.get("type") == "thinking":
+                thinking = block.get("thinking", "")
 
         return LLMResponse(
             content="\n".join(content_parts),
             tool_calls=tool_calls,
             finish_reason=data.get("stop_reason"),
+            thinking=thinking,
         )
 
     async def chat_stream(
