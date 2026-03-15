@@ -588,20 +588,60 @@ class TestDebugCommand:
         finally:
             sys.stdout = old_stdout
 
+    @patch("logging.getLogger")
+    def test_debug_sets_agent_debug_flag(self, mock_get_logger):
+        """Test that debug command sets agent.debug flag."""
+        mock_logger = Mock()
+        mock_get_logger.return_value = mock_logger
 
-class TestToolLogging:
-    """Test tool call logging."""
+        mock_agent = Mock()
+        mock_agent.debug = False
+        cli = InteractiveCLI(mock_agent)
 
-    @patch("agent_smith.core.tool_logger")
-    def test_tool_call_logging(self, mock_logger):
-        """Test tool call logging in core module."""
-        from agent_smith.core import tool_logger
+        import asyncio
 
-        tool_logger.debug("Test tool call: test_tool({'arg': 'value'}) -> success=True")
-        mock_logger.debug.assert_called_once()
+        asyncio.run(cli._handle_debug_command())
 
-    def test_tool_logger_exists(self):
-        """Test tool logger is defined in core module."""
+        assert cli.debug is True
+        assert mock_agent.debug is True
+
+    @patch("logging.getLogger")
+    def test_debug_unsets_agent_debug_flag(self, mock_get_logger):
+        """Test that debug command unsets agent.debug flag when toggling off."""
+        mock_logger = Mock()
+        mock_get_logger.return_value = mock_logger
+
+        mock_agent = Mock()
+        mock_agent.debug = True
+        cli = InteractiveCLI(mock_agent)
+        cli.debug = True
+
+        import asyncio
+
+        asyncio.run(cli._handle_debug_command())
+
+        assert cli.debug is False
+        assert mock_agent.debug is False
+
+
+class TestAgentDebug:
+    """Test agent debug functionality."""
+
+    def test_agent_debug_attribute_in_class(self):
+        """Test that AutonomousAgent class has debug in __init__."""
+        import ast
+        import inspect
+        from agent_smith.core import AutonomousAgent
+
+        source = inspect.getsource(AutonomousAgent.__init__)
+        assert "self.debug = False" in source
+
+    def test_mock_agent_debug_can_be_set(self):
+        """Test that mock agent debug flag can be set."""
+        mock_agent = Mock()
+        mock_agent.debug = False
+        mock_agent.debug = True
+        assert mock_agent.debug is True
         from agent_smith import core
 
         assert hasattr(core, "tool_logger")

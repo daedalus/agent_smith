@@ -37,6 +37,7 @@ class AutonomousAgent:
     def __init__(self, config: Optional[dict] = None):
         self.config = config or get_config()
         self.state = AgentStateData()
+        self.debug = False
 
         self._init_agents()
         self._init_storage()
@@ -313,21 +314,47 @@ class AutonomousAgent:
             tools = self.tool_registry.get_schemas()
             messages = self.context_manager.prepare_messages()
 
+            if self.debug:
+                print(f"\n\033[96m[DEBUG] Sending {len(messages)} messages to LLM...\033[0m")
+                for i, msg in enumerate(messages):
+                    content = (
+                        msg.content
+                        if hasattr(msg, "content")
+                        else str(msg.get("content", ""))[:100]
+                    )
+                    role = msg.role if hasattr(msg, "role") else msg.get("role", "?")
+                    print(f"  \033[90m{i}: {role}: {content}...\033[0m")
+
             response = await self.llm.chat(
                 messages=messages,
                 tools=tools if tools else None,
             )
 
-            print(response)
+            if self.debug:
+                print(f"\n\033[96m[DEBUG] LLM Response:\033[0m")
+                if response.thinking:
+                    print(f"  \033[93mThinking: {response.thinking[:200]}...\033[0m")
+                if response.has_tool_calls:
+                    print(f"  \033[91mTool Calls: {[tc.name for tc in response.tool_calls]}\033[0m")
+                else:
+                    print(f"  \033[92mContent: {response.content[:200]}...\033[0m")
 
             if response.thinking and show_thinking:
                 print(f"\n{self._format_thinking(response.thinking)}")
 
             if response.has_tool_calls:
+                if self.debug:
+                    print(
+                        f"\n\033[96m[DEBUG] Handling {len(response.tool_calls)} tool calls...\033[0m"
+                    )
                 tool_results = await self._handle_tool_calls(response.tool_calls)
                 tool_results_history.extend(tool_results)
 
                 for tr in tool_results:
+                    if self.debug:
+                        print(
+                            f"\n\033[96m[DEBUG] Tool {tr['tool_name']} result:\033[0m {tr['result'][:200]}..."
+                        )
                     result_content = tr["result"]
                     result_content = self.context_manager.truncate_tool_result(result_content)
                     self.context_manager.add_message(

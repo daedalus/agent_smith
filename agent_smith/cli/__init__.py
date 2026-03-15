@@ -936,6 +936,10 @@ class InteractiveCLI:
         import logging
 
         self.debug = not self.debug
+
+        if hasattr(self.agent, "debug"):
+            self.agent.debug = self.debug
+
         if self.debug:
             logging.getLogger("httpx").setLevel(logging.DEBUG)
             logging.getLogger("agent_smith.tools").setLevel(logging.DEBUG)
