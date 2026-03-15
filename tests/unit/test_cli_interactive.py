@@ -5,6 +5,7 @@ from unittest.mock import Mock, AsyncMock, patch
 import sys
 import os
 import traceback
+import logging
 
 # Add the agent directory to the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -504,3 +505,66 @@ class TestPromptHistoryNavigation:
         assert cli.history.get_all()[0]["command"] == "command 1"
         assert cli.history.get_all()[1]["command"] == "command 2"
         assert cli.history.get_all()[2]["command"] == "command 3"
+
+
+class TestDebugCommand:
+    """Test /debug command."""
+
+    def test_debug_flag_initialization(self):
+        """Test debug flag is initially False."""
+        mock_agent = Mock()
+        cli = InteractiveCLI(mock_agent)
+        assert cli.debug is False
+
+    @patch("logging.getLogger")
+    def test_debug_toggle_on(self, mock_get_logger):
+        """Test toggling debug on."""
+        mock_logger = Mock()
+        mock_get_logger.return_value = mock_logger
+
+        mock_agent = Mock()
+        cli = InteractiveCLI(mock_agent)
+        cli.debug = False
+
+        import asyncio
+
+        asyncio.run(cli._handle_debug_command())
+
+        mock_logger.setLevel.assert_called_with(logging.DEBUG)
+        assert cli.debug is True
+
+    @patch("logging.getLogger")
+    def test_debug_toggle_off(self, mock_get_logger):
+        """Test toggling debug off."""
+        mock_logger = Mock()
+        mock_get_logger.return_value = mock_logger
+
+        mock_agent = Mock()
+        cli = InteractiveCLI(mock_agent)
+        cli.debug = True
+
+        import asyncio
+
+        asyncio.run(cli._handle_debug_command())
+
+        mock_logger.setLevel.assert_called_with(logging.WARNING)
+        assert cli.debug is False
+
+    def test_debug_in_help_text(self):
+        """Test that /debug command appears in help."""
+        import io
+        import sys
+
+        mock_agent = Mock()
+        cli = InteractiveCLI(mock_agent)
+
+        old_stdout = sys.stdout
+        sys.stdout = buffer = io.StringIO()
+
+        try:
+            cli.ui.print_help()
+            output = buffer.getvalue()
+            assert "/debug" in output
+            assert "HTTP debug logging" in output
+        finally:
+            sys.stdout = old_stdout

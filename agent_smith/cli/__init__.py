@@ -309,6 +309,7 @@ class ConsoleUI:
 ║  /snapshots    - List available snapshots                  ║
 ║  /revert <hash> - Revert to a snapshot (hash or 'latest')║
 ║  /trace        - Show last error trace                     ║
+║  /debug        - Toggle HTTP debug logging                 ║
 ║  /compact      - Compact context (summarize old messages)  ║
 ╚══════════════════════════════════════════════════════════════╝
 
@@ -360,6 +361,7 @@ class InteractiveCLI:
         self.last_error_trace: Optional[str] = None
         self.compact_threshold: float = 85.0
         self.show_thinking = show_thinking
+        self.debug = False
 
     async def run(self):
         """Run the CLI."""
@@ -435,6 +437,10 @@ class InteractiveCLI:
 
                     if command == "/trace":
                         self._print_trace()
+                        continue
+
+                    if command == "/debug":
+                        await self._handle_debug_command()
                         continue
 
                     if command == "/compact":
@@ -515,50 +521,49 @@ class InteractiveCLI:
         """Handle the provider command for selecting providers and models."""
         self.ui.print_info("Provider/Model Selection")
 
-        # Ask if user wants to select from recent models first
-        use_recent = await self.ui.prompts.confirm("Select from recently used models?")
+        # Check if there are recent models to show
+        recent_file = Path.home() / ".agent" / "recent_models.json"
+        has_recent = False
+        if recent_file.exists():
+            try:
+                recent_models = json.loads(recent_file.read_text())
+                has_recent = bool(recent_models)
+            except Exception:
+                has_recent = False
 
-        if use_recent:
-            recent_selection = await self._show_recent_models_menu()
-            if recent_selection:
-                # Parse provider/model from recent selection
-                if "/" in recent_selection:
+        # If there are recent models, offer choice; otherwise go directly to new selection
+        if has_recent:
+            choice = await self.ui.prompts.confirm("Select from recent models?")
+            if choice:
+                recent_selection = await self._show_recent_models_menu()
+                if recent_selection:
                     provider_id, model_id = recent_selection.split("/", 1)
-                    # Get API key and update agent
                     api_key = await self._get_api_key(provider_id)
-                    if api_key is not None:  # User didn't cancel
+                    if api_key is not None:
                         await self._store_api_key(provider_id, api_key)
                         await self._update_agent_model(provider_id, model_id)
                         await self._add_to_recent_models(provider_id, model_id)
                         self.ui.print_success(f"Selected {provider_id}/{model_id}")
                 return
 
-        # Otherwise, proceed with normal provider/model selection
-
-        # Step 1: Load providers from models.dev
+        # Proceed with new provider/model selection
         providers = await self._fetch_providers()
-
-        # Step 2: Show provider selection menu
         selected_provider = await self._select_provider(providers)
         if not selected_provider:
             return
 
-        # Step 3: Get API key if needed
         api_key = await self._get_api_key(selected_provider)
+        if api_key is None:
+            return
 
-        # Step 4: Store API key securely
         await self._store_api_key(selected_provider, api_key)
 
-        # Step 5: Show model selection menu
         models = await self._fetch_models(selected_provider)
         selected_model = await self._select_model(models)
         if not selected_model:
             return
 
-        # Step 6: Update agent configuration to use selected model
         await self._update_agent_model(selected_provider, selected_model)
-
-        # Step 7: Add to recent models list
         await self._add_to_recent_models(selected_provider, selected_model)
 
         self.ui.print_success(f"Selected {selected_provider}/{selected_model}")
@@ -615,22 +620,19 @@ class InteractiveCLI:
 
     async def _get_api_key(self, provider_id):
         """Get API key for provider."""
-        if provider_id == "opencode":
-            return "public"  # Special case for opencode provider
+        # Providers that don't need API keys
+        if provider_id in ("opencode", "ollama", "lm-studio"):
+            return "public" if provider_id == "opencode" else None
 
         # Check if we already have a stored key
         stored_key = await self._get_stored_api_key(provider_id)
         if stored_key:
-            overwrite = await self.ui.prompts.confirm(
-                f"API key for {provider_id} already stored. Overwrite?"
-            )
-            if not overwrite:
-                return stored_key
+            return stored_key
 
         # Ask for new API key
         key = await self.ui.prompts.password(
             message=f"Enter API key for {provider_id}",
-            validate=lambda x: (x and len(x) > 0) and "Required" or None,
+            validate=lambda x: None if (x and len(x) > 0) else "Required",
         )
 
         if self.ui.prompts.isCancel(key):
@@ -731,8 +733,14 @@ class InteractiveCLI:
         # Update the agent's LLM configuration
         model_full_id = f"{provider_id}/{model_id}"
 
-        # Update config in memory
+        # Update config in memory - enable model registry and set provider
+        self.agent.config.set("llm.use_model_registry", True)
         self.agent.config.set("llm.default_model", model_full_id)
+
+        # Get API key and store in config so LLM can find it
+        api_key = await self._get_stored_api_key(provider_id)
+        if api_key:
+            self.agent.config.set(f"llm.providers.{provider_id}.api_key", api_key)
 
         # Reinitialize LLM with new configuration
         self.agent._init_llm()
@@ -745,7 +753,12 @@ class InteractiveCLI:
             try:
                 with open(config_path, "r") as f:
                     config = yaml.safe_load(f)
+                config["llm"]["use_model_registry"] = True
                 config["llm"]["default_model"] = model_full_id
+                if api_key:
+                    config.setdefault("llm", {}).setdefault("providers", {}).setdefault(
+                        provider_id, {}
+                    )["api_key"] = api_key
                 with open(config_path, "w") as f:
                     yaml.dump(config, f, default_flow_style=False)
             except Exception as e:
@@ -917,6 +930,18 @@ class InteractiveCLI:
             print(self.last_error_trace)
         else:
             print(self.ui.color("gray", "\nNo error trace available."))
+
+    async def _handle_debug_command(self):
+        """Handle the /debug command to toggle HTTP debug logging."""
+        import logging
+
+        self.debug = not self.debug
+        if self.debug:
+            logging.getLogger("httpx").setLevel(logging.DEBUG)
+            self.ui.print_info("Debug mode enabled - HTTP requests will be logged")
+        else:
+            logging.getLogger("httpx").setLevel(logging.WARNING)
+            self.ui.print_info("Debug mode disabled")
 
     async def _compact_context(self):
         """Compact the context by summarizing old messages."""
