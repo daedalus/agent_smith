@@ -932,15 +932,17 @@ class InteractiveCLI:
             print(self.ui.color("gray", "\nNo error trace available."))
 
     async def _handle_debug_command(self):
-        """Handle the /debug command to toggle HTTP debug logging."""
+        """Handle the /debug command to toggle HTTP and tool debug logging."""
         import logging
 
         self.debug = not self.debug
         if self.debug:
             logging.getLogger("httpx").setLevel(logging.DEBUG)
-            self.ui.print_info("Debug mode enabled - HTTP requests will be logged")
+            logging.getLogger("agent_smith.tools").setLevel(logging.DEBUG)
+            self.ui.print_info("Debug mode enabled - HTTP requests and tool calls will be logged")
         else:
             logging.getLogger("httpx").setLevel(logging.WARNING)
+            logging.getLogger("agent_smith.tools").setLevel(logging.WARNING)
             self.ui.print_info("Debug mode disabled")
 
     async def _compact_context(self):

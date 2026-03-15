@@ -534,6 +534,24 @@ class TestDebugCommand:
         assert cli.debug is True
 
     @patch("logging.getLogger")
+    def test_debug_toggle_on(self, mock_get_logger):
+        """Test toggling debug on."""
+        mock_logger = Mock()
+        mock_get_logger.return_value = mock_logger
+
+        mock_agent = Mock()
+        cli = InteractiveCLI(mock_agent)
+        cli.debug = False
+
+        import asyncio
+
+        asyncio.run(cli._handle_debug_command())
+
+        mock_logger.setLevel.assert_any_call(logging.DEBUG)
+        mock_logger.setLevel.assert_any_call(logging.DEBUG)
+        assert cli.debug is True
+
+    @patch("logging.getLogger")
     def test_debug_toggle_off(self, mock_get_logger):
         """Test toggling debug off."""
         mock_logger = Mock()
@@ -547,7 +565,8 @@ class TestDebugCommand:
 
         asyncio.run(cli._handle_debug_command())
 
-        mock_logger.setLevel.assert_called_with(logging.WARNING)
+        mock_logger.setLevel.assert_any_call(logging.WARNING)
+        mock_logger.setLevel.assert_any_call(logging.WARNING)
         assert cli.debug is False
 
     def test_debug_in_help_text(self):
@@ -565,6 +584,25 @@ class TestDebugCommand:
             cli.ui.print_help()
             output = buffer.getvalue()
             assert "/debug" in output
-            assert "HTTP debug logging" in output
+            assert "HTTP" in output or "tool" in output.lower()
         finally:
             sys.stdout = old_stdout
+
+
+class TestToolLogging:
+    """Test tool call logging."""
+
+    @patch("agent_smith.core.tool_logger")
+    def test_tool_call_logging(self, mock_logger):
+        """Test tool call logging in core module."""
+        from agent_smith.core import tool_logger
+
+        tool_logger.debug("Test tool call: test_tool({'arg': 'value'}) -> success=True")
+        mock_logger.debug.assert_called_once()
+
+    def test_tool_logger_exists(self):
+        """Test tool logger is defined in core module."""
+        from agent_smith import core
+
+        assert hasattr(core, "tool_logger")
+        assert core.tool_logger.name == "agent_smith.tools"

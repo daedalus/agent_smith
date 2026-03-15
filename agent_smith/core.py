@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import logging
 import os
 import traceback
 from typing import Any, Optional
@@ -26,6 +27,8 @@ from agent_smith.agents.permission import (
 )
 from agent_smith.session_summary import SessionSummaryGenerator
 from agent_smith.doom_loop import DoomLoopHandler
+
+tool_logger = logging.getLogger("agent_smith.tools")
 
 
 class AutonomousAgent:
@@ -275,6 +278,8 @@ class AutonomousAgent:
 
             result = await self.tool_executor.execute(tool_name, args)
 
+            tool_logger.debug(f"Tool call: {tool_name}({args}) -> success={result.success}")
+
             results.append(
                 {
                     "tool_call_id": tc.id,
@@ -312,6 +317,8 @@ class AutonomousAgent:
                 messages=messages,
                 tools=tools if tools else None,
             )
+
+            print(response)
 
             if response.thinking and show_thinking:
                 print(f"\n{self._format_thinking(response.thinking)}")
