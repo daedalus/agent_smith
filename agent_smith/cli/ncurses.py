@@ -10,6 +10,7 @@ from datetime import datetime
 @dataclass
 class GUIColors:
     """Color pairs for ncurses."""
+
     BLACK = 0
     BLUE = 1
     GREEN = 2
@@ -18,16 +19,16 @@ class GUIColors:
     MAGENTA = 5
     WHITE = 7
     YELLOW = 6
-    
+
     @classmethod
     def init(cls, stdscr):
         """Initialize color pairs."""
         curses.start_color()
         curses.use_default_colors()
-        
+
         for i in range(1, 8):
             curses.init_pair(i, i, -1)
-        
+
         curses.init_pair(10, curses.COLOR_BLACK, curses.COLOR_CYAN)
         curses.init_pair(11, curses.COLOR_BLACK, curses.COLOR_GREEN)
         curses.init_pair(12, curses.COLOR_BLACK, curses.COLOR_RED)
@@ -36,6 +37,7 @@ class GUIColors:
 
 class Message:
     """A message in the chat."""
+
     def __init__(self, role: str, content: str, timestamp: datetime = None):
         self.role = role
         self.content = content
@@ -44,6 +46,7 @@ class Message:
 
 class Panel:
     """Base panel class."""
+
     def __init__(self, parent, y: int, x: int, height: int, width: int):
         self.parent = parent
         self.y = y
@@ -79,6 +82,7 @@ class Panel:
 
 class TitleBar(Panel):
     """Top title bar."""
+
     def __init__(self, parent, y: int, x: int, width: int, title: str = "Autonomous Agent"):
         super().__init__(parent, y, x, 1, width)
         self.title = title
@@ -87,9 +91,9 @@ class TitleBar(Panel):
         """Draw the title bar."""
         if not self.win:
             return
-        
+
         self.win.clear()
-        
+
         status_colors = {
             "IDLE": 2,
             "PLANNING": 6,
@@ -99,22 +103,25 @@ class TitleBar(Panel):
             "ERROR": 4,
         }
         color = status_colors.get(state, 0)
-        
+
         self.win.attron(curses.color_pair(10))
         self.win.addstr(0, 0, " " * (self.width - 1))
         self.win.attroff(curses.color_pair(10))
-        
+
         title = f" {self.title} "
         self.win.addstr(0, 1, title, curses.color_pair(11) | curses.A_BOLD)
-        
+
         state_str = f" [{state}] "
-        self.win.addstr(0, self.width - len(state_str) - 1, state_str, curses.color_pair(color) | curses.A_BOLD)
-        
+        self.win.addstr(
+            0, self.width - len(state_str) - 1, state_str, curses.color_pair(color) | curses.A_BOLD
+        )
+
         self.refresh()
 
 
 class Sidebar(Panel):
     """Left sidebar with tools and info."""
+
     def __init__(self, parent, y: int, x: int, height: int, width: int):
         super().__init__(parent, y, x, height, width)
         self.selected_item = 0
@@ -131,25 +138,25 @@ class Sidebar(Panel):
         """Draw the sidebar."""
         if not self.win:
             return
-        
+
         self.win.clear()
-        
+
         header = f" {self.item_type.upper()} "
         self.win.addstr(0, 1, header, curses.color_pair(10) | curses.A_BOLD)
-        
+
         self.win.addstr(1, 0, "─" * (self.width - 1), curses.color_pair(0))
-        
-        for i, item in enumerate(self.items[:self.height - 3]):
+
+        for i, item in enumerate(self.items[: self.height - 3]):
             y_pos = i + 2
             if y_pos >= self.height - 1:
                 break
-            
+
             if i == self.selected_item:
                 self.win.addstr(y_pos, 0, "▶ ", curses.color_pair(3) | curses.A_BOLD)
-                self.win.addstr(y_pos, 2, item[:self.width - 3], curses.color_pair(3))
+                self.win.addstr(y_pos, 2, item[: self.width - 3], curses.color_pair(3))
             else:
-                self.win.addstr(y_pos, 2, "  " + item[:self.width - 4], curses.color_pair(0))
-        
+                self.win.addstr(y_pos, 2, "  " + item[: self.width - 4], curses.color_pair(0))
+
         self.draw_border(0)
         self.refresh()
 
@@ -168,6 +175,7 @@ class Sidebar(Panel):
 
 class ChatPanel(Panel):
     """Main chat area."""
+
     def __init__(self, parent, y: int, x: int, height: int, width: int):
         super().__init__(parent, y, x, height, width)
         self.messages: list[Message] = []
@@ -176,7 +184,7 @@ class ChatPanel(Panel):
     def add_message(self, role: str, content: str):
         """Add a message to the chat."""
         self.messages.append(Message(role, content))
-        
+
         if len(self.messages) > self.height - 4:
             self.scroll_offset = len(self.messages) - self.height + 4
 
@@ -184,39 +192,39 @@ class ChatPanel(Panel):
         """Draw the chat panel."""
         if not self.win:
             return
-        
+
         self.win.clear()
-        
-        visible_messages = self.messages[self.scroll_offset:self.scroll_offset + self.height - 3]
-        
+
+        visible_messages = self.messages[self.scroll_offset : self.scroll_offset + self.height - 3]
+
         role_colors = {
             "user": 3,
             "assistant": 2,
             "system": 6,
             "tool": 5,
         }
-        
+
         y = 0
         for msg in visible_messages:
             if y >= self.height - 2:
                 break
-            
+
             color = role_colors.get(msg.role, 0)
-            
+
             prefix = f"[{msg.role.upper()}]"
             self.win.addstr(y, 1, prefix, curses.color_pair(color) | curses.A_BOLD)
-            
+
             content_lines = msg.content.split("\n")
-            for line in content_lines[:self.height - y - 2]:
+            for line in content_lines[: self.height - y - 2]:
                 if len(line) > self.width - 4:
-                    line = line[:self.width - 7] + "..."
+                    line = line[: self.width - 7] + "..."
                 y += 1
                 if y >= self.height - 2:
                     break
-                self.win.addstr(y, 1, line[:self.width - 4], curses.color_pair(0))
-            
+                self.win.addstr(y, 1, line[: self.width - 4], curses.color_pair(0))
+
             y += 1
-        
+
         self.draw_border(0)
         self.refresh()
 
@@ -231,6 +239,7 @@ class ChatPanel(Panel):
 
 class InputPanel(Panel):
     """Bottom input area."""
+
     def __init__(self, parent, y: int, x: int, width: int):
         super().__init__(parent, y, x, 1, width)
         self.input_text = ""
@@ -240,18 +249,18 @@ class InputPanel(Panel):
         """Draw the input panel."""
         if not self.win:
             return
-        
+
         self.win.clear()
-        
+
         prompt = "➜ "
         self.win.addstr(0, 1, prompt, curses.color_pair(3) | curses.A_BOLD)
-        
-        display_text = self.input_text[:self.width - len(prompt) - 2]
+
+        display_text = self.input_text[: self.width - len(prompt) - 2]
         self.win.addstr(0, len(prompt) + 1, display_text, curses.color_pair(0))
-        
+
         cursor_x = len(prompt) + 1 + min(self.cursor_pos, len(display_text))
         self.win.move(0, cursor_x)
-        
+
         self.refresh()
 
     def handle_input(self, key: int) -> Optional[str]:
@@ -261,57 +270,80 @@ class InputPanel(Panel):
             self.input_text = ""
             self.cursor_pos = 0
             return text
-        
+
         elif key in (curses.KEY_BACKSPACE, 127):
             if self.cursor_pos > 0:
-                self.input_text = self.input_text[:self.cursor_pos - 1] + self.input_text[self.cursor_pos:]
+                self.input_text = (
+                    self.input_text[: self.cursor_pos - 1] + self.input_text[self.cursor_pos :]
+                )
                 self.cursor_pos -= 1
-        
+
         elif key == curses.KEY_DC:
             if self.cursor_pos < len(self.input_text):
-                self.input_text = self.input_text[:self.cursor_pos] + self.input_text[self.cursor_pos + 1:]
-        
+                self.input_text = (
+                    self.input_text[: self.cursor_pos] + self.input_text[self.cursor_pos + 1 :]
+                )
+
         elif key == curses.KEY_LEFT and self.cursor_pos > 0:
             self.cursor_pos -= 1
-        
+
         elif key == curses.KEY_RIGHT and self.cursor_pos < len(self.input_text):
             self.cursor_pos += 1
-        
+
         elif key == curses.KEY_HOME:
             self.cursor_pos = 0
-        
+
         elif key == curses.KEY_END:
             self.cursor_pos = len(self.input_text)
-        
+
         elif 32 <= key <= 126:
             char = chr(key)
-            self.input_text = self.input_text[:self.cursor_pos] + char + self.input_text[self.cursor_pos:]
+            self.input_text = (
+                self.input_text[: self.cursor_pos] + char + self.input_text[self.cursor_pos :]
+            )
             self.cursor_pos += 1
-        
+
         return None
 
 
 class StatusBar(Panel):
     """Bottom status bar."""
+
     def __init__(self, parent, y: int, x: int, width: int):
         super().__init__(parent, y, x, 1, width)
 
-    def draw(self, token_usage: dict = None):
+    def draw(self, token_usage: dict = None, model: str = None, provider: str = None):
         """Draw the status bar."""
         if not self.win:
             return
-        
+
         self.win.clear()
-        
+
         self.win.addstr(0, 0, " ", curses.color_pair(10))
-        
+
+        parts = []
+
         if token_usage:
-            usage = f"Tokens: {token_usage.get('current_tokens', 0)}/{token_usage.get('max_tokens', 0)} ({token_usage.get('usage_percent', 0):.0f}%)"
-            self.win.addstr(0, 1, usage, curses.color_pair(0))
-        
+            tokens = token_usage.get("current_tokens", 0)
+            max_ctx = token_usage.get("context_limit", 0)
+            ctx_pct = token_usage.get("context_usage_percent", 0)
+            parts.append(f"Tokens: {tokens:,}")
+            parts.append(f"Context: {ctx_pct:.1f}%")
+            if max_ctx:
+                parts.append(f"Max: {max_ctx:,}")
+
+        if model:
+            parts.append(f"Model: {model}")
+
+        if provider:
+            parts.append(f"Provider: {provider}")
+
+        status_text = " | ".join(parts)
+        self.win.addstr(0, 1, status_text, curses.color_pair(0))
+
         help_text = "↑↓ Navigate | Enter Send | Ctrl+C Quit | Ctrl+L Clear"
         self.win.addstr(0, self.width - len(help_text) - 1, help_text, curses.color_pair(0))
-        
+
         self.refresh()
 
 
@@ -328,28 +360,28 @@ class NcursesGUI:
     def init_panels(self, stdscr):
         """Initialize all panels."""
         height, width = stdscr.getmaxyx()
-        
+
         GUIColors.init(stdscr)
-        
+
         title_bar = TitleBar(stdscr, 0, 0, width, "Autonomous Agent")
         title_bar.create()
         self.panels["title"] = title_bar
-        
+
         sidebar_width = 25
         sidebar = Sidebar(stdscr, 1, 0, height - 2, sidebar_width)
         sidebar.create()
         self.panels["sidebar"] = sidebar
-        
+
         chat_x = sidebar_width
         chat_height = height - 3
         chat = ChatPanel(stdscr, 1, chat_x, chat_height, width - chat_x)
         chat.create()
         self.panels["chat"] = chat
-        
+
         input_panel = InputPanel(stdscr, height - 2, chat_x, width - chat_x)
         input_panel.create()
         self.panels["input"] = input_panel
-        
+
         status_bar = StatusBar(stdscr, height - 1, 0, width)
         status_bar.create()
         self.panels["status"] = status_bar
@@ -370,12 +402,30 @@ class NcursesGUI:
             return self.agent.context_manager.get_token_usage()
         return {}
 
+    def get_model_info(self) -> tuple:
+        """Get model and provider info from agent."""
+        model = None
+        provider = None
+
+        if hasattr(self.agent, "llm") and self.agent.llm:
+            model = getattr(self.agent.llm, "model", None)
+            provider = getattr(self.agent.llm, "provider", None)
+
+        if hasattr(self.agent, "config") and self.agent.config:
+            config = self.agent.config
+            if not provider:
+                provider = config.get("default_provider")
+            if not model:
+                model = config.get("default_model")
+
+        return model, provider
+
     def draw(self, state: str = "IDLE"):
         """Draw all panels."""
         for name, panel in self.panels.items():
             if not panel.visible:
                 continue
-            
+
             if name == "title":
                 panel.draw(state)
             elif name == "sidebar":
@@ -385,7 +435,9 @@ class NcursesGUI:
             elif name == "input":
                 panel.draw()
             elif name == "status":
-                panel.draw(self.get_token_usage())
+                token_usage = self.get_token_usage()
+                model, provider = self.get_model_info()
+                panel.draw(token_usage, model, provider)
 
     def run(self, stdscr):
         """Run the ncurses application."""
@@ -393,7 +445,7 @@ class NcursesGUI:
             curses.curs_set(1)
         except curses.error:
             pass
-        
+
         try:
             curses.cbreak()
         except curses.error:
@@ -401,72 +453,74 @@ class NcursesGUI:
                 curses.raw()
             except curses.error:
                 pass
-        
+
         try:
             curses.noecho()
         except curses.error:
             pass
-        
+
         try:
             stdscr.keypad(True)
         except curses.error:
             pass
-        
+
         stdscr.clear()
-        
+
         self.init_panels(stdscr)
-        
+
         tools = [t.name for t in self.agent.tool_registry.list_tools()]
         self.update_tools(tools)
-        
+
         self.add_chat_message("system", "Welcome to Autonomous Agent! Type your message below.")
-        
+
         self.draw("IDLE")
         self.running = True
-        
+
         while self.running:
             try:
                 state = "IDLE"
                 if hasattr(self.agent, "state"):
                     state = self.agent.state.state.name
-                
+
                 self.draw(state)
-                
+
                 if "input" in self.panels:
                     key = self.panels["input"].win.getch()
                 else:
                     key = stdscr.getch()
-                
+
                 if key == 3:
                     break
-                
+
                 if key == 12:
                     stdscr.clear()
                     self.init_panels(stdscr)
                     continue
-                
+
                 if self.active_panel == "chat":
                     result = self.panels["chat"].handle_input(key)
                 elif self.active_panel == "sidebar":
                     result = self.panels["sidebar"].handle_input(key)
                 elif self.active_panel == "input":
                     result = self.panels["input"].handle_input(key)
-                
+
                 if result and self.active_panel == "input" and result.strip():
                     self.add_chat_message("user", result)
-                    
+
                     if self.on_message:
                         asyncio.ensure_future(self._handle_message(result))
-                    
+
                     self.panels["input"].input_text = ""
                     self.panels["input"].cursor_pos = 0
-                
+
                 elif result and self.active_panel == "sidebar":
                     self.add_chat_message("system", f"Selected: {result}")
-                
+
                 if key == 9:
-                    self.active_panel = {"chat": "sidebar", "sidebar": "input", "input": "chat"}[self.active_panel]
-                
+                    self.active_panel = {"chat": "sidebar", "sidebar": "input", "input": "chat"}[
+                        self.active_panel
+                    ]
+
             except curses.error:
                 pass
             except Exception as e:
@@ -476,12 +530,12 @@ class NcursesGUI:
         """Handle incoming message asynchronously."""
         try:
             self.panels["title"].state = "EXECUTING"
-            
+
             response = await self.agent.process_input(message)
-            
+
             self.add_chat_message("assistant", response)
             self.panels["title"].state = "COMPLETE"
-            
+
         except Exception as e:
             self.add_chat_message("system", f"Error: {str(e)}")
             self.panels["title"].state = "ERROR"
