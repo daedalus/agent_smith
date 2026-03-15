@@ -58,9 +58,9 @@ def parse_args():
     parser.add_argument(
         "--gui",
         "-g",
-        choices=["ncurses", "cli", "text"],
+        choices=["cli"],
         default="cli",
-        help="UI mode: cli (default), ncurses, text (modern terminal UI)",
+        help="UI mode (default: cli)",
     )
     parser.add_argument(
         "--acp",
@@ -133,43 +133,6 @@ async def run_acp(agent):
     print("Starting ACP server...")
     server = ACPServer(agent)
     await server.start()
-
-
-def run_ncurses(agent):
-    """Run the ncurses interface. Returns True if successful, False if fallback needed."""
-    import curses
-    from agent_smith.cli.ncurses import NcursesGUI
-
-    async def handle_message(msg):
-        try:
-            response = await agent.process_input(msg)
-        except Exception as e:
-            response = f"Error: {str(e)}"
-        return response
-
-    gui = NcursesGUI(agent, handle_message)
-
-    try:
-        stdscr = curses.initscr()
-        curses.endwin()
-
-        stdscr = curses.initscr()
-        gui.run(stdscr)
-        return True
-    except curses.error as e:
-        print(f"\nNCurses not available: {e}")
-        try:
-            curses.endwin()
-        except:
-            pass
-        return False
-
-
-def run_text(agent):
-    """Run the text-based terminal interface."""
-    from agent_smith.cli.textgui import run_text as run_text_gui
-
-    run_text_gui(agent)
 
 
 async def main():
@@ -246,15 +209,7 @@ async def main():
 
     show_thinking = getattr(args, "thinking", True)
 
-    if args.gui == "ncurses":
-        success = run_ncurses(agent)
-        if not success:
-            print("Using CLI mode instead...")
-            await run_cli(agent, show_thinking=show_thinking)
-    elif args.gui == "text":
-        run_text(agent)
-    else:
-        await run_cli(agent, show_thinking=show_thinking)
+    await run_cli(agent, show_thinking=show_thinking)
 
 
 if __name__ == "__main__":
