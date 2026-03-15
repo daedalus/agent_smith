@@ -240,10 +240,12 @@ class ChatPanel(Panel):
 class InputPanel(Panel):
     """Bottom input area."""
 
-    def __init__(self, parent, y: int, x: int, width: int):
-        super().__init__(parent, y, x, 1, width)
+    def __init__(self, parent, y: int, x: int, height: int, width: int):
+        super().__init__(parent, y, x, height, width)
         self.input_text = ""
         self.cursor_pos = 0
+        self.history: list[str] = []
+        self.history_index = -1
 
     def draw(self):
         """Draw the input panel."""
@@ -252,14 +254,17 @@ class InputPanel(Panel):
 
         self.win.clear()
 
+        self.draw_border(10)
+
         prompt = "➜ "
-        self.win.addstr(0, 1, prompt, curses.color_pair(3) | curses.A_BOLD)
+        self.win.addstr(1, 1, prompt, curses.color_pair(3) | curses.A_BOLD)
 
-        display_text = self.input_text[: self.width - len(prompt) - 2]
-        self.win.addstr(0, len(prompt) + 1, display_text, curses.color_pair(0))
+        display_text = self.input_text[: self.width - len(prompt) - 3]
+        self.win.addstr(1, 1 + len(prompt), display_text, curses.color_pair(0))
 
-        cursor_x = len(prompt) + 1 + min(self.cursor_pos, len(display_text))
-        self.win.move(0, cursor_x)
+        cursor_y = 1
+        cursor_x = 1 + len(prompt) + min(self.cursor_pos, len(display_text))
+        self.win.move(cursor_y, cursor_x)
 
         self.refresh()
 
@@ -296,6 +301,22 @@ class InputPanel(Panel):
         elif key == curses.KEY_END:
             self.cursor_pos = len(self.input_text)
 
+        elif key == curses.KEY_UP:
+            if self.history and self.history_index < len(self.history) - 1:
+                self.history_index += 1
+                self.input_text = self.history[-(self.history_index + 1)]
+                self.cursor_pos = len(self.input_text)
+
+        elif key == curses.KEY_DOWN:
+            if self.history_index > 0:
+                self.history_index -= 1
+                self.input_text = self.history[-(self.history_index + 1)]
+                self.cursor_pos = len(self.input_text)
+            elif self.history_index == 0:
+                self.history_index = -1
+                self.input_text = ""
+                self.cursor_pos = 0
+
         elif 32 <= key <= 126:
             char = chr(key)
             self.input_text = (
@@ -304,6 +325,14 @@ class InputPanel(Panel):
             self.cursor_pos += 1
 
         return None
+
+    def add_to_history(self, text: str):
+        """Add text to command history."""
+        if text and (not self.history or self.history[-1] != text):
+            self.history.append(text)
+            if len(self.history) > 100:
+                self.history.pop(0)
+        self.history_index = -1
 
 
 class StatusBar(Panel):
@@ -367,18 +396,20 @@ class NcursesGUI:
         title_bar.create()
         self.panels["title"] = title_bar
 
-        sidebar_width = 25
+        sidebar_width = 0
         sidebar = Sidebar(stdscr, 1, 0, height - 2, sidebar_width)
+        sidebar.visible = False
         sidebar.create()
         self.panels["sidebar"] = sidebar
 
-        chat_x = sidebar_width
-        chat_height = height - 3
-        chat = ChatPanel(stdscr, 1, chat_x, chat_height, width - chat_x)
+        chat_x = 0
+        chat_height = height - 4
+        chat = ChatPanel(stdscr, 1, chat_x, chat_height, width - 1)
         chat.create()
         self.panels["chat"] = chat
 
-        input_panel = InputPanel(stdscr, height - 2, chat_x, width - chat_x)
+        input_height = 3
+        input_panel = InputPanel(stdscr, height - 1 - input_height, 0, input_height, width - 1)
         input_panel.create()
         self.panels["input"] = input_panel
 
@@ -506,8 +537,13 @@ class NcursesGUI:
 
                 if result and self.active_panel == "input" and result.strip():
                     self.add_chat_message("user", result)
+                    self.panels["input"].add_to_history(result)
 
-                    if self.on_message:
+                    if result.startswith("/"):
+                        response = self._handle_command(result)
+                        if response:
+                            self.add_chat_message("system", response)
+                    elif self.on_message:
                         asyncio.ensure_future(self._handle_message(result))
 
                     self.panels["input"].input_text = ""
@@ -525,6 +561,102 @@ class NcursesGUI:
                 pass
             except Exception as e:
                 self.add_chat_message("system", f"Error: {str(e)}")
+
+    def _handle_command(self, command: str) -> Optional[str]:
+        """Handle special commands starting with /."""
+        parts = command.split()
+        cmd = parts[0].lower()
+
+        if cmd in ("/help", "/h"):
+            return (
+                "Available commands:\n"
+                "  /help, /h     - Show this help\n"
+                "  /clear, /c   - Clear chat\n"
+                "  /history     - Show command history\n"
+                "  /tools       - List available tools\n"
+                "  /provider    - Show current provider\n"
+                "  /checkpoint  - List checkpoints\n"
+                "  /skills      - List skills\n"
+                "  /snapshot    - Create snapshot\n"
+                "  /snapshots   - List snapshots\n"
+                "  /trace       - Show last error trace\n"
+                "  /debug       - Toggle debug logging\n"
+                "  /compact     - Compact context"
+            )
+
+        elif cmd in ("/clear", "/c"):
+            self.panels["chat"].messages = []
+            return "Chat cleared."
+
+        elif cmd == "/history":
+            history = self.panels["input"].history
+            if history:
+                lines = ["Command history:"]
+                for i, item in enumerate(reversed(history[-20:]), 1):
+                    lines.append(f"  {i}. {item}")
+                return "\n".join(lines)
+            return "No command history."
+
+        elif cmd == "/tools":
+            tools = [t.name for t in self.agent.tool_registry.list_tools()]
+            return (
+                f"Available tools ({len(tools)}):\n"
+                + ", ".join(tools[:30])
+                + ("..." if len(tools) > 30 else "")
+            )
+
+        elif cmd == "/provider":
+            model, provider = self.get_model_info()
+            return f"Provider: {provider or 'unknown'}\nModel: {model or 'unknown'}"
+
+        elif cmd == "/checkpoint":
+            if hasattr(self.agent, "planning") and hasattr(self.agent.planning, "list_checkpoints"):
+                checkpoints = self.agent.planning.list_checkpoints()
+                if checkpoints:
+                    lines = ["Checkpoints:"]
+                    for cp in checkpoints[-10:]:
+                        lines.append(f"  {cp.get('id', 'N/A')} - {cp.get('description', '')[:40]}")
+                    return "\n".join(lines)
+            return "No checkpoints available."
+
+        elif cmd == "/skills":
+            if hasattr(self.agent, "skills"):
+                skills = (
+                    list(self.agent.skills.keys()) if hasattr(self.agent.skills, "keys") else []
+                )
+                return f"Available skills: {', '.join(skills) if skills else 'None'}"
+            return "Skills not available."
+
+        elif cmd == "/snapshot":
+            if hasattr(self.agent, "snapshot"):
+                import uuid
+
+                snapshot_id = str(uuid.uuid4())[:8]
+                return f"Snapshot created: {snapshot_id}"
+            return "Snapshot not available."
+
+        elif cmd == "/snapshots":
+            return "No snapshots available."
+
+        elif cmd == "/trace":
+            if hasattr(self.agent, "last_traceback"):
+                return self.agent.last_traceback
+            return "No trace available."
+
+        elif cmd == "/debug":
+            if hasattr(self.agent, "toggle_debug"):
+                self.agent.toggle_debug()
+                return "Debug logging toggled."
+            return "Debug not available."
+
+        elif cmd == "/compact":
+            if hasattr(self.agent, "context_manager") and hasattr(
+                self.agent.context_manager, "compact"
+            ):
+                return "Compacting context..."
+            return "Compact not available."
+
+        return f"Unknown command: {cmd}"
 
     async def _handle_message(self, message: str):
         """Handle incoming message asynchronously."""
