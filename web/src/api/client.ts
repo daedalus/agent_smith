@@ -203,6 +203,16 @@ class ApiClient {
     return this.request('/stats')
   }
 
+  async getSessionStats(): Promise<{
+    tokens_used: number
+    context_percent_used: number
+    max_tokens_context: number
+    model: string
+    provider: string
+  }> {
+    return this.request('/stats')
+  }
+
   async getHealth(): Promise<{ status: string }> {
     return this.request<{ status: string }>('/health')
   }

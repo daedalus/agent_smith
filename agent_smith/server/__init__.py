@@ -286,6 +286,7 @@ class AgentServer:
 
         self.router.add_route("GET", "/tools", self._list_tools)
         self.router.add_route("GET", "/config", self._get_config)
+        self.router.add_route("GET", "/stats", self._get_stats)
 
         self.router.add_route("GET", "/openapi.json", self._openapi)
 
@@ -541,6 +542,37 @@ class AgentServer:
                 "session_count": len(self.session_manager.list()),
             }
         )
+
+    async def _get_stats(self, request: Request) -> Response:
+        """Get current stats including token usage, model, and provider info."""
+        self._require_auth(request)
+
+        stats = {
+            "tokens_used": 0,
+            "context_percent_used": 0.0,
+            "max_tokens_context": 0,
+            "model": "unknown",
+            "provider": "unknown",
+        }
+
+        if self.agent:
+            if hasattr(self.agent, "context_manager") and self.agent.context_manager:
+                token_usage = self.agent.context_manager.get_token_usage()
+                stats["tokens_used"] = token_usage.get("current_tokens", 0)
+                stats["context_percent_used"] = token_usage.get("context_usage_percent", 0.0)
+                stats["max_tokens_context"] = token_usage.get("context_limit", 0)
+
+            if hasattr(self.agent, "llm") and self.agent.llm:
+                stats["model"] = getattr(self.agent.llm, "model", "unknown")
+                stats["provider"] = getattr(self.agent.llm, "provider", "unknown")
+
+            if hasattr(self.agent, "config") and self.agent.config:
+                config = self.agent.config
+                stats["provider"] = config.get("default_provider", "unknown")
+                if "llm" in config:
+                    stats["model"] = config.get("default_model", stats["model"])
+
+        return JSONResponse(stats)
 
     async def _openapi(self, request: Request) -> Response:
         """OpenAPI spec."""

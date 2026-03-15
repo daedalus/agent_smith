@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
+import { BottomBar } from './BottomBar'
 import './Layout.css'
 
 export function Layout() {
@@ -78,6 +79,7 @@ export function Layout() {
         <main className="main">
           <Outlet />
         </main>
+        <BottomBar />
       </div>
     </div>
   )
