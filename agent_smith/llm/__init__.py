@@ -137,6 +137,7 @@ class LLMBase(ABC):
         url: str,
         headers: dict = None,
         json: dict = None,
+        on_retry: callable = None,
         **kwargs,
     ) -> httpx.Response:
         """Make an HTTP request with retry logic."""
@@ -160,6 +161,16 @@ class LLMBase(ABC):
                     )
                     raise error
 
+                try:
+                    data = response.json()
+                    if data.get("error"):
+                        error_msg = data["error"].get("message", "")
+                        if "rate limit" in error_msg.lower() or "free_usage" in error_msg.lower():
+                            error = RateLimitError(f"Rate limited: {error_msg}")
+                            raise error
+                except Exception:
+                    pass
+
                 if (
                     response.status_code == 500
                     or response.status_code == 503
@@ -173,7 +184,7 @@ class LLMBase(ABC):
                 return response
 
         if self.retry_config.max_retries > 0:
-            return await retry_with_backoff(make_request, self.retry_config)
+            return await retry_with_backoff(make_request, self.retry_config, on_retry=on_retry)
         else:
             return await make_request()
 
@@ -215,11 +226,15 @@ class OpenAILLM(LLMBase):
         if tools:
             payload["tools"] = tools
 
+        def on_retry(error: Exception, attempt: int):
+            print(f"\n  \033[93mRate limited, retrying (attempt {attempt})...\033[0m")
+
         response = await self._request_with_retry(
             "POST",
             f"{self.base_url}/chat/completions",
             headers=headers,
             json=payload,
+            on_retry=on_retry,
         )
         data = response.json()
 
