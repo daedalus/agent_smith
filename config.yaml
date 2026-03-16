@@ -116,6 +116,27 @@ admin:
   host: 127.0.0.1
   port: 7890
 
+messaging:
+  enabled: false
+  platforms:
+    slack:
+      enabled: false
+      bot_token: ${SLACK_BOT_TOKEN}
+      signing_secret: ${SLACK_SIGNING_SECRET}
+      app_token: ${SLACK_APP_TOKEN}
+      socket_mode: true
+    
+    telegram:
+      enabled: false
+      bot_token: ${TELEGRAM_BOT_TOKEN}
+    
+    whatsapp:
+      enabled: false
+      phone_number_id: ${WHATSAPP_PHONE_NUMBER_ID}
+      access_token: ${WHATSAPP_ACCESS_TOKEN}
+      verify_token: ${WHATSAPP_VERIFY_TOKEN}
+      webhook_port: 8080
+
 github:
   # token: ${GITHUB_TOKEN}  # Set via environment variable or here
   # app_id: ""              # GitHub App ID
