@@ -888,10 +888,355 @@ class PtyRemoveTool(Tool):
         try:
             from agent_smith.pty import PtyManager
 
-            await PtyManager.remove(id)
-            return ToolResult(success=True, content="Session removed")
+            manager = PtyManager.get_instance()
+            await manager.kill_session(id)
+            return ToolResult(success=True, content=f"Killed PTY session {id}")
         except Exception as e:
             return ToolResult(success=False, content=None, error=str(e))
+
+
+class BatchTool(Tool):
+    """Execute multiple tools in parallel."""
+
+    def __init__(self, tool_executor=None):
+        super().__init__(
+            name="batch",
+            description="Execute multiple tool calls in parallel. Maximum 25 tools per batch.",
+        )
+        self.tool_executor = tool_executor
+        self.parameters = {
+            "type": "object",
+            "properties": {
+                "tool_calls": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "tool": {
+                                "type": "string",
+                                "description": "The name of the tool to execute",
+                            },
+                            "parameters": {
+                                "type": "object",
+                                "description": "Parameters for the tool",
+                            },
+                        },
+                        "required": ["tool", "parameters"],
+                    },
+                    "description": "Array of tool calls to execute in parallel",
+                },
+            },
+            "required": ["tool_calls"],
+        }
+
+    async def execute(self, tool_calls: list) -> ToolResult:
+        """Execute multiple tools in parallel."""
+        if not self.tool_executor:
+            return ToolResult(
+                success=False, content=None, error="Tool executor not available for batch execution"
+            )
+
+        if len(tool_calls) > 25:
+            return ToolResult(
+                success=False,
+                content=None,
+                error=f"Maximum of 25 tools allowed in batch, got {len(tool_calls)}",
+            )
+
+        disallowed = {"batch", "invalid", "apply_patch"}
+        results = []
+
+        async def execute_call(call):
+            tool_name = call.get("tool")
+            params = call.get("parameters", {})
+
+            if tool_name in disallowed:
+                return {
+                    "success": False,
+                    "tool": tool_name,
+                    "error": f"Tool '{tool_name}' is not allowed in batch",
+                }
+
+            try:
+                result = await self.tool_executor.execute(tool_name, params)
+                return {"success": result.success, "tool": tool_name, "result": result}
+            except Exception as e:
+                return {"success": False, "tool": tool_name, "error": str(e)}
+
+        results = await asyncio.gather(*[execute_call(call) for call in tool_calls])
+
+        successful = sum(1 for r in results if r["success"])
+        failed = len(results) - successful
+
+        output = (
+            f"All {successful} tools executed successfully."
+            if failed == 0
+            else f"Executed {successful}/{len(results)} tools successfully. {failed} failed."
+        )
+
+        return ToolResult(
+            success=True,
+            content=output,
+            metadata={
+                "total": len(results),
+                "successful": successful,
+                "failed": failed,
+                "results": results,
+            },
+        )
+
+
+class MultiEditTool(Tool):
+    """Edit multiple locations in a file."""
+
+    def __init__(self):
+        super().__init__(
+            name="multiedit",
+            description="Make multiple edits to a file in sequence",
+        )
+        self.parameters = {
+            "type": "object",
+            "properties": {
+                "filePath": {"type": "string", "description": "The path to the file to modify"},
+                "edits": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "oldString": {"type": "string", "description": "The text to replace"},
+                            "newString": {
+                                "type": "string",
+                                "description": "The text to replace it with",
+                            },
+                            "replaceAll": {
+                                "type": "boolean",
+                                "description": "Replace all occurrences (default false)",
+                            },
+                        },
+                        "required": ["oldString", "newString"],
+                    },
+                    "description": "Array of edit operations to perform sequentially",
+                },
+            },
+            "required": ["filePath", "edits"],
+        }
+
+    async def execute(self, filePath: str, edits: list) -> ToolResult:
+        """Execute multiple edits on a file."""
+        edit_tool = EditFileTool()
+        results = []
+
+        for edit in edits:
+            result = await edit_tool.execute(
+                path=filePath,
+                old=edit.get("oldString", ""),
+                new=edit.get("newString", ""),
+            )
+            results.append(result)
+
+            if not result.success:
+                return ToolResult(
+                    success=False,
+                    content=None,
+                    error=f"Edit failed: {result.error}",
+                    metadata={"results": results},
+                )
+
+        return ToolResult(
+            success=True,
+            content=f"Successfully applied {len(edits)} edits to {filePath}",
+            metadata={"results": results, "edits_applied": len(edits)},
+        )
+
+
+class ApplyPatchTool(Tool):
+    """Apply a unified diff patch to files."""
+
+    def __init__(self):
+        super().__init__(
+            name="apply_patch",
+            description="Apply a unified diff patch to files. Parses patch text and creates/modifies/deletes files accordingly.",
+        )
+        self.parameters = {
+            "type": "object",
+            "properties": {
+                "patchText": {
+                    "type": "string",
+                    "description": "The full patch text (unified diff format)",
+                },
+            },
+            "required": ["patchText"],
+        }
+
+    async def execute(self, patchText: str) -> ToolResult:
+        """Apply a patch."""
+        import re
+
+        lines = patchText.split("\n")
+        files_changed = []
+        errors = []
+
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+
+            if line.startswith("--- "):
+                file_match = re.match(r"--- (?:a/)?(.+?)(?:\t|$)", line)
+                if file_match:
+                    old_file = file_match.group(1)
+
+                    if i + 1 < len(lines) and lines[i + 1].startswith("+++ "):
+                        new_file_match = re.match(r"\+\+\+ (?:b/)?(.+?)(?:\t|$)", lines[i + 1])
+                        new_file = new_file_match.group(1) if new_file_match else old_file
+                        i += 2
+
+                        hunk_lines = []
+                        while i < len(lines):
+                            if lines[i].startswith(("diff ", "index ", "--- ")):
+                                break
+                            if lines[i].startswith("@@"):
+                                if hunk_lines:
+                                    break
+                            hunk_lines.append(lines[i])
+                            i += 1
+
+                        try:
+                            if os.path.exists(new_file):
+                                with open(new_file, "r") as f:
+                                    old_content = f.read()
+                            else:
+                                old_content = ""
+
+                            patch_lines = []
+                            for hl in hunk_lines:
+                                if hl.startswith("@@"):
+                                    continue
+                                patch_lines.append(hl)
+
+                            new_content = self._apply_unified_diff(old_content, patch_lines)
+
+                            os.makedirs(os.path.dirname(new_file), exist_ok=True)
+                            with open(new_file, "w") as f:
+                                f.write(new_content)
+
+                            files_changed.append(new_file)
+                        except Exception as e:
+                            errors.append(f"Error applying patch to {new_file}: {str(e)}")
+                    else:
+                        i += 1
+                else:
+                    i += 1
+            else:
+                i += 1
+
+        if errors:
+            return ToolResult(
+                success=False,
+                content=None,
+                error="\n".join(errors),
+                metadata={"files_changed": files_changed},
+            )
+
+        return ToolResult(
+            success=True,
+            content=f"Applied patch to {len(files_changed)} file(s): {', '.join(files_changed)}",
+            metadata={"files_changed": files_changed},
+        )
+
+    def _apply_unified_diff(self, old_content: str, patch_lines: list) -> str:
+        """Apply unified diff lines to old content."""
+        old_lines = old_content.split("\n")
+        result = []
+        i = 0
+
+        while i < len(patch_lines):
+            line = patch_lines[i]
+
+            if line.startswith("@@"):
+                match = re.match(r"@@ -(\d+),?(\d*) \+(\d+),?(\d*) @@", line)
+                if match:
+                    old_start = int(match.group(1)) - 1
+                    old_count = int(match.group(2)) if match.group(2) else 1
+                    new_start = int(match.group(3)) - 1
+
+                    result.extend(old_lines[:old_start])
+
+                    i += 1
+                    while i < len(patch_lines) and not patch_lines[i].startswith("@@"):
+                        pl = patch_lines[i]
+                        if pl.startswith("+"):
+                            result.append(pl[1:])
+                        elif pl.startswith("-"):
+                            pass
+                        elif pl.startswith(" ") or (pl and not pl.startswith(("+", "-", "@"))):
+                            result.append(pl)
+                        i += 1
+
+                    remaining_old = old_lines[old_start + old_count :]
+                    result.extend(remaining_old)
+                    continue
+            i += 1
+
+        if not any(line.startswith("@@") for line in patch_lines):
+            result = old_lines.copy()
+            for line in patch_lines:
+                if line.startswith("+"):
+                    result.append(line[1:])
+                elif line.startswith("-"):
+                    pass
+
+        return "\n".join(result)
+
+
+class QuestionTool(Tool):
+    """Ask the user questions and get answers."""
+
+    def __init__(self):
+        super().__init__(
+            name="question",
+            description="Ask the user questions and wait for their answers",
+        )
+        self.parameters = {
+            "type": "object",
+            "properties": {
+                "questions": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "question": {"type": "string", "description": "The question to ask"},
+                            "header": {
+                                "type": "string",
+                                "description": "Short header for the question",
+                            },
+                            "options": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "label": {"type": "string"},
+                                        "description": {"type": "string"},
+                                    },
+                                },
+                                "description": "Optional multiple choice options",
+                            },
+                        },
+                        "required": ["question"],
+                    },
+                    "description": "Questions to ask the user",
+                },
+            },
+            "required": ["questions"],
+        }
+
+    async def execute(self, questions: list) -> ToolResult:
+        """Ask questions (placeholder - requires UI integration)."""
+        formatted = [f'"{q.get("question", "")}"' for q in questions]
+        return ToolResult(
+            success=True,
+            content=f"Questions asked: {', '.join(formatted)}. (Question tool requires UI integration for actual user input)",
+            metadata={"questions": questions},
+        )
 
 
 def create_builtin_tools(config: dict = None, file_tracker=None, lsp_manager=None) -> list[Tool]:
@@ -929,6 +1274,11 @@ def create_builtin_tools(config: dict = None, file_tracker=None, lsp_manager=Non
         PtyResizeTool(),
         PtyReadTool(),
         PtyRemoveTool(),
+        # New tools
+        BatchTool(),
+        MultiEditTool(),
+        ApplyPatchTool(),
+        QuestionTool(),
     ]
     return tools
 
@@ -937,7 +1287,12 @@ def register_builtin_tools(
     registry: ToolRegistry, config: dict = None, file_tracker=None, lsp_manager=None
 ):
     """Register all built-in tools."""
+    from agent_smith.tools import ToolExecutor
+
+    executor = ToolExecutor(registry)
     for tool in create_builtin_tools(config, file_tracker, lsp_manager):
+        if isinstance(tool, BatchTool):
+            tool.tool_executor = executor
         registry.register(tool)
 
     try:

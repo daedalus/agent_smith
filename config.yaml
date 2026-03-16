@@ -1,13 +1,12 @@
 llm:
   default_provider: opencode
   use_model_registry: true  # Use models.dev for model discovery
-  default_model: "opencode/gpt-5-nano"  # Free model via OpenCode Zen
-  
+  default_model: "opencode/minimax-m2.5-free"  # Free model via OpenCode Zen  
   providers:
     opencode:
       api_key: public  # Use "public" for free models
       base_url: https://opencode.ai/zen/v1
-      model: gpt-5-nano
+      model: big-pickle
     
     openai:
       api_key: ${OPENAI_API_KEY}

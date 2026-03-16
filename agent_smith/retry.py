@@ -1,11 +1,14 @@
 """Retry logic with exponential backoff for API calls."""
 
 import asyncio
+import logging
 import time
 from typing import Any, Callable, Optional, TypeVar
 from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
+
+logger = logging.getLogger(__name__)
 
 
 class RetryError(Exception):
@@ -250,6 +253,10 @@ async def retry_with_backoff(
                 )
 
             delay = state.get_delay(e)
+
+            logger.debug(
+                f"Retrying (attempt {state.attempt + 1}/{config.max_retries}) due to: {retry_reason}"
+            )
 
             if on_retry:
                 on_retry(e, state.attempt + 1)
