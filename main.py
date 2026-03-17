@@ -116,6 +116,12 @@ def parse_args():
         default=".",
         help="Working directory for ACP/server",
     )
+    parser.add_argument(
+        "--install-skills",
+        type=str,
+        metavar="SKILL",
+        help="Install a skill by name (e.g., 'redteaming') or 'all' for all skills",
+    )
     return parser.parse_args()
 
 
@@ -137,6 +143,15 @@ async def run_acp(agent):
 async def main():
     """Main entry point."""
     args = parse_args()
+
+    if args.install_skills:
+        from agent_smith.skills import install_skills
+
+        if args.install_skills == "all":
+            install_skills()
+        else:
+            install_skills(args.install_skills)
+        return
 
     if args.serve:
         os.chdir(args.cwd)

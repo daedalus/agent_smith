@@ -181,3 +181,63 @@ def create_skills_manager(base_dir: str = None) -> SkillsManager:
     manager = SkillsManager(base_dir)
     manager.load_skills()
     return manager
+
+
+def install_skills(base_dir: str = None, skill_name: str = None):
+    """Install built-in skills from package to .agent/skills/.
+
+    Args:
+        base_dir: Target directory for skills installation. Defaults to current working directory.
+        skill_name: Specific skill to install. If None, installs all skills.
+    """
+    import os
+    import shutil
+
+    if base_dir is None:
+        base_dir = os.getcwd()
+
+    package_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    skills_src = os.path.join(package_dir, "skills")
+    skills_dest = os.path.join(base_dir, ".agent", "skills")
+
+    if not os.path.isdir(skills_src):
+        print(f"No skills directory found at {skills_src}")
+        return False
+
+    os.makedirs(skills_dest, exist_ok=True)
+
+    skills_to_install = [skill_name] if skill_name else []
+
+    if not skill_name:
+        try:
+            skills_to_install = os.listdir(skills_src)
+        except OSError:
+            skills_to_install = []
+
+    installed = []
+    for item in skills_to_install:
+        src_path = os.path.join(skills_src, item)
+        if not os.path.isdir(src_path):
+            continue
+
+        skill_file = os.path.join(src_path, "SKILL.md")
+        if not os.path.isfile(skill_file):
+            continue
+
+        dest_path = os.path.join(skills_dest, item)
+        if os.path.isdir(dest_path):
+            print(f"Updating existing skill: {item}")
+            shutil.rmtree(dest_path)
+        else:
+            print(f"Installing skill: {item}")
+
+        os.makedirs(dest_path)
+        shutil.copy2(skill_file, os.path.join(dest_path, "skill.md"))
+        installed.append(item)
+
+    if installed:
+        print(f"\nInstalled {len(installed)} skill(s): {', '.join(installed)}")
+    else:
+        print("No skills found to install")
+
+    return True

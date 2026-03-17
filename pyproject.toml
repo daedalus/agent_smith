@@ -16,6 +16,9 @@ dependencies = [
     "PyGithub>=2.0.0",
 ]
 
+[project.scripts]
+agent-smith-install-skills = "agent_smith.skills:install_skills"
+
 [project.optional-dependencies]
 test = [
     "pytest>=9.0.0",

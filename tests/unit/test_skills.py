@@ -200,6 +200,111 @@ This skill has no frontmatter.
         assert len(manager.skills) == 1
 
 
+class TestInstallSkills:
+    """Test install_skills function."""
+
+    @pytest.fixture
+    def temp_package_dir(self):
+        """Create a temporary package structure with skills."""
+        tmpdir = tempfile.mkdtemp()
+
+        skills_src = os.path.join(tmpdir, "skills")
+        os.makedirs(skills_src)
+
+        test_skill_dir = os.path.join(skills_src, "test-skill")
+        os.makedirs(test_skill_dir)
+
+        with open(os.path.join(test_skill_dir, "SKILL.md"), "w") as f:
+            f.write(
+                """---
+name: test-skill
+description: A test skill
+---
+
+# Test Skill Content
+"""
+            )
+
+        yield tmpdir
+        shutil.rmtree(tmpdir)
+
+    def test_install_skills_all(self, temp_package_dir, monkeypatch):
+        """Test installing all skills."""
+        from agent_smith.skills import install_skills
+
+        target_dir = tempfile.mkdtemp()
+        monkeypatch.chdir(target_dir)
+
+        try:
+            package_dir = os.path.dirname(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            )
+            skills_src = os.path.join(package_dir, "skills")
+
+            if os.path.isdir(skills_src):
+                result = install_skills(target_dir)
+
+                assert result is True
+                assert os.path.isdir(os.path.join(target_dir, ".agent", "skills"))
+
+                skills = os.listdir(os.path.join(target_dir, ".agent", "skills"))
+                assert "redteaming" in skills
+        finally:
+            shutil.rmtree(target_dir)
+
+    def test_install_skills_specific(self, temp_package_dir, monkeypatch):
+        """Test installing a specific skill."""
+        from agent_smith.skills import install_skills
+
+        target_dir = tempfile.mkdtemp()
+        monkeypatch.chdir(target_dir)
+
+        try:
+            result = install_skills(target_dir, "redteaming")
+
+            assert result is True
+            skill_path = os.path.join(target_dir, ".agent", "skills", "redteaming", "skill.md")
+            assert os.path.isfile(skill_path)
+        finally:
+            shutil.rmtree(target_dir)
+
+    def test_install_skills_nonexistent(self, monkeypatch):
+        """Test installing a non-existent skill."""
+        from agent_smith.skills import install_skills
+
+        target_dir = tempfile.mkdtemp()
+
+        try:
+            result = install_skills(target_dir, "nonexistent-skill")
+
+            assert result is True
+            skills_dir = os.path.join(target_dir, ".agent", "skills")
+            assert not os.path.isdir(skills_dir) or not os.listdir(skills_dir)
+        finally:
+            shutil.rmtree(target_dir)
+
+    def test_install_skills_updates_existing(self, monkeypatch):
+        """Test that install_skills updates existing skills."""
+        from agent_smith.skills import install_skills
+
+        target_dir = tempfile.mkdtemp()
+
+        try:
+            existing_dir = os.path.join(target_dir, ".agent", "skills", "redteaming")
+            os.makedirs(existing_dir)
+            with open(os.path.join(existing_dir, "skill.md"), "w") as f:
+                f.write("old content")
+
+            result = install_skills(target_dir, "redteaming")
+
+            assert result is True
+            with open(os.path.join(existing_dir, "skill.md")) as f:
+                content = f.read()
+                assert "old content" not in content
+        finally:
+            shutil.rmtree(target_dir)
+
+
 class TestSkillTool:
     """Test skill tool integration."""
 
