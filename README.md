@@ -142,6 +142,33 @@ This skill returns a greeting.
 
 Use `/skills` CLI command to list available skills.
 
+### Built-in Skills
+
+#### Red Teaming Skill
+Comprehensive security testing skill for red teaming code, LLM systems, and APIs.
+
+```bash
+# Install the redteaming skill
+python3 main.py --install-skills redteaming
+
+# Install all available skills
+python3 main.py --install-skills all
+```
+
+The skill triggers on requests like:
+- "red team this code"
+- "find vulnerabilities in this agent"
+- "test my LLM app for jailbreaks"
+- "check for prompt injection"
+- "security audit"
+
+Covers:
+- Static code security audit (OWASP + CWE)
+- LLM/AI system red teaming (prompt injection, jailbreaks)
+- API/service penetration testing
+- Code agent safety testing
+- Modern attack techniques (Best-of-N, GCG, JBFuzz, Crescendo)
+
 ### File Watcher
 - Real-time file system monitoring using the `watchdog` library
 - Automatically invalidates file caches when files are modified externally
@@ -264,6 +291,16 @@ result = await tool_executor.execute("lsp", {
 
 ```bash
 python3 main.py
+```
+
+#### Install Skills
+
+```bash
+# Install a specific skill
+python3 main.py --install-skills redteaming
+
+# Install all available skills
+python3 main.py --install-skills all
 ```
 
 Special Commands (prefix with '/'):
