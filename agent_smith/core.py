@@ -16,8 +16,8 @@ from nanocode.multimodal import MultimodalManager
 from nanocode.lsp import LSPServerManager
 from nanocode.context import ContextManager, ContextStrategy
 from nanocode.config import get_config
-from nanocode.agents import AgentInfo, get_agent_registry, PermissionAction
-from nanocode.agents.permission import (
+from nanocode.nanocodes import AgentInfo, get_agent_registry, PermissionAction
+from nanocode.nanocodes.permission import (
     PermissionHandler,
 )
 from nanocode.session_summary import SessionSummaryGenerator
@@ -46,8 +46,8 @@ class AutonomousAgent:
 
     def _init_agents(self):
         """Initialize agent system."""
-        self.agent_registry = get_agent_registry()
-        self.current_agent = self.agent_registry.get_default()
+        self.nanocode_registry = get_agent_registry()
+        self.current_agent = self.nanocode_registry.get_default()
         self.permission_handler = PermissionHandler()
 
     def _init_lsp(self):
@@ -68,7 +68,7 @@ class AutonomousAgent:
 
     def switch_agent(self, agent_name: str) -> bool:
         """Switch to a different agent."""
-        agent = self.agent_registry.get(agent_name)
+        agent = self.nanocode_registry.get(agent_name)
         if agent is None:
             return False
         self.current_agent = agent
@@ -82,11 +82,11 @@ class AutonomousAgent:
 
     def list_agents(self) -> list[AgentInfo]:
         """List available agents."""
-        return self.agent_registry.list_primary()
+        return self.nanocode_registry.list_primary()
 
     def get_disabled_tools(self) -> set:
         """Get tools disabled for the current agent."""
-        from nanocode.agents import get_disabled_tools
+        from nanocode.nanocodes import get_disabled_tools
 
         tools = [t.name for t in self.tool_registry.list_tools()]
         if self.current_agent is None:
@@ -102,7 +102,7 @@ class AutonomousAgent:
 
     def _init_file_tracker(self):
         """Initialize file tracker for auto-reload on modification."""
-        cache_dir = self.config.get("file_tracker.cache_dir", ".agent/cache")
+        cache_dir = self.config.get("file_tracker.cache_dir", ".nanocode/cache")
         self.file_tracker = FileTracker(cache_dir)
 
     def _init_llm(self):
@@ -167,7 +167,7 @@ class AutonomousAgent:
             self.tool_registry, self.config.tools, self.file_tracker, self.lsp_manager
         )
 
-        self.task_tool = create_task_tool(self.agent_registry, self.permission_handler)
+        self.task_tool = create_task_tool(self.nanocode_registry, self.permission_handler)
         self.tool_registry.register(self.task_tool)
 
         self.tool_registry.register_handler("mcp", self._handle_mcp_tool)

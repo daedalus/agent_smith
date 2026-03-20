@@ -135,7 +135,7 @@ Respond with a JSON plan in this format:
 class PlanExecutor:
     """Executes plans with progress tracking and checkpointing."""
 
-    def __init__(self, planner: TaskPlanner, executor, checkpoint_dir: str = ".agent"):
+    def __init__(self, planner: TaskPlanner, executor, checkpoint_dir: str = ".nanocode"):
         self.planner = planner
         self.executor = executor
         self.checkpoint_dir = checkpoint_dir

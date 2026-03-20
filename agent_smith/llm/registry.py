@@ -43,7 +43,7 @@ class ModelRegistry:
     Supports 75+ providers and 2000+ models.
     """
 
-    CACHE_DIR = ".agent/cache"
+    CACHE_DIR = ".nanocode/cache"
     CACHE_FILE = "models_registry.json"
     REFRESH_INTERVAL = 60 * 60 * 1000  # 1 hour
 

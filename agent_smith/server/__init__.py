@@ -257,7 +257,7 @@ class AgentServer:
     ):
         self.host = host
         self.port = port
-        self.agent = agent
+        self.nanocode = agent
         self.auth_username = auth_username
         self.auth_password = auth_password
 
@@ -472,8 +472,8 @@ class AgentServer:
         )
 
         try:
-            if self.agent:
-                response = await self.agent.process_input(
+            if self.nanocode:
+                response = await self.nanocode.process_input(
                     messages[-1].get("content", "") if messages else ""
                 )
                 content = response if isinstance(response, str) else str(response)
@@ -519,8 +519,8 @@ class AgentServer:
         self._require_auth(request)
 
         tools = []
-        if self.agent and hasattr(self.agent, "tool_registry"):
-            for tool in self.agent.tool_registry.list_tools():
+        if self.nanocode and hasattr(self.nanocode, "tool_registry"):
+            for tool in self.nanocode.tool_registry.list_tools():
                 tools.append(
                     {
                         "name": tool.name,
@@ -555,19 +555,19 @@ class AgentServer:
             "provider": "unknown",
         }
 
-        if self.agent:
-            if hasattr(self.agent, "context_manager") and self.agent.context_manager:
-                token_usage = self.agent.context_manager.get_token_usage()
+        if self.nanocode:
+            if hasattr(self.nanocode, "context_manager") and self.nanocode.context_manager:
+                token_usage = self.nanocode.context_manager.get_token_usage()
                 stats["tokens_used"] = token_usage.get("current_tokens", 0)
                 stats["context_percent_used"] = token_usage.get("context_usage_percent", 0.0)
                 stats["max_tokens_context"] = token_usage.get("context_limit", 0)
 
-            if hasattr(self.agent, "llm") and self.agent.llm:
-                stats["model"] = getattr(self.agent.llm, "model", "unknown")
-                stats["provider"] = getattr(self.agent.llm, "provider", "unknown")
+            if hasattr(self.nanocode, "llm") and self.nanocode.llm:
+                stats["model"] = getattr(self.nanocode.llm, "model", "unknown")
+                stats["provider"] = getattr(self.nanocode.llm, "provider", "unknown")
 
-            if hasattr(self.agent, "config") and self.agent.config:
-                config = self.agent.config
+            if hasattr(self.nanocode, "config") and self.nanocode.config:
+                config = self.nanocode.config
                 stats["provider"] = config.get("default_provider", "unknown")
                 if "llm" in config:
                     stats["model"] = config.get("default_model", stats["model"])

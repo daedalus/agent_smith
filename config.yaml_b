@@ -13,7 +13,7 @@ exa:
   default_type: auto
   num_results: 10
 file_tracker:
-  cache_dir: .agent/cache
+  cache_dir: .nanocode/cache
   enabled: true
 file_watcher:
   enabled: true
@@ -73,8 +73,8 @@ planning:
   max_steps: 20
 skills:
   directories:
-  - .agent/skills
-  - .agent/commands
+  - .nanocode/skills
+  - .nanocode/commands
 snapshot:
   enabled: true
   prune_days: 7

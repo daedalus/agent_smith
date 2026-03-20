@@ -21,7 +21,7 @@ class TestFileTracker:
     @pytest.fixture
     def tracker(self, temp_dir):
         """Create a file tracker."""
-        return FileTracker(cache_dir=os.path.join(temp_dir, ".agent/cache"))
+        return FileTracker(cache_dir=os.path.join(temp_dir, ".nanocode/cache"))
 
     @pytest.fixture
     def test_file(self, temp_dir):

@@ -10,7 +10,7 @@ class SkillTool(Tool):
     def __init__(self, skills_manager: SkillsManager):
         super().__init__(
             name="skill",
-            description="Execute a custom skill/command defined in .agent/skills/",
+            description="Execute a custom skill/command defined in .nanocode/skills/",
             parameters={
                 "type": "object",
                 "properties": {
@@ -69,7 +69,7 @@ class ListSkillsTool(Tool):
             if not skills:
                 return ToolResult(
                     success=True,
-                    content="No skills found. Create .agent/skills/<skill-name>/skill.md to define a skill.",
+                    content="No skills found. Create .nanocode/skills/<skill-name>/skill.md to define a skill.",
                 )
 
             lines = ["Available skills:"]

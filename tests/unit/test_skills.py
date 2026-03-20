@@ -39,7 +39,7 @@ class TestSkillsManager:
         """Create a temporary directory with test skills."""
         tmpdir = tempfile.mkdtemp()
 
-        skill_dir = os.path.join(tmpdir, ".agent", "skills", "test-skill")
+        skill_dir = os.path.join(tmpdir, ".nanocode", "skills", "test-skill")
         os.makedirs(skill_dir)
 
         skill_file = os.path.join(skill_dir, "skill.md")
@@ -65,7 +65,7 @@ This is a test skill content.
         """Create a temporary directory with skill without frontmatter."""
         tmpdir = tempfile.mkdtemp()
 
-        skill_dir = os.path.join(tmpdir, ".agent", "skills", "no-fm-skill")
+        skill_dir = os.path.join(tmpdir, ".nanocode", "skills", "no-fm-skill")
         os.makedirs(skill_dir)
 
         skill_file = os.path.join(skill_dir, "skill.md")
@@ -153,7 +153,7 @@ This skill has no frontmatter.
 
         skill = manager._parse_skill_file(
             os.path.join(
-                temp_skill_dir_no_frontmatter, ".agent", "skills", "no-fm-skill", "skill.md"
+                temp_skill_dir_no_frontmatter, ".nanocode", "skills", "no-fm-skill", "skill.md"
             )
         )
 
@@ -245,9 +245,9 @@ description: A test skill
                 result = install_skills(target_dir)
 
                 assert result is True
-                assert os.path.isdir(os.path.join(target_dir, ".agent", "skills"))
+                assert os.path.isdir(os.path.join(target_dir, ".nanocode", "skills"))
 
-                skills = os.listdir(os.path.join(target_dir, ".agent", "skills"))
+                skills = os.listdir(os.path.join(target_dir, ".nanocode", "skills"))
                 assert "redteaming" in skills
         finally:
             shutil.rmtree(target_dir)
@@ -263,7 +263,7 @@ description: A test skill
             result = install_skills(target_dir, "redteaming")
 
             assert result is True
-            skill_path = os.path.join(target_dir, ".agent", "skills", "redteaming", "skill.md")
+            skill_path = os.path.join(target_dir, ".nanocode", "skills", "redteaming", "skill.md")
             assert os.path.isfile(skill_path)
         finally:
             shutil.rmtree(target_dir)
@@ -278,7 +278,7 @@ description: A test skill
             result = install_skills(target_dir, "nonexistent-skill")
 
             assert result is True
-            skills_dir = os.path.join(target_dir, ".agent", "skills")
+            skills_dir = os.path.join(target_dir, ".nanocode", "skills")
             assert not os.path.isdir(skills_dir) or not os.listdir(skills_dir)
         finally:
             shutil.rmtree(target_dir)
@@ -290,7 +290,7 @@ description: A test skill
         target_dir = tempfile.mkdtemp()
 
         try:
-            existing_dir = os.path.join(target_dir, ".agent", "skills", "redteaming")
+            existing_dir = os.path.join(target_dir, ".nanocode", "skills", "redteaming")
             os.makedirs(existing_dir)
             with open(os.path.join(existing_dir, "skill.md"), "w") as f:
                 f.write("old content")
@@ -313,7 +313,7 @@ class TestSkillTool:
         """Create a temporary directory with test skills."""
         tmpdir = tempfile.mkdtemp()
 
-        skill_dir = os.path.join(tmpdir, ".agent", "skills", "hello")
+        skill_dir = os.path.join(tmpdir, ".nanocode", "skills", "hello")
         os.makedirs(skill_dir)
 
         skill_file = os.path.join(skill_dir, "skill.md")

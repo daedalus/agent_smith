@@ -304,7 +304,7 @@ class AdminConsole:
     async def handle_skills(self, request):
         """Skills page."""
         html = self._web.get_tools_html(
-            [{"name": "skills", "description": "Custom skills loaded from .agent/skills"}]
+            [{"name": "skills", "description": "Custom skills loaded from .nanocode/skills"}]
         )
         return web.Response(text=html, content_type="text/html")
 

@@ -276,7 +276,7 @@ class ACPHandler:
 
     def __init__(self, session_manager: ACPSessionManager, agent=None):
         self.session_manager = session_manager
-        self.agent = agent
+        self.nanocode = agent
         self._initialized = False
         self._capabilities = ACPCapabilities()
         self._protocol_version = ACPProtocolVersion.CURRENT
@@ -432,8 +432,8 @@ class ACPHandler:
         """Handle tools/list request."""
         tools = []
 
-        if self.agent:
-            for tool in self.agent.tool_registry.list_tools():
+        if self.nanocode:
+            for tool in self.nanocode.tool_registry.list_tools():
                 tools.append(
                     {
                         "name": tool.name,

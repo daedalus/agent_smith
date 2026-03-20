@@ -76,7 +76,7 @@ tools:
     - todo
 
 file_tracker:
-  cache_dir: .agent/cache
+  cache_dir: .nanocode/cache
   enabled: true
 
 file_watcher:
@@ -104,8 +104,8 @@ storage:
 
 skills:
   directories:
-    - .agent/skills
-    - .agent/commands
+    - .nanocode/skills
+    - .nanocode/commands
 
 snapshot:
   enabled: true

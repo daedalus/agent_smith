@@ -342,7 +342,7 @@ class InteractiveCLI:
     """Main CLI for the agent."""
 
     def __init__(self, agent, show_thinking: bool = True):
-        self.agent = agent
+        self.nanocode = agent
         self.ui = ConsoleUI()
         self.history = CommandHistory()
         self.last_error_trace: Optional[str] = None
@@ -356,7 +356,7 @@ class InteractiveCLI:
 
         while True:
             try:
-                user_input = self.ui.print_prompt(state=self.agent.state.state.name.lower())
+                user_input = self.ui.print_prompt(state=self.nanocode.state.state.name.lower())
 
                 if not user_input.strip():
                     continue
@@ -467,12 +467,12 @@ class InteractiveCLI:
         spinner.start(self.ui)
 
         try:
-            response = await self.agent.process_input(user_input, show_thinking=self.show_thinking)
+            response = await self.nanocode.process_input(user_input, show_thinking=self.show_thinking)
         finally:
             spinner.stop()
 
-        if response.startswith("Error:") and self.agent.state.last_traceback:
-            self.last_error_trace = self.agent.state.last_traceback
+        if response.startswith("Error:") and self.nanocode.state.last_traceback:
+            self.last_error_trace = self.nanocode.state.last_traceback
 
         self.ui.print_message("assistant", response)
 
@@ -482,7 +482,7 @@ class InteractiveCLI:
         """Execute a task with planning."""
         self.ui.print_info(f"Planning: {task}")
 
-        result = await self.agent.execute_task(task)
+        result = await self.nanocode.execute_task(task)
 
         if result.get("success"):
             self.ui.print_success(f"Task completed: {result.get('summary', 'Done')}")
@@ -492,7 +492,7 @@ class InteractiveCLI:
     async def _resume_checkpoint(self, checkpoint_id: str):
         """Resume from a checkpoint."""
         self.ui.print_info(f"Resuming checkpoint: {checkpoint_id}")
-        result = await self.agent.resume_from_checkpoint(checkpoint_id)
+        result = await self.nanocode.resume_from_checkpoint(checkpoint_id)
 
         if result.get("success"):
             self.ui.print_success("Checkpoint resumed successfully")
@@ -509,7 +509,7 @@ class InteractiveCLI:
 
     def _print_tools(self):
         """Print available tools."""
-        tools = self.agent.tool_registry.list_tools()
+        tools = self.nanocode.tool_registry.list_tools()
         print(self.ui.color("cyan", "\nAvailable Tools:"))
         print(self.ui.color("gray", "─" * 40))
         for tool in tools:
@@ -520,7 +520,7 @@ class InteractiveCLI:
         self.ui.print_info("Provider/Model Selection")
 
         # Check if there are recent models to show
-        recent_file = Path.home() / ".agent" / "recent_models.json"
+        recent_file = Path.home() / ".nanocode" / "recent_models.json"
         has_recent = False
         if recent_file.exists():
             try:
@@ -643,7 +643,7 @@ class InteractiveCLI:
             return
 
         # Create secure storage directory
-        storage_dir = Path.home() / ".agent" / "credentials"
+        storage_dir = Path.home() / ".nanocode" / "credentials"
         storage_dir.mkdir(parents=True, exist_ok=True)
 
         # Store key (in a real implementation, this would be encrypted)
@@ -657,7 +657,7 @@ class InteractiveCLI:
 
     async def _get_stored_api_key(self, provider_id):
         """Retrieve stored API key."""
-        key_file = Path.home() / ".agent" / "credentials" / f"{provider_id}.key"
+        key_file = Path.home() / ".nanocode" / "credentials" / f"{provider_id}.key"
         if key_file.exists():
             try:
                 return key_file.read_text().strip()
@@ -732,16 +732,16 @@ class InteractiveCLI:
         model_full_id = f"{provider_id}/{model_id}"
 
         # Update config in memory - enable model registry and set provider
-        self.agent.config.set("llm.use_model_registry", True)
-        self.agent.config.set("llm.default_model", model_full_id)
+        self.nanocode.config.set("llm.use_model_registry", True)
+        self.nanocode.config.set("llm.default_model", model_full_id)
 
         # Get API key and store in config so LLM can find it
         api_key = await self._get_stored_api_key(provider_id)
         if api_key:
-            self.agent.config.set(f"llm.providers.{provider_id}.api_key", api_key)
+            self.nanocode.config.set(f"llm.providers.{provider_id}.api_key", api_key)
 
         # Reinitialize LLM with new configuration
-        self.agent._init_llm()
+        self.nanocode._init_llm()
 
         # Also update the config file if desired
         config_path = Path("config.yaml")
@@ -767,7 +767,7 @@ class InteractiveCLI:
         model_full_id = f"{provider_id}/{model_id}"
 
         # Load existing recent models
-        recent_file = Path.home() / ".agent" / "recent_models.json"
+        recent_file = Path.home() / ".nanocode" / "recent_models.json"
         recent_models = []
 
         if recent_file.exists():
@@ -793,7 +793,7 @@ class InteractiveCLI:
 
     async def _show_recent_models_menu(self):
         """Show menu of recently used models."""
-        recent_file = Path.home() / ".agent" / "recent_models.json"
+        recent_file = Path.home() / ".nanocode" / "recent_models.json"
         recent_models = []
 
         if recent_file.exists():
@@ -826,7 +826,7 @@ class InteractiveCLI:
 
     def _list_checkpoints(self):
 
-        checkpoint_dir = ".agent"
+        checkpoint_dir = ".nanocode"
         if os.path.exists(checkpoint_dir):
             files = [f for f in os.listdir(checkpoint_dir) if f.startswith("checkpoint_")]
             if files:
@@ -848,7 +848,7 @@ class InteractiveCLI:
 
             if not skills:
                 print(self.ui.color("yellow", "\nNo skills found."))
-                print("Create skills in .agent/skills/<skill-name>/skill.md")
+                print("Create skills in .nanocode/skills/<skill-name>/skill.md")
                 return
 
             print(self.ui.color("cyan", "\nAvailable Skills:"))
@@ -935,8 +935,8 @@ class InteractiveCLI:
 
         self.debug = not self.debug
 
-        if hasattr(self.agent, "debug"):
-            self.agent.debug = self.debug
+        if hasattr(self.nanocode, "debug"):
+            self.nanocode.debug = self.debug
 
         if self.debug:
             logging.getLogger("httpx").setLevel(logging.DEBUG)
@@ -950,7 +950,7 @@ class InteractiveCLI:
     async def _compact_context(self):
         """Compact the context by summarizing old messages."""
         try:
-            ctx_mgr = getattr(self.agent, "context_manager", None)
+            ctx_mgr = getattr(self.nanocode, "context_manager", None)
             if not ctx_mgr:
                 self.ui.print_error("Context manager not available")
                 return
@@ -976,7 +976,7 @@ class InteractiveCLI:
     async def _check_and_compact_context(self):
         """Check context usage and auto-compact if threshold is reached."""
         try:
-            ctx_mgr = getattr(self.agent, "context_manager", None)
+            ctx_mgr = getattr(self.nanocode, "context_manager", None)
             if not ctx_mgr:
                 return
 

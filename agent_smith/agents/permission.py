@@ -5,7 +5,7 @@ from typing import Any, Callable, Awaitable, Optional
 from enum import Enum
 import uuid
 
-from nanocode.agents import (
+from nanocode.nanocodes import (
     AgentInfo,
     PermissionAction,
     PermissionRule,

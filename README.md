@@ -124,11 +124,11 @@ storage:
 ```
 
 ### Skills System
-- Custom commands defined in `.agent/skills/<skill-name>/skill.md`
+- Custom commands defined in `.nanocode/skills/<skill-name>/skill.md`
 - Each skill is a markdown file with YAML frontmatter
 - Skills are automatically discovered and registered as tools
 
-Example skill file `.agent/skills/hello/skill.md`:
+Example skill file `.nanocode/skills/hello/skill.md`:
 ```markdown
 ---
 name: hello

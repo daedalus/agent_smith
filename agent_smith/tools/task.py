@@ -5,13 +5,13 @@ import uuid
 from dataclasses import dataclass, field
 
 from nanocode.tools import Tool, ToolResult
-from nanocode.agents import (
+from nanocode.nanocodes import (
     AgentRegistry,
     AgentInfo,
     AgentMode,
     PermissionAction,
 )
-from nanocode.agents.permission import PermissionHandler
+from nanocode.nanocodes.permission import PermissionHandler
 
 
 TASK_DESCRIPTION = """Launch a new agent to handle complex, multistep tasks autonomously.
@@ -59,7 +59,7 @@ class TaskTool(Tool):
         agent_registry: AgentRegistry,
         permission_handler: PermissionHandler,
     ):
-        self.agent_registry = agent_registry
+        self.nanocode_registry = agent_registry
         self.permission_handler = permission_handler
         self.sessions: dict[str, SubAgentSession] = {}
 
@@ -94,7 +94,7 @@ class TaskTool(Tool):
 
     def _get_accessible_agents(self, caller: Optional[AgentInfo] = None) -> list[AgentInfo]:
         """Get agents accessible to the caller based on permissions."""
-        all_agents = [a for a in self.agent_registry.list() if a.mode != AgentMode.PRIMARY]
+        all_agents = [a for a in self.nanocode_registry.list() if a.mode != AgentMode.PRIMARY]
 
         if caller is None:
             return all_agents
@@ -145,7 +145,7 @@ class TaskTool(Tool):
         subagent_type = kwargs.get("subagent_type", "")
         task_id = kwargs.get("task_id")
 
-        subagent = self.agent_registry.get(subagent_type)
+        subagent = self.nanocode_registry.get(subagent_type)
         if not subagent:
             return ToolResult(
                 success=False,
@@ -175,7 +175,7 @@ class TaskTool(Tool):
 
         return ToolResult(
             success=True,
-            content=f"Resuming task session {session_id} with agent {session.agent.name}",
+            content=f"Resuming task session {session_id} with agent {session.nanocode.name}",
             metadata={
                 "session_id": session_id,
                 "description": description,

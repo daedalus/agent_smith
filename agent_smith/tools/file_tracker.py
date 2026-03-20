@@ -22,7 +22,7 @@ class FileCacheEntry:
 class FileTracker:
     """Track file modifications for auto-reload."""
 
-    def __init__(self, cache_dir: str = ".agent/cache", file_watcher=None):
+    def __init__(self, cache_dir: str = ".nanocode/cache", file_watcher=None):
         self._cache: dict[str, FileCacheEntry] = {}
         self._cache_dir = cache_dir
         self._file_watcher = file_watcher

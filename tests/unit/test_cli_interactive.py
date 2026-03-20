@@ -19,7 +19,7 @@ class TestInteractiveCLI:
         """Test that CLI can be initialized."""
         mock_agent = Mock()
         cli = InteractiveCLI(mock_agent)
-        assert cli.agent == mock_agent
+        assert cli.nanocode == mock_agent
         assert cli.ui is not None
         assert cli.history is not None
 

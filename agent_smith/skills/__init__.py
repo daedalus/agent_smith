@@ -1,4 +1,4 @@
-"""Skills system - custom commands defined in .agent/skills/."""
+"""Skills system - custom commands defined in .nanocode/skills/."""
 
 import os
 import re
@@ -40,7 +40,7 @@ class SkillInvalidError(SkillError):
 class SkillsManager:
     """Manages custom skills/commands."""
 
-    DEFAULT_SKILL_DIRS = [".agent/skills", ".agent/commands"]
+    DEFAULT_SKILL_DIRS = [".nanocode/skills", ".nanocode/commands"]
     SKILL_FILE_NAME = "skill.md"
 
     def __init__(self, base_dir: str = None):
@@ -184,7 +184,7 @@ def create_skills_manager(base_dir: str = None) -> SkillsManager:
 
 
 def install_skills(base_dir: str = None, skill_name: str = None):
-    """Install built-in skills from package to .agent/skills/.
+    """Install built-in skills from package to .nanocode/skills/.
 
     Args:
         base_dir: Target directory for skills installation. Defaults to current working directory.
@@ -198,7 +198,7 @@ def install_skills(base_dir: str = None, skill_name: str = None):
 
     package_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     skills_src = os.path.join(package_dir, "skills")
-    skills_dest = os.path.join(base_dir, ".agent", "skills")
+    skills_dest = os.path.join(base_dir, ".nanocode", "skills")
 
     if not os.path.isdir(skills_src):
         print(f"No skills directory found at {skills_src}")
