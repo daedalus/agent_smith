@@ -7,7 +7,9 @@ from unittest.mock import AsyncMock, patch, Mock
 
 from nanocode.llm.registry import ModelRegistry
 from nanocode.llm.router import ProviderRouter
-from nanocode.llm import OpenAILLM, AnthropicLLM, OllamaLLM
+from nanocode.llm import OpenAILLM
+from nanocode.llm.providers.anthropic import AnthropicLLM
+from nanocode.llm.providers.ollama import OllamaLLM
 
 
 class TestModelRegistry:
@@ -338,7 +340,7 @@ class TestLLMProxySupport:
         mock_response.text = ""
         mock_response.raise_for_status = Mock()
 
-        with patch("nanocode.llm.httpx.AsyncClient") as mock_client_class:
+        with patch("nanocode.llm.base.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.request = AsyncMock(return_value=mock_response)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -365,7 +367,7 @@ class TestLLMProxySupport:
         }
         mock_response.raise_for_status = Mock()
 
-        with patch("nanocode.llm.httpx.AsyncClient") as mock_client_class:
+        with patch("nanocode.llm.base.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_response)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
@@ -392,7 +394,7 @@ class TestLLMProxySupport:
         }
         mock_response.raise_for_status = Mock()
 
-        with patch("nanocode.llm.httpx.AsyncClient") as mock_client_class:
+        with patch("nanocode.llm.base.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_response)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)

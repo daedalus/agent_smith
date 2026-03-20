@@ -1,0 +1,210 @@
+"""Base classes for LLM providers."""
+
+from abc import ABC, abstractmethod
+from typing import Any, Optional, AsyncIterator
+import json
+import os
+
+import httpx
+
+from nanocode.retry import (
+    RetryConfig,
+    retry_with_backoff,
+    create_error_from_response,
+    RateLimitError,
+    ProviderOverloadedError,
+)
+
+
+class ToolCall:
+    """Represents a tool call from the LLM."""
+
+    def __init__(self, name: str, arguments: dict):
+        self.name = name
+        self.arguments = arguments
+        self.id = f"call_{name}_{hash(str(arguments))}"
+
+    def __repr__(self):
+        return f"ToolCall({self.name}, {self.arguments})"
+
+
+class Message:
+    """Represents a message in the conversation."""
+
+    def __init__(
+        self, role: str, content: Any, tool_calls: list[ToolCall] = None, tool_call_id: str = None
+    ):
+        self.role = role
+        self.content = content
+        self.tool_calls = tool_calls or []
+        self.tool_call_id = tool_call_id
+
+    def to_dict(self) -> dict:
+        """Convert to provider-specific format."""
+        result = {"role": self.role, "content": self.content}
+        if self.tool_calls:
+            result["tool_calls"] = [
+                {"id": tc.id, "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)}}
+                for tc in self.tool_calls
+            ]
+        if self.tool_call_id:
+            result["tool_call_id"] = self.tool_call_id
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Message":
+        """Create from provider response."""
+        tool_calls = []
+        if tool_calls_data := data.get("tool_calls"):
+            for tc in tool_calls_data:
+                func = tc.get("function", {})
+                tool_calls.append(
+                    ToolCall(func.get("name", ""), json.loads(func.get("arguments", "{}")))
+                )
+        return cls(
+            role=data.get("role", "user"),
+            content=data.get("content", ""),
+            tool_calls=tool_calls,
+            tool_call_id=data.get("tool_call_id"),
+        )
+
+
+class LLMResponse:
+    """Standardized LLM response."""
+
+    def __init__(
+        self,
+        content: str,
+        tool_calls: list[ToolCall] = None,
+        finish_reason: str = None,
+        thinking: str = None,
+    ):
+        self.content = content
+        self.tool_calls = tool_calls or []
+        self.finish_reason = finish_reason
+        self.thinking = thinking
+
+    @property
+    def has_tool_calls(self) -> bool:
+        return len(self.tool_calls) > 0
+
+
+class LLMBase(ABC):
+    """Abstract base class for LLM providers."""
+
+    def __init__(
+        self,
+        api_key: str = None,
+        base_url: str = None,
+        model: str = None,
+        retry_config: RetryConfig = None,
+        user_agent: str = None,
+        proxy: str = None,
+        **kwargs,
+    ):
+        self.api_key = api_key or os.getenv("API_KEY")
+        self.base_url = base_url
+        self.model = model
+        self.extra_kwargs = kwargs
+        self.retry_config = retry_config or RetryConfig.default()
+        self.user_agent = user_agent or "nanocode/1.0"
+        self.proxy = proxy
+
+    @abstractmethod
+    async def chat(self, messages: list, tools: list[dict] = None, **kwargs) -> LLMResponse:
+        """Send a chat completion request."""
+        pass
+
+    @abstractmethod
+    async def chat_stream(
+        self, messages: list, tools: list[dict] = None, **kwargs
+    ) -> AsyncIterator[str]:
+        """Stream chat completion responses."""
+        pass
+
+    @abstractmethod
+    def get_tool_schema(self) -> list[dict]:
+        """Get the tool schema format for this provider."""
+        pass
+
+    def supports_functions(self) -> bool:
+        """Check if provider supports function calling."""
+        return True
+
+    def supports_json_mode(self) -> bool:
+        """Check if provider supports JSON mode."""
+        return False
+
+    async def _request_with_retry(
+        self,
+        method: str,
+        url: str,
+        headers: dict = None,
+        json: dict = None,
+        on_retry: callable = None,
+        **kwargs,
+    ) -> httpx.Response:
+        """Make an HTTP request with retry logic."""
+
+        if headers is None:
+            headers = {}
+        if "User-Agent" not in headers:
+            headers["User-Agent"] = self.user_agent
+
+        async def make_request():
+            async with httpx.AsyncClient(proxies=self.proxy) as client:
+                response = await client.request(
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    json=json,
+                    timeout=120.0,
+                    **kwargs,
+                )
+
+                if response.status_code == 429:
+                    retry_after = response.headers.get("retry-after")
+                    error = RateLimitError(
+                        f"Rate limited: {response.text[:200]}",
+                        retry_after=float(retry_after) if retry_after else None,
+                    )
+                    raise error
+
+                try:
+                    data = response.json()
+                    if data.get("error"):
+                        error_msg = data["error"].get("message", "")
+                        if "rate limit" in error_msg.lower() or "free_usage" in error_msg.lower():
+                            error = RateLimitError(f"Rate limited: {error_msg}")
+                            raise error
+                except Exception:
+                    pass
+
+                if (
+                    response.status_code == 500
+                    or response.status_code == 503
+                    or "overloaded" in response.text.lower()
+                ):
+                    raise ProviderOverloadedError(
+                        f"Provider overloaded ({response.status_code}): {response.text[:200]}"
+                    )
+
+                response.raise_for_status()
+                return response
+
+        if self.retry_config.max_retries > 0:
+            return await retry_with_backoff(make_request, self.retry_config, on_retry=on_retry)
+        else:
+            return await make_request()
+
+    def _normalize_messages(self, messages: list) -> list[Message]:
+        """Normalize messages to Message objects."""
+        normalized = []
+        for m in messages:
+            if isinstance(m, Message):
+                normalized.append(m)
+            elif isinstance(m, dict):
+                normalized.append(Message.from_dict(m))
+            elif isinstance(m, str):
+                normalized.append(Message("user", m))
+        return normalized

@@ -123,7 +123,9 @@ class AutonomousAgent:
 
             provider_config = router.get_provider_config(default_model)
 
-            from nanocode.llm import OpenAILLM, AnthropicLLM, OllamaLLM
+            from nanocode.llm import OpenAILLM
+            from nanocode.llm.providers.anthropic import AnthropicLLM
+            from nanocode.llm.providers.ollama import OllamaLLM
 
             if provider_config.provider == "anthropic":
                 self.llm = AnthropicLLM(

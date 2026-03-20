@@ -451,6 +451,13 @@ agent/
 ├── state.py         # State machine
 ├── context.py       # Context management (with compaction)
 ├── llm/             # Multi-provider LLM layer
+│   ├── base.py      # Base classes (LLMBase, Message, ToolCall)
+│   ├── registry.py  # Model registry from models.dev
+│   ├── router.py    # Provider router
+│   └── providers/   # Provider implementations
+│       ├── openai/  # OpenAI-compatible provider
+│       ├── anthropic/  # Anthropic Claude provider
+│       └── ollama/  # Ollama local provider
 ├── tools/           # Tool system
 ├── mcp/             # MCP protocol client
 ├── lsp/             # LSP client
