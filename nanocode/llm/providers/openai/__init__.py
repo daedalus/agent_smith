@@ -12,7 +12,14 @@ from nanocode.llm.base import LLMBase, LLMResponse, ToolCall, Message, LLMBase
 class OpenAILLM(LLMBase):
     """OpenAI-compatible LLM provider."""
 
-    def __init__(self, api_key: str = None, base_url: str = None, model: str = "gpt-4", proxy: str = None, **kwargs):
+    def __init__(
+        self,
+        api_key: str = None,
+        base_url: str = None,
+        model: str = "gpt-4",
+        proxy: str = None,
+        **kwargs,
+    ):
         super().__init__(api_key, base_url, model, proxy=proxy, **kwargs)
         self.base_url = base_url or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         self.api_key = api_key or os.getenv("OPENAI_API_KEY", "dummy")

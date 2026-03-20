@@ -11,7 +11,13 @@ from nanocode.llm.base import LLMBase, LLMResponse, ToolCall, Message
 class AnthropicLLM(LLMBase):
     """Anthropic Claude provider."""
 
-    def __init__(self, api_key: str = None, model: str = "claude-3-5-sonnet-20241022", proxy: str = None, **kwargs):
+    def __init__(
+        self,
+        api_key: str = None,
+        model: str = "claude-3-5-sonnet-20241022",
+        proxy: str = None,
+        **kwargs,
+    ):
         super().__init__(api_key, None, model, proxy=proxy, **kwargs)
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
 

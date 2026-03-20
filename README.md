@@ -11,6 +11,14 @@ Experimental. It might be buggy.
 - **Anthropic** - Claude 3.5 Sonnet, Claude 3
 - **Ollama** - Local models (Llama3, Mistral, etc.)
 - **LM Studio** - Any OpenAI-compatible local API
+- **Google** - Gemini models
+- **Cohere** - Command models
+- **Mistral** - Mistral models
+- **Together** - Llama, Mistral, and more
+- **Groq** - Fast inference
+- **DeepInfra** - Various open models
+- **Fireworks** - Fast inference
+- **OpenRouter** - Unified access to many providers
 - Works with any OpenAI-compatible endpoint
 
 ### Models.dev Integration
@@ -457,7 +465,16 @@ agent/
 │   └── providers/   # Provider implementations
 │       ├── openai/  # OpenAI-compatible provider
 │       ├── anthropic/  # Anthropic Claude provider
-│       └── ollama/  # Ollama local provider
+│       ├── ollama/  # Ollama local provider
+│       ├── google/  # Google Gemini (OpenAI-compatible)
+│       ├── cohere/  # Cohere (OpenAI-compatible)
+│       ├── mistral/  # Mistral AI (OpenAI-compatible)
+│       ├── together/  # Together AI (OpenAI-compatible)
+│       ├── groq/  # Groq (OpenAI-compatible)
+│       ├── deepinfra/  # DeepInfra (OpenAI-compatible)
+│       ├── fireworks/  # Fireworks AI (OpenAI-compatible)
+│       ├── openrouter/  # OpenRouter (OpenAI-compatible)
+│       └── lm_studio/  # LM Studio (OpenAI-compatible)
 ├── tools/           # Tool system
 ├── mcp/             # MCP protocol client
 ├── lsp/             # LSP client

@@ -333,9 +333,7 @@ class TestLLMProxySupport:
 
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "test"}}]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"content": "test"}}]}
         mock_response.headers = {}
         mock_response.text = ""
         mock_response.raise_for_status = Mock()
@@ -362,9 +360,7 @@ class TestLLMProxySupport:
 
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "content": [{"type": "text", "text": "test"}]
-        }
+        mock_response.json.return_value = {"content": [{"type": "text", "text": "test"}]}
         mock_response.raise_for_status = Mock()
 
         with patch("nanocode.llm.base.httpx.AsyncClient") as mock_client_class:
@@ -389,9 +385,7 @@ class TestLLMProxySupport:
 
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "message": {"content": "test"}
-        }
+        mock_response.json.return_value = {"message": {"content": "test"}}
         mock_response.raise_for_status = Mock()
 
         with patch("nanocode.llm.base.httpx.AsyncClient") as mock_client_class:
@@ -404,3 +398,83 @@ class TestLLMProxySupport:
             await llm.chat([{"role": "user", "content": "hello"}])
 
             mock_client_class.assert_called_once_with(proxies="http://localhost:3128")
+
+
+class TestOpenAICompatibleProviders:
+    """Test OpenAI-compatible providers are properly structured."""
+
+    def test_google_provider_imports_openai(self):
+        """Test Google provider re-exports OpenAILLM."""
+        from nanocode.llm.providers.google import OpenAILLM as GoogleLLM
+
+        assert GoogleLLM is not None
+
+    def test_cohere_provider_imports_openai(self):
+        """Test Cohere provider re-exports OpenAILLM."""
+        from nanocode.llm.providers.cohere import OpenAILLM as CohereLLM
+
+        assert CohereLLM is not None
+
+    def test_mistral_provider_imports_openai(self):
+        """Test Mistral provider re-exports OpenAILLM."""
+        from nanocode.llm.providers.mistral import OpenAILLM as MistralLLM
+
+        assert MistralLLM is not None
+
+    def test_together_provider_imports_openai(self):
+        """Test Together provider re-exports OpenAILLM."""
+        from nanocode.llm.providers.together import OpenAILLM as TogetherLLM
+
+        assert TogetherLLM is not None
+
+    def test_groq_provider_imports_openai(self):
+        """Test Groq provider re-exports OpenAILLM."""
+        from nanocode.llm.providers.groq import OpenAILLM as GroqLLM
+
+        assert GroqLLM is not None
+
+    def test_deepinfra_provider_imports_openai(self):
+        """Test DeepInfra provider re-exports OpenAILLM."""
+        from nanocode.llm.providers.deepinfra import OpenAILLM as DeepInfraLLM
+
+        assert DeepInfraLLM is not None
+
+    def test_fireworks_provider_imports_openai(self):
+        """Test Fireworks provider re-exports OpenAILLM."""
+        from nanocode.llm.providers.fireworks import OpenAILLM as FireworksLLM
+
+        assert FireworksLLM is not None
+
+    def test_openrouter_provider_imports_openai(self):
+        """Test OpenRouter provider re-exports OpenAILLM."""
+        from nanocode.llm.providers.openrouter import OpenAILLM as OpenRouterLLM
+
+        assert OpenRouterLLM is not None
+
+    def test_lm_studio_provider_imports_openai(self):
+        """Test LM Studio provider re-exports OpenAILLM."""
+        from nanocode.llm.providers.lm_studio import OpenAILLM as LMStudioLLM
+
+        assert LMStudioLLM is not None
+
+    def test_all_providers_instantiate_correctly(self):
+        """Test all OpenAI-compatible providers can be instantiated."""
+        providers = [
+            ("google", "gemini-pro"),
+            ("cohere", "command-r-plus"),
+            ("mistral", "mistral-large-latest"),
+            ("together", "meta-llama/Llama-3-70b-chat-hf"),
+            ("groq", "llama-3-70b-8192"),
+            ("deepinfra", "meta-llama/Llama-3-70b-instruct"),
+            ("fireworks", "accounts/fireworks/models/llama-v3p1-70b-instruct"),
+            ("openrouter", "anthropic/claude-3-opus"),
+            ("lm-studio", "local-model"),
+        ]
+        for provider, model in providers:
+            llm = OpenAILLM(
+                api_key="test-key",
+                base_url=f"https://api.{provider}.com/v1",
+                model=model,
+            )
+            assert llm.model == model
+            assert llm.base_url == f"https://api.{provider}.com/v1"
