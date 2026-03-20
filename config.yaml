@@ -2,7 +2,8 @@ llm:
   default_provider: opencode
   use_model_registry: true  # Use models.dev for model discovery
   default_model: "opencode/minimax-m2.5-free"  # Free model via OpenCode Zen
-  user_agent: "nanocode/1.0"  # Custom User-Agent for HTTP requests  
+  user_agent: "opencode/1.2.27"  # Custom User-Agent for HTTP requests  
+  # proxy: http://localhost:8080  # Proxy for HTTP requests
   providers:
     opencode:
       api_key: public  # Use "public" for free models

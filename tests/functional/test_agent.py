@@ -190,3 +190,13 @@ class TestConfig:
         config.set("test.value", "hello")
 
         assert config.get("test.value") == "hello"
+
+    def test_config_proxy(self):
+        """Test proxy config property."""
+        from nanocode.config import Config
+
+        config = Config()
+        assert config.proxy is None
+
+        config.set("proxy", "http://localhost:8080")
+        assert config.proxy == "http://localhost:8080"

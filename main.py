@@ -122,6 +122,11 @@ def parse_args():
         metavar="SKILL",
         help="Install a skill by name (e.g., 'redteaming') or 'all' for all skills",
     )
+    parser.add_argument(
+        "--proxy",
+        type=str,
+        help="Proxy URL for HTTP requests (e.g., http://localhost:8080)",
+    )
     return parser.parse_args()
 
 
@@ -156,6 +161,8 @@ async def main():
     if args.serve:
         os.chdir(args.cwd)
         config = Config(args.config)
+        if args.proxy:
+            config.set("proxy", args.proxy)
 
         auth_username = None
         auth_password = None
@@ -190,6 +197,8 @@ async def main():
     if args.acp:
         os.chdir(args.cwd)
         config = Config(args.config)
+        if args.proxy:
+            config.set("proxy", args.proxy)
         agent = AutonomousAgent(config)
         await run_acp(agent)
         return
@@ -197,6 +206,8 @@ async def main():
     if args.admin:
         os.chdir(args.cwd)
         config = Config(args.config)
+        if args.proxy:
+            config.set("proxy", args.proxy)
         from nanocode.admin import start_admin_console
 
         runner = await start_admin_console(
@@ -213,6 +224,9 @@ async def main():
         return
 
     config = Config(args.config)
+
+    if args.proxy:
+        config.set("proxy", args.proxy)
 
     if args.provider:
         config.set("llm.default_provider", args.provider)

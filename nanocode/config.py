@@ -108,6 +108,11 @@ class Config:
         """Get GitHub configuration."""
         return self.get("github", {})
 
+    @property
+    def proxy(self) -> Optional[str]:
+        """Get proxy configuration."""
+        return self.get("proxy")
+
 
 _config: Optional[Config] = None
 

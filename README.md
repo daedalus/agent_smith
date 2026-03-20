@@ -236,6 +236,9 @@ llm:
   use_model_registry: true  # Use models.dev for model discovery
   default_model: "openai/gpt-4o"  # Model ID format: provider/model
   
+  # Proxy configuration for HTTP requests
+  # proxy: http://localhost:8080
+   
   providers:
     openai:
       api_key: ${OPENAI_API_KEY}
@@ -333,6 +336,9 @@ python3 main.py --serve
 
 # With authentication
 python3 main.py --serve --serve-auth "admin:password"
+
+# With proxy
+python3 main.py --serve --proxy http://localhost:8080
 
 # With mDNS discovery
 python3 main.py --serve --mdns
@@ -476,6 +482,7 @@ ANTHROPIC_API_KEY=sk-...     # Anthropic API key
 OLLAMA_BASE_URL=http://localhost:11434
 OPENCODE_ZEN_API_KEY=sk-...  # OpenCode Zen API key (optional)
 AGENT_CONFIG=config.yaml      # Custom config path
+HTTP_PROXY=http://localhost:8080  # Proxy for HTTP requests (also via --proxy flag)
 ```
 
 ## Running Tests
