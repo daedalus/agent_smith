@@ -3,9 +3,11 @@
 import pytest
 import tempfile
 import os
+from unittest.mock import AsyncMock, patch, Mock
 
 from nanocode.llm.registry import ModelRegistry
 from nanocode.llm.router import ProviderRouter
+from nanocode.llm import OpenAILLM, AnthropicLLM, OllamaLLM
 
 
 class TestModelRegistry:
@@ -261,3 +263,142 @@ class TestProviderRouter:
         available = router.is_provider_available("opencode/model")
 
         assert available is True
+
+
+class TestLLMProxySupport:
+    """Test proxy support in LLM classes."""
+
+    def test_openai_llm_proxy_parameter(self):
+        """Test OpenAILLM accepts and stores proxy parameter."""
+        llm = OpenAILLM(
+            api_key="test-key",
+            model="gpt-4",
+            proxy="http://localhost:3128",
+        )
+        assert llm.proxy == "http://localhost:3128"
+
+    def test_openai_llm_no_proxy(self):
+        """Test OpenAILLM works without proxy."""
+        llm = OpenAILLM(
+            api_key="test-key",
+            model="gpt-4",
+        )
+        assert llm.proxy is None
+
+    def test_anthropic_llm_proxy_parameter(self):
+        """Test AnthropicLLM accepts and stores proxy parameter."""
+        llm = AnthropicLLM(
+            api_key="test-key",
+            model="claude-3-5-sonnet-20241022",
+            proxy="http://localhost:3128",
+        )
+        assert llm.proxy == "http://localhost:3128"
+
+    def test_anthropic_llm_no_proxy(self):
+        """Test AnthropicLLM works without proxy."""
+        llm = AnthropicLLM(
+            api_key="test-key",
+            model="claude-3-5-sonnet-20241022",
+        )
+        assert llm.proxy is None
+
+    def test_ollama_llm_proxy_parameter(self):
+        """Test OllamaLLM accepts and stores proxy parameter."""
+        llm = OllamaLLM(
+            base_url="http://localhost:11434",
+            model="llama2",
+            proxy="http://localhost:3128",
+        )
+        assert llm.proxy == "http://localhost:3128"
+
+    def test_ollama_llm_no_proxy(self):
+        """Test OllamaLLM works without proxy."""
+        llm = OllamaLLM(
+            base_url="http://localhost:11434",
+            model="llama2",
+        )
+        assert llm.proxy is None
+
+    @pytest.mark.asyncio
+    async def test_openai_llm_uses_proxy_in_request(self):
+        """Test OpenAILLM passes proxy to httpx client."""
+        llm = OpenAILLM(
+            api_key="test-key",
+            base_url="http://localhost:8080/v1",
+            model="gpt-4",
+            proxy="http://localhost:3128",
+        )
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "choices": [{"message": {"content": "test"}}]
+        }
+        mock_response.headers = {}
+        mock_response.text = ""
+        mock_response.raise_for_status = Mock()
+
+        with patch("nanocode.llm.httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.request = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            await llm.chat([{"role": "user", "content": "hello"}])
+
+            mock_client_class.assert_called_once_with(proxies="http://localhost:3128")
+
+    @pytest.mark.asyncio
+    async def test_anthropic_llm_uses_proxy_in_request(self):
+        """Test AnthropicLLM passes proxy to httpx client."""
+        llm = AnthropicLLM(
+            api_key="test-key",
+            model="claude-3-5-sonnet-20241022",
+            proxy="http://localhost:3128",
+        )
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "content": [{"type": "text", "text": "test"}]
+        }
+        mock_response.raise_for_status = Mock()
+
+        with patch("nanocode.llm.httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            await llm.chat([{"role": "user", "content": "hello"}])
+
+            mock_client_class.assert_called_once_with(proxies="http://localhost:3128")
+
+    @pytest.mark.asyncio
+    async def test_ollama_llm_uses_proxy_in_request(self):
+        """Test OllamaLLM passes proxy to httpx client."""
+        llm = OllamaLLM(
+            base_url="http://localhost:11434",
+            model="llama2",
+            proxy="http://localhost:3128",
+        )
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "message": {"content": "test"}
+        }
+        mock_response.raise_for_status = Mock()
+
+        with patch("nanocode.llm.httpx.AsyncClient") as mock_client_class:
+            mock_client = AsyncMock()
+            mock_client.post = AsyncMock(return_value=mock_response)
+            mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+            mock_client.__aexit__ = AsyncMock()
+            mock_client_class.return_value = mock_client
+
+            await llm.chat([{"role": "user", "content": "hello"}])
+
+            mock_client_class.assert_called_once_with(proxies="http://localhost:3128")

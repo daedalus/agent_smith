@@ -110,6 +110,7 @@ class AutonomousAgent:
         use_registry = self.config.get("llm.use_model_registry", False)
         default_model = self.config.get("llm.default_model")
         user_agent = self.config.get("llm.user_agent", "nanocode/1.0")
+        proxy = self.config.proxy
 
         if use_registry and default_model:
             from nanocode.llm.router import get_router
@@ -129,12 +130,14 @@ class AutonomousAgent:
                     api_key=provider_config.api_key,
                     model=provider_config.model,
                     user_agent=user_agent,
+                    proxy=proxy,
                 )
             elif provider_config.provider == "ollama":
                 self.llm = OllamaLLM(
                     base_url=provider_config.base_url,
                     model=provider_config.model,
                     user_agent=user_agent,
+                    proxy=proxy,
                 )
             else:
                 self.llm = OpenAILLM(
@@ -142,6 +145,7 @@ class AutonomousAgent:
                     api_key=provider_config.api_key or "dummy",
                     model=provider_config.model,
                     user_agent=user_agent,
+                    proxy=proxy,
                 )
         else:
             providers = self.config.providers
@@ -149,10 +153,10 @@ class AutonomousAgent:
 
             if default in providers:
                 provider_config = providers[default]
-                self.llm = create_llm(default, **provider_config, user_agent=user_agent)
+                self.llm = create_llm(default, **provider_config, user_agent=user_agent, proxy=proxy)
             else:
                 self.llm = create_llm(
-                    "openai", api_key="dummy", model="gpt-4", user_agent=user_agent
+                    "openai", api_key="dummy", model="gpt-4", user_agent=user_agent, proxy=proxy
                 )
 
     def _init_tools(self):

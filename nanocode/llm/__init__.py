@@ -99,6 +99,7 @@ class LLMBase(ABC):
         model: str = None,
         retry_config: RetryConfig = None,
         user_agent: str = None,
+        proxy: str = None,
         **kwargs,
     ):
         self.api_key = api_key or os.getenv("API_KEY")
@@ -107,6 +108,7 @@ class LLMBase(ABC):
         self.extra_kwargs = kwargs
         self.retry_config = retry_config or RetryConfig.default()
         self.user_agent = user_agent or "nanocode/1.0"
+        self.proxy = proxy
 
     @abstractmethod
     async def chat(self, messages: list, tools: list[dict] = None, **kwargs) -> LLMResponse:
@@ -150,7 +152,7 @@ class LLMBase(ABC):
             headers["User-Agent"] = self.user_agent
 
         async def make_request():
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(proxies=self.proxy) as client:
                 response = await client.request(
                     method=method,
                     url=url,
@@ -211,8 +213,8 @@ class LLMBase(ABC):
 class OpenAILLM(LLMBase):
     """OpenAI-compatible LLM provider."""
 
-    def __init__(self, api_key: str = None, base_url: str = None, model: str = "gpt-4", **kwargs):
-        super().__init__(api_key, base_url, model, **kwargs)
+    def __init__(self, api_key: str = None, base_url: str = None, model: str = "gpt-4", proxy: str = None, **kwargs):
+        super().__init__(api_key, base_url, model, proxy=proxy, **kwargs)
         self.base_url = base_url or os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
         self.api_key = api_key or os.getenv("OPENAI_API_KEY", "dummy")
 
@@ -283,7 +285,7 @@ class OpenAILLM(LLMBase):
         if tools:
             payload["tools"] = tools
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(proxies=self.proxy) as client:
             async with client.stream(
                 "POST",
                 f"{self.base_url}/chat/completions",
@@ -308,8 +310,8 @@ class OpenAILLM(LLMBase):
 class AnthropicLLM(LLMBase):
     """Anthropic Claude provider."""
 
-    def __init__(self, api_key: str = None, model: str = "claude-3-5-sonnet-20241022", **kwargs):
-        super().__init__(api_key, None, model, **kwargs)
+    def __init__(self, api_key: str = None, model: str = "claude-3-5-sonnet-20241022", proxy: str = None, **kwargs):
+        super().__init__(api_key, None, model, proxy=proxy, **kwargs)
         self.api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
 
     async def chat(self, messages: list, tools: list[dict] = None, **kwargs) -> LLMResponse:
@@ -341,7 +343,7 @@ class AnthropicLLM(LLMBase):
         if tools:
             payload["tools"] = tools
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(proxies=self.proxy) as client:
             response = await client.post(
                 "https://api.anthropic.com/v1/messages",
                 json=payload,
@@ -390,8 +392,8 @@ class AnthropicLLM(LLMBase):
 class OllamaLLM(LLMBase):
     """Ollama local LLM provider."""
 
-    def __init__(self, base_url: str = None, model: str = "llama2", **kwargs):
-        super().__init__(None, base_url, model, **kwargs)
+    def __init__(self, base_url: str = None, model: str = "llama2", proxy: str = None, **kwargs):
+        super().__init__(None, base_url, model, proxy=proxy, **kwargs)
         self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
     async def chat(self, messages: list, tools: list[dict] = None, **kwargs) -> LLMResponse:
@@ -407,7 +409,7 @@ class OllamaLLM(LLMBase):
         if tools:
             payload["tools"] = tools
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(proxies=self.proxy) as client:
             response = await client.post(
                 f"{self.base_url}/api/chat",
                 json=payload,
@@ -446,7 +448,7 @@ class OllamaLLM(LLMBase):
         if tools:
             payload["tools"] = tools
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(proxies=self.proxy) as client:
             async with client.stream(
                 "POST",
                 f"{self.base_url}/api/chat",
