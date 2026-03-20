@@ -1,6 +1,5 @@
 """Patch system for code editing utilities."""
 
-import os
 import re
 import hashlib
 from pathlib import Path

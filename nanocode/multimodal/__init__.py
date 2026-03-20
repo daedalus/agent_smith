@@ -1,7 +1,6 @@
 """Multimodal support for the agent."""
 
 import base64
-import asyncio
 from typing import Any, Optional
 from dataclasses import dataclass
 
@@ -80,7 +79,6 @@ class AudioProcessor:
 
     async def play_audio(self, audio_data: bytes):
         """Play audio data."""
-        import io
         import subprocess
 
         try:
@@ -99,7 +97,7 @@ class AudioProcessor:
                 stderr=subprocess.PIPE,
             )
             process.communicate(input=audio_data)
-        except:
+        except Exception:
             pass
 
 

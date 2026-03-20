@@ -1,15 +1,13 @@
 """Console interface for the agent."""
 
-import asyncio
 import sys
 import os
 import threading
 import json
 import httpx
-import yaml
 import traceback
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional, Dict, Any
 from datetime import datetime
 
 from nanocode.cli.commands import get_command_help, find_command
@@ -467,7 +465,9 @@ class InteractiveCLI:
         spinner.start(self.ui)
 
         try:
-            response = await self.nanocode.process_input(user_input, show_thinking=self.show_thinking)
+            response = await self.nanocode.process_input(
+                user_input, show_thinking=self.show_thinking
+            )
         finally:
             spinner.stop()
 

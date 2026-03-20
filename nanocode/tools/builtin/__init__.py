@@ -1,7 +1,6 @@
 """Built-in tools for file operations, shell, and more."""
 
 import os
-import json
 import subprocess
 import asyncio
 import tempfile
@@ -116,7 +115,6 @@ class BashTool(Tool):
     async def _execute_pty(self, command: str, workdir: str = None) -> ToolResult:
         """Execute command in a PTY session."""
         from nanocode.pty import PtyManager
-        import uuid
 
         session_id = self.pty_session
         if not session_id or PtyManager.get(session_id) is None:
@@ -231,7 +229,7 @@ class GrepTool(Tool):
                                     "matches": matches[:10],
                                 }
                             )
-                    except:
+                    except Exception:
                         continue
 
             return ToolResult(
@@ -362,8 +360,8 @@ class DiffTool(Tool):
                 content="\n".join(diff_lines),
                 metadata={
                     "files": (str(file1), file2_path),
-                    "added": sum(1 for l in diff_lines if l.startswith("+")),
-                    "removed": sum(1 for l in diff_lines if l.startswith("-")),
+                    "added": sum(1 for line in diff_lines if line.startswith("+")),
+                    "removed": sum(1 for line in diff_lines if line.startswith("-")),
                 },
             )
         except Exception as e:
@@ -1274,6 +1272,8 @@ class ApplyPatchTool(Tool):
         """Apply unified diff lines to old content."""
         old_lines = old_content.split("\n")
         result = []
+        import re
+
         i = 0
 
         while i < len(patch_lines):
@@ -1284,7 +1284,6 @@ class ApplyPatchTool(Tool):
                 if match:
                     old_start = int(match.group(1)) - 1
                     old_count = int(match.group(2)) if match.group(2) else 1
-                    new_start = int(match.group(3)) - 1
 
                     result.extend(old_lines[:old_start])
 

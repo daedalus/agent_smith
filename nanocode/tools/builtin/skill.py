@@ -34,7 +34,7 @@ class SkillTool(Tool):
             return ToolResult(success=False, content=None, error="Skill name is required")
 
         try:
-            skill = self.skills_manager.get_skill(name)
+            self.skills_manager.get_skill(name)
 
             context = {
                 "input": input or "",

@@ -371,7 +371,7 @@ class MCPManager:
                 server_tools = asyncio.run(client.list_tools())
                 for tool in server_tools:
                     tools.append((f"{name}:{tool.name}", tool))
-            except:
+            except Exception:
                 pass
         return tools
 

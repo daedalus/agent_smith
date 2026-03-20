@@ -12,7 +12,6 @@ import sys
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
-from enum import Enum
 
 from nanocode.llm import Message as LLMMessage
 

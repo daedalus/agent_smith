@@ -141,7 +141,7 @@ class TaskTool(Tool):
     async def execute(self, **kwargs) -> ToolResult:
         """Execute the task tool to launch a subagent."""
         description = kwargs.get("description", "")
-        prompt = kwargs.get("prompt", "")
+        kwargs.get("prompt", "")
         subagent_type = kwargs.get("subagent_type", "")
         task_id = kwargs.get("task_id")
 

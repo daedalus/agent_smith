@@ -2,11 +2,11 @@
 
 import os
 import json
-from typing import Any, AsyncIterator
+from typing import AsyncIterator
 
 import httpx
 
-from nanocode.llm.base import LLMBase, LLMResponse, ToolCall, Message, LLMBase
+from nanocode.llm.base import LLMResponse, ToolCall, Message, LLMBase
 
 
 class OpenAILLM(LLMBase):

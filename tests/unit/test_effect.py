@@ -68,7 +68,7 @@ def test_trigger_fire():
     results = []
 
     async def waiter():
-        result = await trig.wait()
+        await trig.wait()
         results.append("fired")
 
     async def main():
@@ -385,8 +385,8 @@ def test_convenience_functions():
     o = observable(1)
     assert isinstance(o, Observable)
 
-    l = lazy(lambda: 1)
-    assert isinstance(l, Lazy)
+    lazy_val = lazy(lambda: 1)
+    assert isinstance(lazy_val, Lazy)
 
     d = deferred()
     assert isinstance(d, Deferred)

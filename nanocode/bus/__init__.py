@@ -4,7 +4,6 @@ import logging
 from typing import Any, Callable, Optional
 from dataclasses import dataclass
 from enum import Enum
-from weakref import WeakSet
 import asyncio
 
 
@@ -190,7 +189,7 @@ class EventBus:
                     if asyncio.iscoroutine(result):
                         # Run in new event loop if needed
                         try:
-                            loop = asyncio.get_running_loop()
+                            asyncio.get_running_loop()
                             # Schedule and wait
                             import concurrent.futures
 

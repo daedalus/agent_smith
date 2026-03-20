@@ -106,7 +106,7 @@ class CodeSearchTool(Tool):
         }
 
         async with asyncio.timeout(self.timeout):
-            async with asyncio.StreamReader() as reader:
+            async with asyncio.StreamReader():
                 import aiohttp
 
                 async with aiohttp.ClientSession() as session:

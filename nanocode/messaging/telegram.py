@@ -21,8 +21,7 @@ class TelegramPlatform(MessagingPlatform):
     async def start(self):
         """Start the Telegram bot."""
         try:
-            from telegram import Update
-            from telegram.ext import Application, CommandHandler, MessageHandler, ContextTypes
+            from telegram.ext import Application, CommandHandler, MessageHandler
             from telegram.ext import filters
         except ImportError:
             logger.warning(

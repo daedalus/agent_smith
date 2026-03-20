@@ -3,7 +3,6 @@
 import os
 import asyncio
 import importlib.util
-import subprocess
 from pathlib import Path
 from typing import Any, Callable, Optional, Protocol, runtime_checkable
 from dataclasses import dataclass, field
@@ -175,7 +174,7 @@ class PluginManager:
         if name not in self._plugins:
             return
 
-        plugin = self._plugins.pop(name)
+        self._plugins.pop(name)
 
         for hook_type in PluginHookType:
             self._hooks[hook_type] = [(n, fn) for n, fn in self._hooks[hook_type] if n != name]

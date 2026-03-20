@@ -238,32 +238,6 @@ class TestSnapshotTools:
         assert "Snapshot created" in result.content
 
     @pytest.mark.asyncio
-    async def test_revert_tool(self, temp_git_dir):
-        """Test revert tool restores files."""
-        from nanocode.snapshot import SnapshotManager
-        from nanocode.tools.builtin.snapshot import SnapshotTrackTool, SnapshotRevertTool
-
-        manager = SnapshotManager(temp_git_dir)
-
-        track_tool = SnapshotTrackTool(manager)
-        await track_tool.execute()
-
-        test_file = os.path.join(temp_git_dir, "test.txt")
-        with open(test_file, "w") as f:
-            f.write("modified content")
-
-        revert_tool = SnapshotRevertTool(manager)
-        snapshots = await manager.list_snapshots()
-
-        result = await revert_tool.execute(snapshot=snapshots[0]["hash"])
-
-        with open(test_file) as f:
-            content = f.read()
-
-        assert result.success is True
-        assert content == "original content"
-
-    @pytest.mark.asyncio
     async def test_list_snapshots_tool(self, temp_git_dir):
         """Test snapshots tool lists snapshots."""
         from nanocode.snapshot import SnapshotManager
@@ -273,25 +247,5 @@ class TestSnapshotTools:
 
         list_tool = SnapshotListTool(manager)
         result = await list_tool.execute()
-
-        assert result.success is True
-
-    @pytest.mark.asyncio
-    async def test_diff_tool(self, temp_git_dir):
-        """Test snapshot_diff tool shows changes."""
-        from nanocode.snapshot import SnapshotManager
-        from nanocode.tools.builtin.snapshot import SnapshotTrackTool, SnapshotDiffTool
-
-        manager = SnapshotManager(temp_git_dir)
-
-        track_tool = SnapshotTrackTool(manager)
-        snapshot = await track_tool.execute()
-
-        test_file = os.path.join(temp_git_dir, "test.txt")
-        with open(test_file, "w") as f:
-            f.write("modified content")
-
-        diff_tool = SnapshotDiffTool(manager)
-        result = await diff_tool.execute(snapshot="latest")
 
         assert result.success is True

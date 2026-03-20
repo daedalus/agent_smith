@@ -2,10 +2,7 @@
 
 import asyncio
 import threading
-from typing import Any, Callable, Generic, TypeVar, Optional, Awaitable
-from dataclasses import dataclass, field
-from enum import Enum
-from weakref import WeakSet
+from typing import Any, Callable, Generic, TypeVar, Optional
 import logging
 
 

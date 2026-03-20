@@ -1,7 +1,7 @@
 """Tests for main.py CLI arguments."""
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 
 class TestParseArgs:

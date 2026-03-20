@@ -616,7 +616,6 @@ class ContextManager:
 
     def _sliding_window(self) -> list[dict]:
         """Apply sliding window strategy."""
-        messages = []
 
         if self._system_parts and self.preserve_system:
             system_tokens = sum(p.tokens for p in self._system_parts)
@@ -694,7 +693,7 @@ class ContextManager:
                     summary_text = f"[{len(older)} messages from earlier in the conversation]"
                 else:
                     summary_text = loop.run_until_complete(self._create_summary(older))
-            except:
+            except Exception:
                 summary_text = f"[{len(older)} messages from earlier in the conversation]"
 
             summary_msg = Message(role="system")
@@ -729,7 +728,7 @@ Summary:"""
 
             response = await self.llm.chat([LLMMessage("user", prompt)])
             return response.content[:1500]
-        except:
+        except Exception:
             return f"[{len(messages)} messages from earlier in the conversation]"
 
     def _importance_strategy(self) -> list[dict]:

@@ -1,5 +1,7 @@
 """Tests for event bus functionality."""
 
+from dataclasses import dataclass
+
 from nanocode.bus import (
     EventBus,
     Event,
@@ -253,9 +255,6 @@ def test_callback_exception_handling():
     bus.publish(Event(type="error.event"))
 
     assert len(received) == 1  # Should still receive the event
-
-
-from dataclasses import dataclass
 
 
 def test_async_publish():

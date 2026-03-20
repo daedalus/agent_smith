@@ -4,10 +4,10 @@ import uuid
 import json
 from datetime import datetime
 from typing import Any, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 
-from nanocode.state import TaskStep, ExecutionPlan, AgentState
+from nanocode.state import TaskStep, ExecutionPlan
 
 
 class PlanStrategy(Enum):
@@ -72,7 +72,7 @@ Respond with a JSON plan in this format:
 
         try:
             plan_data = json.loads(response.content)
-        except:
+        except Exception:
             plan_data = self._parse_fallback_plan(response.content)
 
         steps = []
@@ -253,7 +253,7 @@ Respond with:
 
         try:
             return json.loads(response.content)
-        except:
+        except Exception:
             return {"status": "unknown", "reason": response.content}
 
     async def create_replan(
@@ -282,9 +282,9 @@ Respond in the same JSON format as before."""
         response = await self.llm.chat([Message("user", prompt)])
 
         try:
-            plan_data = json.loads(response.content)
-        except:
-            plan_data = {"steps": []}
+            json.loads(response.content)
+        except Exception:
+            pass
 
         steps = []
         completed = False

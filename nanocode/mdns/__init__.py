@@ -6,9 +6,7 @@ on the local network, similar to opencode's implementation.
 Uses the python-zeroconf library (Bonjour/Avahi compatible).
 """
 
-import asyncio
-import socket
-from typing import Optional, Callable, Any
+from typing import Optional, Callable
 from dataclasses import dataclass
 from datetime import datetime
 

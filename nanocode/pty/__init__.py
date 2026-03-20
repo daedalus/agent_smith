@@ -11,7 +11,7 @@ import uuid
 import asyncio
 import threading
 import warnings
-from typing import Optional, Callable
+from typing import Optional
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -269,7 +269,6 @@ class PtyManager:
             return ""
 
         start = session.buffer_cursor
-        end = session.cursor
 
         if cursor >= 0:
             offset = max(0, cursor - start)

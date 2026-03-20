@@ -339,7 +339,7 @@ def remove(directory: str, force: bool = False) -> bool:
         raise RemoveFailedError(result.stderr or "Failed to remove git worktree")
 
     if entry.branch != "HEAD":
-        branch_result = _run_git_command(
+        _run_git_command(
             ["git", "branch", "-D", entry.branch.replace("refs/heads/", "")],
             worktree_root,
             check=False,

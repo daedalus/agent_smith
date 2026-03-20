@@ -1,9 +1,7 @@
 """Skills system - custom commands defined in .nanocode/skills/."""
 
 import os
-import re
 import asyncio
-from pathlib import Path
 from typing import Any, Callable, Optional
 from dataclasses import dataclass
 import frontmatter

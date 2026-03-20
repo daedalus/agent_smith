@@ -98,7 +98,7 @@ class AutonomousAgent:
         self.storage = None
         self.session_id = None
         self.project_id = None
-        use_storage = self.config.get("storage.enabled", True)
+        self.config.get("storage.enabled", True)
 
     def _init_file_tracker(self):
         """Initialize file tracker for auto-reload on modification."""
@@ -155,7 +155,9 @@ class AutonomousAgent:
 
             if default in providers:
                 provider_config = providers[default]
-                self.llm = create_llm(default, **provider_config, user_agent=user_agent, proxy=proxy)
+                self.llm = create_llm(
+                    default, **provider_config, user_agent=user_agent, proxy=proxy
+                )
             else:
                 self.llm = create_llm(
                     "openai", api_key="dummy", model="gpt-4", user_agent=user_agent, proxy=proxy

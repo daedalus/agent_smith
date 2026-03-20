@@ -78,7 +78,7 @@ class TestSessionSummaryGenerator:
             {"role": "assistant", "content": "I'll add a new feature"},
         ]
 
-        summary = await generator._generate_text_summary(messages)
+        await generator._generate_text_summary(messages)
 
         assert mock_llm.chat.called
 

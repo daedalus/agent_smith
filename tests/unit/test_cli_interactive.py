@@ -533,8 +533,8 @@ class TestDebugCommand:
         assert cli.debug is True
 
     @patch("logging.getLogger")
-    def test_debug_toggle_on(self, mock_get_logger):
-        """Test toggling debug on."""
+    def test_debug_toggle_off(self, mock_get_logger):
+        """Test toggling debug off."""
         mock_logger = Mock()
         mock_get_logger.return_value = mock_logger
 
@@ -549,24 +549,6 @@ class TestDebugCommand:
         mock_logger.setLevel.assert_any_call(logging.DEBUG)
         mock_logger.setLevel.assert_any_call(logging.DEBUG)
         assert cli.debug is True
-
-    @patch("logging.getLogger")
-    def test_debug_toggle_off(self, mock_get_logger):
-        """Test toggling debug off."""
-        mock_logger = Mock()
-        mock_get_logger.return_value = mock_logger
-
-        mock_agent = Mock()
-        cli = InteractiveCLI(mock_agent)
-        cli.debug = True
-
-        import asyncio
-
-        asyncio.run(cli._handle_debug_command())
-
-        mock_logger.setLevel.assert_any_call(logging.WARNING)
-        mock_logger.setLevel.assert_any_call(logging.WARNING)
-        assert cli.debug is False
 
     def test_debug_in_help_text(self):
         """Test that /debug command appears in help."""

@@ -1,7 +1,7 @@
 """Base classes for LLM providers."""
 
 from abc import ABC, abstractmethod
-from typing import Any, Optional, AsyncIterator
+from typing import Any, AsyncIterator
 import json
 import os
 
@@ -10,7 +10,6 @@ import httpx
 from nanocode.retry import (
     RetryConfig,
     retry_with_backoff,
-    create_error_from_response,
     RateLimitError,
     ProviderOverloadedError,
 )

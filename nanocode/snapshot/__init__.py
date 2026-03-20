@@ -3,11 +3,10 @@
 import os
 import subprocess
 import json
-import shutil
 from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 
 
 @dataclass
@@ -234,10 +233,8 @@ class SnapshotManager:
         if not self.enabled:
             return False
 
-        git_dir = self._git_dir()
-
         try:
-            result = subprocess.run(
+            subprocess.run(
                 [
                     "git",
                     "-c",
@@ -267,7 +264,7 @@ class SnapshotManager:
             )
 
             return True
-        except subprocess.CalledProcessError as e:
+        except subprocess.CalledProcessError:
             return False
 
     async def list_snapshots(self) -> list[dict]:

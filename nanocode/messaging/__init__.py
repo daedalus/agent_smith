@@ -2,7 +2,11 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, Awaitable
+from typing import Callable, Awaitable
+
+from nanocode.messaging.slack import SlackPlatform, create_slack_platform
+from nanocode.messaging.telegram import TelegramPlatform, create_telegram_platform
+from nanocode.messaging.whatsapp import WhatsAppPlatform, create_whatsapp_platform
 
 
 @dataclass
@@ -102,10 +106,6 @@ class MessagingManager:
         for platform in self.platforms.values():
             await platform.stop()
 
-
-from nanocode.messaging.slack import SlackPlatform, create_slack_platform
-from nanocode.messaging.telegram import TelegramPlatform, create_telegram_platform
-from nanocode.messaging.whatsapp import WhatsAppPlatform, create_whatsapp_platform
 
 __all__ = [
     "Message",

@@ -2,7 +2,6 @@
 
 import os
 import json
-import time
 from typing import Optional
 from dataclasses import dataclass, field
 
@@ -60,7 +59,6 @@ class ModelRegistry:
 
     async def load(self, force_refresh: bool = False):
         """Load model registry from cache or fetch from models.dev."""
-        current_time = int(time.time() * 1000)
 
         if not force_refresh and self._providers:
             return
