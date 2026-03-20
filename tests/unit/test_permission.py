@@ -2,13 +2,13 @@
 
 import pytest
 
-from nanocode.nanocodes import (
+from nanocode.agents import (
     AgentMode,
     PermissionAction,
     PermissionRule,
     AgentInfo,
 )
-from nanocode.nanocodes.permission import (
+from nanocode.agents.permission import (
     PermissionHandler,
     PermissionDeniedError,
     PermissionRejectedError,

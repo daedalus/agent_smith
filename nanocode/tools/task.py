@@ -5,13 +5,13 @@ import uuid
 from dataclasses import dataclass, field
 
 from nanocode.tools import Tool, ToolResult
-from nanocode.nanocodes import (
+from nanocode.agents import (
     AgentRegistry,
     AgentInfo,
     AgentMode,
     PermissionAction,
 )
-from nanocode.nanocodes.permission import PermissionHandler
+from nanocode.agents.permission import PermissionHandler
 
 
 TASK_DESCRIPTION = """Launch a new agent to handle complex, multistep tasks autonomously.

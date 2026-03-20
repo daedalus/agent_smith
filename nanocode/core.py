@@ -16,8 +16,8 @@ from nanocode.multimodal import MultimodalManager
 from nanocode.lsp import LSPServerManager
 from nanocode.context import ContextManager, ContextStrategy
 from nanocode.config import get_config
-from nanocode.nanocodes import AgentInfo, get_agent_registry, PermissionAction
-from nanocode.nanocodes.permission import (
+from nanocode.agents import AgentInfo, get_agent_registry, PermissionAction
+from nanocode.agents.permission import (
     PermissionHandler,
 )
 from nanocode.session_summary import SessionSummaryGenerator
@@ -86,7 +86,7 @@ class AutonomousAgent:
 
     def get_disabled_tools(self) -> set:
         """Get tools disabled for the current agent."""
-        from nanocode.nanocodes import get_disabled_tools
+        from nanocode.agents import get_disabled_tools
 
         tools = [t.name for t in self.tool_registry.list_tools()]
         if self.current_agent is None:
