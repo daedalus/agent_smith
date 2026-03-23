@@ -144,6 +144,218 @@ class BashTool(Tool):
         )
 
 
+class BashSessionManager:
+    """Manages persistent bash sessions with state tracking."""
+
+    def __init__(self):
+        self._sessions: dict[str, dict] = {}
+
+    def create(self, session_id: str, cwd: str = None, env: dict = None) -> None:
+        self._sessions[session_id] = {
+            "cwd": cwd or os.getcwd(),
+            "env": dict(env) if env else dict(os.environ),
+            "created_at": asyncio.get_event_loop().time(),
+        }
+
+    def get(self, session_id: str) -> dict:
+        return self._sessions.get(session_id)
+
+    def update_cwd(self, session_id: str, cwd: str) -> None:
+        if session_id in self._sessions:
+            self._sessions[session_id]["cwd"] = cwd
+
+    def update_env(self, session_id: str, key: str, value: str) -> None:
+        if session_id in self._sessions:
+            self._sessions[session_id]["env"][key] = value
+
+    def remove(self, session_id: str) -> None:
+        self._sessions.pop(session_id, None)
+
+    def list(self) -> list[dict]:
+        return [{"id": sid, **info} for sid, info in self._sessions.items()]
+
+
+_bash_session_manager = BashSessionManager()
+
+
+class BashSessionTool(Tool):
+    """Persistent bash session handler with environment and working directory tracking."""
+
+    def __init__(self):
+        super().__init__(
+            name="bash_session",
+            description="Manage persistent bash sessions with environment variable and working directory tracking",
+        )
+        self.parameters = {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "description": "Action: create, run, get, set_env, list, delete",
+                    "enum": ["create", "run", "get", "set_env", "list", "delete"],
+                },
+                "session_id": {
+                    "type": "string",
+                    "description": "Session ID (for run, get, set_env, delete)",
+                },
+                "command": {"type": "string", "description": "Command to run (for action=run)"},
+                "workdir": {
+                    "type": "string",
+                    "description": "Working directory (for action=create)",
+                },
+                "env": {
+                    "type": "object",
+                    "description": "Environment variables (for action=create or set_env)",
+                },
+                "key": {
+                    "type": "string",
+                    "description": "Environment variable key (for action=set_env)",
+                },
+                "value": {
+                    "type": "string",
+                    "description": "Environment variable value (for action=set_env)",
+                },
+                "timeout": {"type": "integer", "default": 60, "description": "Timeout in seconds"},
+            },
+            "required": ["action"],
+        }
+
+    async def execute(
+        self,
+        action: str,
+        session_id: str = None,
+        command: str = None,
+        workdir: str = None,
+        env: dict = None,
+        key: str = None,
+        value: str = None,
+        timeout: int = 60,
+    ) -> ToolResult:
+        """Handle bash session actions."""
+        try:
+            if action == "create":
+                import uuid
+
+                new_session_id = session_id or str(uuid.uuid4())[:8]
+                _bash_session_manager.create(new_session_id, workdir, env)
+                session_info = _bash_session_manager.get(new_session_id)
+                return ToolResult(
+                    success=True,
+                    content=f"Created bash session: {new_session_id}",
+                    metadata={
+                        "session_id": new_session_id,
+                        "cwd": session_info["cwd"],
+                        "env": session_info["env"],
+                    },
+                )
+
+            elif action == "run":
+                if not session_id:
+                    return ToolResult(
+                        success=False, content=None, error="session_id required for run"
+                    )
+                session = _bash_session_manager.get(session_id)
+                if not session:
+                    return ToolResult(
+                        success=False, content=None, error=f"Session {session_id} not found"
+                    )
+
+                result = subprocess.run(
+                    command,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout,
+                    cwd=session["cwd"],
+                    env=session["env"],
+                )
+
+                if "cd " in command:
+                    new_cwd = (
+                        command.replace("cd", "")
+                        .strip()
+                        .split(";")[0]
+                        .split("||")[0]
+                        .split("&&")[0]
+                    )
+                    if new_cwd and not new_cwd.startswith("-"):
+                        try:
+                            resolved_cwd = Path(session["cwd"]) / new_cwd
+                            if resolved_cwd.is_dir():
+                                _bash_session_manager.update_cwd(
+                                    session_id, str(resolved_cwd.resolve())
+                                )
+                        except Exception:
+                            pass
+
+                output = result.stdout
+                if result.stderr:
+                    output += f"\nSTDERR: {result.stderr}"
+
+                return ToolResult(
+                    success=result.returncode == 0,
+                    content=output or "(command completed with no output)",
+                    metadata={
+                        "returncode": result.returncode,
+                        "cwd": _bash_session_manager.get(session_id)["cwd"],
+                    },
+                )
+
+            elif action == "get":
+                if not session_id:
+                    return ToolResult(
+                        success=False, content=None, error="session_id required for get"
+                    )
+                session = _bash_session_manager.get(session_id)
+                if not session:
+                    return ToolResult(
+                        success=False, content=None, error=f"Session {session_id} not found"
+                    )
+                return ToolResult(
+                    success=True, content=session, metadata={"session_id": session_id}
+                )
+
+            elif action == "set_env":
+                if not session_id or not key:
+                    return ToolResult(
+                        success=False, content=None, error="session_id and key required for set_env"
+                    )
+                session = _bash_session_manager.get(session_id)
+                if not session:
+                    return ToolResult(
+                        success=False, content=None, error=f"Session {session_id} not found"
+                    )
+                _bash_session_manager.update_env(session_id, key, value or "")
+                return ToolResult(
+                    success=True,
+                    content=f"Set {key}={value}",
+                    metadata={
+                        "session_id": session_id,
+                        "env": _bash_session_manager.get(session_id)["env"],
+                    },
+                )
+
+            elif action == "list":
+                sessions = _bash_session_manager.list()
+                return ToolResult(success=True, content=sessions, metadata={"count": len(sessions)})
+
+            elif action == "delete":
+                if not session_id:
+                    return ToolResult(
+                        success=False, content=None, error="session_id required for delete"
+                    )
+                _bash_session_manager.remove(session_id)
+                return ToolResult(success=True, content=f"Deleted session: {session_id}")
+
+            else:
+                return ToolResult(success=False, content=None, error=f"Unknown action: {action}")
+
+        except subprocess.TimeoutExpired:
+            return ToolResult(success=False, content=None, error="Command timed out")
+        except Exception as e:
+            return ToolResult(success=False, content=None, error=str(e))
+
+
 class GlobTool(Tool):
     """Find files matching a glob pattern."""
 
@@ -1373,6 +1585,7 @@ def create_builtin_tools(config: dict = None, file_tracker=None, lsp_manager=Non
 
     tools = [
         BashTool(),
+        BashSessionTool(),
         GlobTool(),
         GrepTool(),
         ReadFileTool(file_tracker=file_tracker),

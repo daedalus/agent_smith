@@ -952,3 +952,157 @@ class TestDiffTool:
         result = await tool.execute(path1="subdir", path2="test.txt")
 
         assert result.success is False
+
+
+class TestBashSessionTool:
+    """Test BashSessionTool."""
+
+    @pytest.fixture
+    def temp_dir(self):
+        """Create temp directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield tmpdir
+
+    @pytest.mark.asyncio
+    async def test_create_session(self, temp_dir):
+        """Test creating a bash session."""
+        from nanocode.tools.builtin import BashSessionTool
+        from nanocode.tools.builtin import _bash_session_manager
+
+        _bash_session_manager._sessions.clear()
+
+        tool = BashSessionTool()
+        result = await tool.execute(action="create", workdir=temp_dir)
+
+        assert result.success is True
+        assert "Created bash session" in result.content
+        assert result.metadata["cwd"] == temp_dir
+
+    @pytest.mark.asyncio
+    async def test_create_with_custom_id(self, temp_dir):
+        """Test creating a session with custom ID."""
+        from nanocode.tools.builtin import BashSessionTool
+        from nanocode.tools.builtin import _bash_session_manager
+
+        _bash_session_manager._sessions.clear()
+
+        tool = BashSessionTool()
+        result = await tool.execute(action="create", session_id="myid", workdir=temp_dir)
+
+        assert result.success is True
+        assert "myid" in result.content
+
+    @pytest.mark.asyncio
+    async def test_run_command(self, temp_dir):
+        """Test running a command in a session."""
+        from nanocode.tools.builtin import BashSessionTool
+        from nanocode.tools.builtin import _bash_session_manager
+
+        _bash_session_manager._sessions.clear()
+
+        tool = BashSessionTool()
+        await tool.execute(action="create", session_id="test1", workdir=temp_dir)
+        result = await tool.execute(action="run", session_id="test1", command="echo hello")
+
+        assert result.success is True
+        assert "hello" in result.content
+
+    @pytest.mark.asyncio
+    async def test_run_nonexistent_session(self, temp_dir):
+        """Test running command in nonexistent session."""
+        from nanocode.tools.builtin import BashSessionTool
+        from nanocode.tools.builtin import _bash_session_manager
+
+        _bash_session_manager._sessions.clear()
+
+        tool = BashSessionTool()
+        result = await tool.execute(action="run", session_id="nonexistent", command="echo hello")
+
+        assert result.success is False
+        assert "not found" in result.error
+
+    @pytest.mark.asyncio
+    async def test_get_session(self, temp_dir):
+        """Test getting session state."""
+        from nanocode.tools.builtin import BashSessionTool
+        from nanocode.tools.builtin import _bash_session_manager
+
+        _bash_session_manager._sessions.clear()
+
+        tool = BashSessionTool()
+        await tool.execute(action="create", session_id="gettest", workdir=temp_dir)
+        result = await tool.execute(action="get", session_id="gettest")
+
+        assert result.success is True
+        assert result.content["cwd"] == temp_dir
+
+    @pytest.mark.asyncio
+    async def test_set_env(self, temp_dir):
+        """Test setting environment variable."""
+        from nanocode.tools.builtin import BashSessionTool
+        from nanocode.tools.builtin import _bash_session_manager
+
+        _bash_session_manager._sessions.clear()
+
+        tool = BashSessionTool()
+        await tool.execute(action="create", session_id="envtest", workdir=temp_dir)
+        result = await tool.execute(action="set_env", session_id="envtest", key="FOO", value="bar")
+
+        assert result.success is True
+        assert "FOO=bar" in result.content
+
+        get_result = await tool.execute(action="get", session_id="envtest")
+        assert get_result.content["env"]["FOO"] == "bar"
+
+    @pytest.mark.asyncio
+    async def test_list_sessions(self, temp_dir):
+        """Test listing sessions."""
+        from nanocode.tools.builtin import BashSessionTool
+        from nanocode.tools.builtin import _bash_session_manager
+
+        _bash_session_manager._sessions.clear()
+
+        tool = BashSessionTool()
+        await tool.execute(action="create", session_id="session1", workdir=temp_dir)
+        await tool.execute(action="create", session_id="session2", workdir=temp_dir)
+
+        result = await tool.execute(action="list")
+
+        assert result.success is True
+        assert result.metadata["count"] == 2
+
+    @pytest.mark.asyncio
+    async def test_delete_session(self, temp_dir):
+        """Test deleting a session."""
+        from nanocode.tools.builtin import BashSessionTool
+        from nanocode.tools.builtin import _bash_session_manager
+
+        _bash_session_manager._sessions.clear()
+
+        tool = BashSessionTool()
+        await tool.execute(action="create", session_id="deletetest", workdir=temp_dir)
+        result = await tool.execute(action="delete", session_id="deletetest")
+
+        assert result.success is True
+        assert "Deleted" in result.content
+
+        get_result = await tool.execute(action="get", session_id="deletetest")
+        assert get_result.success is False
+
+    @pytest.mark.asyncio
+    async def test_cd_updates_cwd(self, temp_dir):
+        """Test that cd command updates working directory."""
+        from nanocode.tools.builtin import BashSessionTool
+        from nanocode.tools.builtin import _bash_session_manager
+
+        _bash_session_manager._sessions.clear()
+
+        tool = BashSessionTool()
+        await tool.execute(action="create", session_id="cdtest", workdir=temp_dir)
+
+        subdir = os.path.join(temp_dir, "subdir")
+        os.makedirs(subdir)
+
+        result = await tool.execute(action="run", session_id="cdtest", command=f"cd {subdir}")
+
+        assert result.success is True
