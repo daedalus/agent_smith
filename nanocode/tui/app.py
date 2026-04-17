@@ -192,6 +192,26 @@ class NanoCodeApp(App):
         if self.agent:
             self._setup_permission_callback()
     
+    def on_text_area_changed(self, event: TextArea.Changed) -> None:
+        """Handle text area changes."""
+        pass
+    
+    def on_text_areaSubmitted(self, event: TextArea.Submitted) -> None:
+        """Handle text area submission (Enter key)."""
+        text = event.text_area.text.strip()
+        if text:
+            event.text_area.text = ""
+            self._process_input(text)
+    
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button presses."""
+        if event.button.id == "send-btn":
+            text_area = self.query_one("#input", TextArea)
+            text = text_area.text.strip()
+            if text:
+                text_area.text = ""
+                self._process_input(text)
+    
     def _show_welcome(self):
         """Show welcome message."""
         log = self.query_one("#output-log", OutputLog)
@@ -270,11 +290,6 @@ class NanoCodeApp(App):
             log.add_message("error", f"Error: {e}")
         
         status.update("idle")
-    
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses."""
-        if event.button.id == "send-btn":
-            self.action_send()
 
 
 def run_tui(agent=None, show_thinking: bool = True):
