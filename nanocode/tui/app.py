@@ -1,51 +1,11 @@
 """NanoCode TUI App - A Textual-based terminal UI."""
 
 from textual.app import App, ComposeResult
-from textual.containers import Container, Horizontal, Vertical
-from textual.widgets import Header, Footer, Static, TextArea, RichLog, Button
+from textual.containers import Horizontal, Vertical
+from textual.widgets import Header, Footer, Static, Input, RichLog, Button
 from textual.binding import Binding
-from textual import work
 
-from typing import Optional
 import asyncio
-
-
-class PermissionRequest:
-    """Minimal permission request for TUI."""
-    def __init__(self, id: str, agent_name: str, tool_name: str, arguments: dict):
-        self.id = id
-        self.agent_name = agent_name
-        self.tool_name = tool_name
-        self.arguments = arguments
-
-
-class StatusBar(Static):
-    """Status bar showing agent state."""
-    
-    def __init__(self, status: str = "idle", agent_name: str = ""):
-        super().__init__()
-        self._status = status
-        self._agent_name = agent_name
-    
-    def compose(self) -> ComposeResult:
-        yield Static(self._get_status_text(), id="status")
-    
-    def _get_status_text(self) -> str:
-        icons = {
-            "idle": "○",
-            "planning": "◔",
-            "executing": "▶",
-            "waiting": "◉",
-            "complete": "✓",
-            "error": "✗",
-        }
-        icon = icons.get(self._status, "○")
-        return f" {icon} [{self._status.upper()}] {self._agent_name}"
-    
-    def update_status(self, status: str, agent_name: str = ""):
-        self._status = status
-        self._agent_name = agent_name
-        self.query_one("#status", Static).update(self._get_status_text())
 
 
 class OutputLog(RichLog):
@@ -67,47 +27,6 @@ class OutputLog(RichLog):
         }
         color = role_styles.get(role, "white")
         self.write(f"[{color}][{role.upper()}][/] {content}")
-
-
-class InputBar(Static):
-    """Input bar with text area and send button."""
-    
-    def __init__(self):
-        super().__init__()
-        self._pending_input = None
-    
-    def compose(self) -> ComposeResult:
-        with Horizontal(id="input-container"):
-            yield TextArea(id="input", placeholder="Enter your task...", border="none")
-            yield Button("Send", id="send-btn", variant="primary")
-    
-    def focus(self):
-        self.query_one("#input", TextArea).focus()
-    
-    async def get_input(self) -> Optional[str]:
-        """Get input from the text area."""
-        text_area = self.query_one("#input", TextArea)
-        return text_area.text
-    
-    def clear(self):
-        self.query_one("#input", TextArea).text = ""
-
-
-class PermissionDialog(Static):
-    """Permission request dialog."""
-    
-    def __init__(self, request_data: dict):
-        super().__init__()
-        self.request_data = request_data
-    
-    def compose(self) -> ComposeResult:
-        yield Static(f"Permission Request", id="perm-title")
-        yield Static(f"Agent: {self.request_data.get('agent_name', 'unknown')}", id="perm-agent")
-        yield Static(f"Tool: {self.request_data.get('tool_name', 'unknown')}", id="perm-tool")
-        with Horizontal(id="perm-buttons"):
-            yield Button("Allow", id="perm-allow", variant="success")
-            yield Button("Deny", id="perm-deny", variant="error")
-            yield Button("Always", id="perm-always", variant="primary")
 
 
 class NanoCodeApp(App):
@@ -134,11 +53,11 @@ class NanoCodeApp(App):
     }
     
     #input {
-        height: 3;
+        height: auto;
     }
     
     #send-btn {
-        height: 3;
+        height: auto;
     }
     
     #status-bar {
@@ -146,22 +65,10 @@ class NanoCodeApp(App):
         background: $surface-darken-1;
         padding: 0 1;
     }
-    
-    .permission-dialog {
-        background: $panel;
-        border: solid $accent;
-        padding: 2;
-        width: 60%;
-    }
-    
-    #perm-title {
-        text-style: bold;
-        margin-bottom: 1;
-    }
     """
     
     BINDINGS = [
-        Binding("enter", "send", "Send"),
+        Binding("enter", "submit", "Send"),
         Binding("ctrl+l", "clear_output", "Clear Output"),
         Binding("escape", "quit", "Quit", show=True),
     ]
@@ -170,39 +77,24 @@ class NanoCodeApp(App):
         super().__init__()
         self.agent = agent
         self.show_thinking = show_thinking
-        self._permission_callback = None
     
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="main-container"):
             yield OutputLog(id="output-log")
             with Horizontal(id="input-container"):
-                yield TextArea(id="input", placeholder="Enter your task...", multiline=False)
+                yield Input(placeholder="Enter your task...", id="input")
                 yield Button("Send", id="send-btn", variant="primary")
         yield Static("", id="status-bar")
         yield Footer()
     
     def on_mount(self) -> None:
         """Initialize on mount."""
-        self.query_one("#input", TextArea).focus()
+        self.query_one("#input", Input).focus()
         self._show_welcome()
         
-        # Set up permission callback if agent exists
         if self.agent:
             self._setup_permission_callback()
-    
-    def on_text_area_changed(self, event: TextArea.Changed) -> None:
-        """Handle text area changes."""
-        pass
-    
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        """Handle button presses."""
-        if event.button.id == "send-btn":
-            text_area = self.query_one("#input", TextArea)
-            text = text_area.text.strip()
-            if text:
-                text_area.text = ""
-                self._process_input(text)
     
     def _show_welcome(self):
         """Show welcome message."""
@@ -215,21 +107,18 @@ class NanoCodeApp(App):
     def _setup_permission_callback(self):
         """Set up permission callback for the agent."""
         from nanocode.agents.permission import (
-            PermissionCallback,
             PermissionReply,
             PermissionReplyType,
             PermissionRequest,
         )
         
         async def permission_callback(request: PermissionRequest) -> PermissionReply:
-            """Handle permission requests in TUI."""
             self._show_permission_dialog(request)
-            # For now, default allow - user interaction via dialog later
             return PermissionReply(request_id=request.id, reply=PermissionReplyType.ALWAYS)
         
         self.agent.permission_handler.set_callback(permission_callback)
     
-    def _show_permission_dialog(self, request: PermissionRequest):
+    def _show_permission_dialog(self, request):
         """Show permission request dialog."""
         log = self.query_one("#output-log", OutputLog)
         log.add_message("system", f"┌─[PERMISSION REQUEST]")
@@ -243,12 +132,12 @@ class NanoCodeApp(App):
                 log.add_message("system", f"    {k}: {v_str}")
         log.add_message("system", f"  ➜ Allow? (y/n/a=always)")
     
-    def action_send(self):
+    def action_submit(self):
         """Handle send action."""
-        input_widget = self.query_one("#input", TextArea)
-        text = input_widget.text.strip()
+        input_widget = self.query_one("#input", Input)
+        text = input_widget.value.strip()
         if text:
-            input_widget.text = ""
+            input_widget.value = ""
             self._process_input(text)
     
     def action_clear_output(self):
@@ -256,19 +145,27 @@ class NanoCodeApp(App):
         log = self.query_one("#output-log", OutputLog)
         log.clear()
     
-    def action_cancel(self):
-        """Cancel current action."""
-        # TODO: Implement cancellation
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """Handle input changes."""
         pass
     
-    @work(exclusive=True)
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Handle input submission (Enter key)."""
+        text = event.value.strip()
+        if text:
+            event.input.value = ""
+            self._process_input(text)
+    
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """Handle button presses."""
+        if event.button.id == "send-btn":
+            self.action_submit()
+    
     async def _process_input(self, text: str):
         """Process user input through the agent."""
         log = self.query_one("#output-log", OutputLog)
-        status = self.query_one("#status-bar", Static)
         
         log.add_message("user", text)
-        status.update("Waiting for response...")
         
         try:
             if self.agent:
@@ -280,8 +177,6 @@ class NanoCodeApp(App):
                 log.add_message("error", "No agent configured")
         except Exception as e:
             log.add_message("error", f"Error: {e}")
-        
-        status.update("idle")
 
 
 def run_tui(agent=None, show_thinking: bool = True):
