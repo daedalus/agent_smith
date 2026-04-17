@@ -1,16 +1,17 @@
 """Console interface for the agent."""
 
-import sys
-import os
-import threading
 import json
-import httpx
+import os
+import sys
+import threading
 import traceback
-from pathlib import Path
-from typing import Optional, Dict, Any
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, Optional
 
-from nanocode.cli.commands import get_command_help, find_command
+import httpx
+
+from nanocode.cli.commands import find_command, get_command_help
 
 try:
     import readline
@@ -33,7 +34,7 @@ class PromptHandler:
         except (KeyboardInterrupt, EOFError):
             return False
 
-    async def password(self, message: str, validate=None) -> Optional[str]:
+    async def password(self, message: str, validate=None) -> str | None:
         """Ask for password input."""
         try:
             # Note: This doesn't hide input like a real password prompt
@@ -48,7 +49,7 @@ class PromptHandler:
         except (KeyboardInterrupt, EOFError):
             return None
 
-    async def autocomplete(self, options: Dict[str, Any]) -> Optional[str]:
+    async def autocomplete(self, options: dict[str, Any]) -> str | None:
         """Show autocomplete selection."""
         try:
             print(options["message"])
@@ -213,7 +214,7 @@ class ConsoleUI:
             )
         )
 
-    def print_prompt(self, state: str = "idle"):
+    def print_prompt(self, state: str = "idle", agent_name: str | None = None):
         """Print the prompt."""
         state_colors = {
             "idle": "white",
@@ -224,9 +225,8 @@ class ConsoleUI:
             "error": "red",
         }
         color = state_colors.get(state, "white")
-        prompt_str = (
-            f"\n{self.color(color, '┌─[' + state.upper() + ']')} {self.color('cyan', '➜')} "
-        )
+        agent_str = f"{agent_name}: " if agent_name else ""
+        prompt_str = f"\n{self.color(color, '┌─[' + state.upper() + ']')} {self.color('cyan', agent_str + '➜')} "
         if READLINE_AVAILABLE:
             try:
                 return input(prompt_str)
@@ -274,6 +274,42 @@ class ConsoleUI:
         """Print success message."""
         print(f"\n{self.color('green', '✓')} {message}")
 
+    def print_permission_request(
+        self,
+        agent_name: str,
+        tool_name: str,
+        arguments: dict,
+    ) -> bool:
+        """Print a permission request and get user response."""
+        print(f"\n{self.color('yellow', '┌─[PERMISSION REQUEST]')}")
+        print(f"  {self.color('cyan', 'Agent:')} {agent_name}")
+        print(f"  {self.color('cyan', 'Tool:')} {tool_name}")
+        if arguments:
+            print(f"  {self.color('cyan', 'Arguments:')}")
+            for k, v in arguments.items():
+                v_str = str(v)
+                if len(v_str) > 50:
+                    v_str = v_str[:50] + "..."
+                print(f"    {k}: {v_str}")
+        print(f"  {self.color('magenta', '➜')} ", end="")
+
+        try:
+            response = input().strip().lower()
+            if response in ("y", "yes", "a", "always"):
+                return True
+            if response == "always":
+                return "always"
+            return False
+        except (KeyboardInterrupt, EOFError):
+            return False
+
+    def print_permission_result(self, tool_name: str, allowed: bool):
+        """Print permission result."""
+        if allowed:
+            print(self.color("green", f"  ✓ Permission granted for '{tool_name}'"))
+        else:
+            print(self.color("red", f"  ✗ Permission denied for '{tool_name}'"))
+
     def print_plan(self, plan: dict):
         """Print execution plan."""
         print(f"\n{self.color('cyan', '📋 Execution Plan:')}")
@@ -311,7 +347,12 @@ class CommandHistory:
         self.history: list[dict] = []
         self.max_size = max_size
 
-    def add(self, command: str, output: Optional[str] = None, timestamp: Optional[datetime] = None):
+    def add(
+        self,
+        command: str,
+        output: str | None = None,
+        timestamp: datetime | None = None,
+    ):
         """Add a command to history."""
         self.history.append(
             {
@@ -329,7 +370,9 @@ class CommandHistory:
 
     def search(self, query: str) -> list[dict]:
         """Search history."""
-        return [h for h in self.history if query.lower() in h.get("command", "").lower()]
+        return [
+            h for h in self.history if query.lower() in h.get("command", "").lower()
+        ]
 
     def clear(self):
         """Clear history."""
@@ -339,13 +382,14 @@ class CommandHistory:
 class InteractiveCLI:
     """Main CLI for the agent."""
 
-    def __init__(self, agent, show_thinking: bool = True):
+    def __init__(self, agent, show_thinking: bool = True, show_messages: bool = False):
         self.nanocode = agent
         self.ui = ConsoleUI()
         self.history = CommandHistory()
-        self.last_error_trace: Optional[str] = None
+        self.last_error_trace: str | None = None
         self.compact_threshold: float = 85.0
         self.show_thinking = show_thinking
+        self.show_messages = show_messages
         self.debug = False
 
     async def run(self):
@@ -354,7 +398,14 @@ class InteractiveCLI:
 
         while True:
             try:
-                user_input = self.ui.print_prompt(state=self.nanocode.state.state.name.lower())
+                agent_name = None
+                if hasattr(self.nanocode, 'current_agent') and self.nanocode.current_agent:
+                    agent_name = self.nanocode.current_agent.name
+
+                user_input = self.ui.print_prompt(
+                    state=self.nanocode.state.state.name.lower(),
+                    agent_name=agent_name
+                )
 
                 if not user_input.strip():
                     continue
@@ -466,7 +517,9 @@ class InteractiveCLI:
 
         try:
             response = await self.nanocode.process_input(
-                user_input, show_thinking=self.show_thinking
+                user_input,
+                show_thinking=self.show_thinking,
+                show_messages=self.show_messages,
             )
         finally:
             spinner.stop()
@@ -598,7 +651,8 @@ class InteractiveCLI:
         opencode_exists = any(p["id"] == "opencode" for p in providers)
         if not opencode_exists:
             providers.insert(
-                0, {"id": "opencode", "name": "OpenCode (Free)", "model_count": "unknown"}
+                0,
+                {"id": "opencode", "name": "OpenCode (Free)", "model_count": "unknown"},
             )
 
         options = []
@@ -606,7 +660,9 @@ class InteractiveCLI:
             hint = f"{provider['model_count']} models"
             if provider["id"] == "opencode":
                 hint = "Free models, no API key needed"
-            options.append({"label": f"{provider['name']} ({hint})", "value": provider["id"]})
+            options.append(
+                {"label": f"{provider['name']} ({hint})", "value": provider["id"]}
+            )
 
         selected = await self.ui.prompts.autocomplete(
             {"message": "Select provider", "maxItems": 8, "options": options}
@@ -682,10 +738,17 @@ class InteractiveCLI:
                             {
                                 "id": model_id,
                                 "name": model_data.get("name", model_id),
-                                "context": model_data.get("limit", {}).get("context", "unknown"),
-                                "input_cost": model_data.get("cost", {}).get("input", 0),
-                                "output_cost": model_data.get("cost", {}).get("output", 0),
-                                "is_free": model_data.get("cost", {}).get("input", 0) == 0
+                                "context": model_data.get("limit", {}).get(
+                                    "context", "unknown"
+                                ),
+                                "input_cost": model_data.get("cost", {}).get(
+                                    "input", 0
+                                ),
+                                "output_cost": model_data.get("cost", {}).get(
+                                    "output", 0
+                                ),
+                                "is_free": model_data.get("cost", {}).get("input", 0)
+                                == 0
                                 and model_data.get("cost", {}).get("output", 0) == 0,
                             }
                         )
@@ -709,7 +772,9 @@ class InteractiveCLI:
             if model["is_free"]:
                 cost_info = "free"
             else:
-                cost_info = f"${model['input_cost']}/{model['output_cost']} per 1M tokens"
+                cost_info = (
+                    f"${model['input_cost']}/{model['output_cost']} per 1M tokens"
+                )
 
             options.append(
                 {
@@ -749,7 +814,7 @@ class InteractiveCLI:
             import yaml
 
             try:
-                with open(config_path, "r") as f:
+                with open(config_path) as f:
                     config = yaml.safe_load(f)
                 config["llm"]["use_model_registry"] = True
                 config["llm"]["default_model"] = model_full_id
@@ -810,7 +875,10 @@ class InteractiveCLI:
             if "/" in model_full_id:
                 provider_id, model_id = model_full_id.split("/", 1)
                 options.append(
-                    {"label": f"{provider_id}/{model_id} (recent)", "value": model_full_id}
+                    {
+                        "label": f"{provider_id}/{model_id} (recent)",
+                        "value": model_full_id,
+                    }
                 )
 
         if not options:
@@ -828,7 +896,9 @@ class InteractiveCLI:
 
         checkpoint_dir = ".nanocode"
         if os.path.exists(checkpoint_dir):
-            files = [f for f in os.listdir(checkpoint_dir) if f.startswith("checkpoint_")]
+            files = [
+                f for f in os.listdir(checkpoint_dir) if f.startswith("checkpoint_")
+            ]
             if files:
                 print(self.ui.color("cyan", "\nSaved Checkpoints:"))
                 for f in files:
@@ -854,7 +924,9 @@ class InteractiveCLI:
             print(self.ui.color("cyan", "\nAvailable Skills:"))
             print(self.ui.color("gray", "─" * 40))
             for skill in skills:
-                print(f"  • {self.ui.color('magenta', skill['name'])}: {skill['description']}")
+                print(
+                    f"  • {self.ui.color('magenta', skill['name'])}: {skill['description']}"
+                )
                 print(f"    {self.ui.color('gray', skill['location'])}")
         except ImportError:
             print(self.ui.color("gray", "\nSkills module not available."))
@@ -877,7 +949,9 @@ class InteractiveCLI:
     async def _revert_snapshot(self, snapshot_hash: str):
         """Revert to a snapshot."""
         if not snapshot_hash:
-            self.ui.print_error("Snapshot hash required. Use /snapshots to list available.")
+            self.ui.print_error(
+                "Snapshot hash required. Use /snapshots to list available."
+            )
             return
 
         try:
@@ -917,7 +991,9 @@ class InteractiveCLI:
             print(self.ui.color("cyan", "\nAvailable Snapshots:"))
             print(self.ui.color("gray", "─" * 40))
             for s in snapshots:
-                print(f"  • {self.ui.color('magenta', s['hash'][:8])} ({s['timestamp']})")
+                print(
+                    f"  • {self.ui.color('magenta', s['hash'][:8])} ({s['timestamp']})"
+                )
         except Exception as e:
             self.ui.print_error(f"Error: {e}")
 
@@ -941,7 +1017,9 @@ class InteractiveCLI:
         if self.debug:
             logging.getLogger("httpx").setLevel(logging.DEBUG)
             logging.getLogger("nanocode.tools").setLevel(logging.DEBUG)
-            self.ui.print_info("Debug mode enabled - HTTP requests and tool calls will be logged")
+            self.ui.print_info(
+                "Debug mode enabled - HTTP requests and tool calls will be logged"
+            )
         else:
             logging.getLogger("httpx").setLevel(logging.WARNING)
             logging.getLogger("nanocode.tools").setLevel(logging.WARNING)
@@ -984,7 +1062,9 @@ class InteractiveCLI:
             usage_percent = usage.get("context_usage_percent", 0)
 
             if usage_percent >= self.compact_threshold:
-                self.ui.print_info(f"Context usage at {usage_percent:.1f}%, compacting...")
+                self.ui.print_info(
+                    f"Context usage at {usage_percent:.1f}%, compacting..."
+                )
                 await self._compact_context()
         except Exception:
             pass
