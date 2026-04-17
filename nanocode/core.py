@@ -31,21 +31,30 @@ from nanocode.tools.text_detector import (
 
 DEFAULT_SYSTEM_PROMPT = """You are nanocode, an autonomous CLI coding agent.
 
-# Tool usage
-You have access to tools. Use them to complete tasks - do NOT just describe commands in text.
+# Tool usage - MANDATORY
+You MUST use tools to complete tasks. Never describe what you would do - do it.
 
 Examples of correct tool usage:
 - [tool_call: bash for 'find . -name "*.py"']
 - [tool_call: glob for pattern '**/*.py']
 - [tool_call: read for path 'src/main.py']
-- [tool_call: edit for path 'src/main.py' oldString='foo' newString='bar']
-- [tool_call: write for path 'src/new.py' content='# New file']
 - [tool_call: grep for pattern 'def main']
+
+# Critical rules
+1. For ANY task like "find X in Y" - IMMEDIATELY use grep/glob/bash tools to search
+2. NEVER ask for clarification - use tools to explore
+3. If you don't know the answer, use tools to find out
+4. Never say "I need to know" - use tools to find the information
+
+# Available tools
+- bash: Execute shell commands (use 'ls', 'find', 'grep', etc.)
+- glob: Find files by pattern (e.g., pattern='**/*.py')
+- grep: Search file contents
+- read: Read file contents
 
 When you need to run shell commands, use the bash tool.
 When searching files, use glob and grep tools.
 When reading files, use the read tool - NOT cat.
-When modifying files, use the edit or write tools.
 """
 
 logger = logging.getLogger("nanocode.agent")
@@ -331,6 +340,7 @@ class AutonomousAgent:
                     )
                     print(f"\n\033[91m{warning}\033[0m\n")
 
+                # Allow tool to execute even on doom loop (show warning but don't block)
                 if self.current_agent:
                     doom_action = self.permission_handler.check_permission(
                         self.current_agent,
@@ -349,12 +359,7 @@ class AutonomousAgent:
                                 "success": False,
                             }
                         )
-                        self.doom_loop_handler.reset(tool_name)
                         continue
-                    elif doom_action == PermissionAction.ASK:
-                        logger.debug(
-                            f"[{agent_name}] Doom loop permission ASK for '{tool_name}'"
-                        )
 
             if self.current_agent:
                 action = self.permission_handler.check_permission(
@@ -626,6 +631,10 @@ class AutonomousAgent:
                     print(
                         f"\n\033[96m[DEBUG] Handling {len(response.tool_calls)} tool calls...\033[0m"
                     )
+                
+                # Reset doom loop tracking at the start of each tool call round
+                self.doom_loop_handler.reset()
+                
                 tool_results = await self._handle_tool_calls(response.tool_calls)
                 tool_results_history.extend(tool_results)
 
@@ -646,10 +655,54 @@ class AutonomousAgent:
 
                 messages = self.context_manager.prepare_messages()
                 logger.debug(f"[{agent_name}] Second call: {len(messages)} messages after tool result")
-                final_response = await self.llm.chat(messages=messages)
+                final_response = await self.llm.chat(messages=messages, tools=tools if tools else None)
+
+                # Continue handling tool calls in a loop until no more are requested
+                max_iterations = 10
+                iteration = 0
+                while final_response.has_tool_calls and iteration < max_iterations:
+                    iteration += 1
+                    logger.info(
+                        f"[{agent_name}] Second LLM requested {len(final_response.tool_calls)} tool call(s): {[tc.name for tc in final_response.tool_calls]} (iteration {iteration})"
+                    )
+                    
+                    # Reset doom loop tracking for this iteration
+                    self.doom_loop_handler.reset()
+                    
+                    tool_results = await self._handle_tool_calls(final_response.tool_calls)
+                    tool_results_history.extend(tool_results)
+
+                    for tr in tool_results:
+                        result_content = tr["result"]
+                        result_content = self.context_manager.truncate_tool_result(result_content)
+                        self.context_manager.add_tool_result(
+                            tr["tool_name"],
+                            tr["tool_call_id"],
+                            result_content,
+                        )
+
+                    messages = self.context_manager.prepare_messages()
+                    
+                    # After 3 iterations, force model to respond (no tools) to break loops
+                    if iteration > 3:
+                        logger.debug(f"[{agent_name}] Forcing response without tools to break loop")
+                        final_response = await self.llm.chat(messages=messages, tools=None)
+                    else:
+                        final_response = await self.llm.chat(messages=messages, tools=tools if tools else None)
+
+                if iteration >= max_iterations:
+                    logger.warning(f"[{agent_name}] Hit max tool call iterations ({max_iterations})")
+
                 content = final_response.content
             else:
                 content = response.content
+
+            # Ensure we have valid content (not None or empty after tool calls)
+            if not content and tool_results_history:
+                # If content is empty but we have tool results, summarize them
+                content = "Tool execution completed. Results shown above."
+            elif not content:
+                content = "(no response)"
 
                 # Text-to-Tool Detection: Handle model outputs text that looks like commands
                 detected = detect_commands_in_text(content)

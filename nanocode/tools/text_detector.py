@@ -187,13 +187,23 @@ def should_reprompt_for_tools(response_text: str | None, tools_were_expected: bo
 
     response_text = str(response_text)
 
-    tool_indicators = [
-        "find ", "search ", "look for", "grep ", "list ",
-        "read the", "view the", "show the", "check the",
-        "run ", "execute ", "install ", "create ",
-        "edit ", "modify ", "delete ", "remove ",
-        "write ", "save ", "open ",
+    # Only trigger if response actually contains shell-like commands or specific tool patterns
+    # Don't trigger on general task descriptions like "find bugs"
+    shell_like_patterns = [
+        r"find\s+[-.\w]+\s+",  # find -name, find . -type
+        r"grep\s+['\"]",  # grep "pattern"
+        r"ls\s+[-\w]+",  # ls -la
+        r"cd\s+\S+",  # cd some/path
+        r"python\s+\S+",  # python script.py
+        r"npm\s+(install|run|test)",  # npm install, npm run
+        r"pytest\s+",  # pytest tests/
+        r"git\s+(status|log|diff|branch)",  # git commands
     ]
+    
+    has_shell_like = any(re.search(p, response_text) for p in shell_like_patterns)
+    
+    if not has_shell_like:
+        return False, ""
 
     # Indicators that response is complete without tools
     completion_indicators = [
@@ -201,23 +211,13 @@ def should_reprompt_for_tools(response_text: str | None, tools_were_expected: bo
         "as follows:", "```", "done.", "finished.",
         "i have", "based on", "according to",
     ]
-
-    has_tool_indicators = any(ind in response_text.lower() for ind in tool_indicators)
+    
     has_completion = any(ind in response_text.lower() for ind in completion_indicators)
 
-    if tools_were_expected and has_tool_indicators and not has_completion:
-        # Model mentioned file operations but didn't use tools
+    if tools_were_expected and not has_completion:
         return True, (
-            "Response mentions file operations (find, read, search) "
-            "but did not use the available tools. Consider re-prompting."
-        )
-
-    # Check for long shell commands that weren't executed
-    long_commands = re.findall(r"(?:find|grep|ls|cd|python)\s+\S+\s+\S+.{50,}", response_text)
-    if long_commands and not has_completion:
-        return True, (
-            f"Response contains {len(long_commands)} shell command(s) "
-            "that may need execution."
+            "Response contains shell-like commands but did not use the available tools. "
+            "Consider re-prompting to use tools directly."
         )
 
     return False, ""

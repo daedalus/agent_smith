@@ -1,9 +1,8 @@
 """Doom loop detection - detects repeated tool calls that may indicate infinite loops."""
 
-from dataclasses import dataclass, field
-from typing import Optional
-from collections import defaultdict
 import json
+from collections import defaultdict
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -20,7 +19,9 @@ class DoomLoopDetection:
     """Tracks tool calls to detect doom loops."""
 
     threshold: int = 3
-    _recent_calls: dict[str, list[ToolCall]] = field(default_factory=lambda: defaultdict(list))
+    _recent_calls: dict[str, list[ToolCall]] = field(
+        default_factory=lambda: defaultdict(list)
+    )
 
     def record_call(self, tool_name: str, arguments: dict, call_id: str = None) -> bool:
         """
@@ -51,12 +52,20 @@ class DoomLoopDetection:
             return False
 
         first_args = recent[0].arguments
-        return all(
-            json.dumps(c.arguments, sort_keys=True) == json.dumps(first_args, sort_keys=True)
-            for c in recent
-        )
+        
+        # Ignore empty or default arguments for doom loop detection
+        if not first_args or all(v is None or v == "" or v == "." or v == "*" for v in first_args.values()):
+            return False
+        
+        # Check if arguments are exactly the same
+        args_json = json.dumps(first_args, sort_keys=True)
+        identical_count = sum(1 for c in recent if json.dumps(c.arguments, sort_keys=True) == args_json)
+        
+        # Only detect doom loop if ALL recent calls have identical args
+        # If model is making progress (different args), don't trigger
+        return identical_count == len(recent)
 
-    def get_loop_info(self) -> Optional[dict]:
+    def get_loop_info(self) -> dict | None:
         """Get information about the detected doom loop."""
         for tool_name, calls in self._recent_calls.items():
             if len(calls) >= self.threshold and self._is_doom_loop(calls):
@@ -98,7 +107,7 @@ class DoomLoopHandler:
             return False
         return self.detection.record_call(tool_name, arguments)
 
-    def get_loop_warning(self) -> Optional[str]:
+    def get_loop_warning(self) -> str | None:
         """Generate a warning message about the doom loop."""
         info = self.detection.get_loop_info()
         if info:
