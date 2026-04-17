@@ -145,8 +145,52 @@ class ConsoleUI:
             if hasattr(readline, "set_history_length"):
                 readline.set_history_length(100)
             self._load_history()
+            readline.set_completer(self._complete)
         except Exception:
             pass
+
+    def _complete(self, text: str, state: int):
+        """Tab completion handler for readline."""
+        if not READLINE_AVAILABLE:
+            return None
+
+        line = readline.get_line_buffer()
+        tokens = line.split()
+
+        if not tokens or not line.startswith("/"):
+            return None
+
+        first_token = tokens[0].lower()
+
+        if first_token == "/agent" and len(tokens) > 1:
+            agent_names = self._get_agent_names()
+            matches = [a for a in agent_names if a.startswith(text[7:].lower())]
+            if state < len(matches):
+                return matches[state]
+            return None
+
+        if first_token == "/":
+            commands = [
+                "help", "exit", "quit", "q", "clear", "history", "tools",
+                "provider", "plan", "resume", "checkpoint", "skills",
+                "snapshot", "snapshots", "revert", "trace", "debug",
+                "compact", "show_thinking", "agents", "agent"
+            ]
+            matches = [f"/{c}" for c in commands if c.startswith(text[1:].lower())]
+            if state < len(matches):
+                return matches[state]
+            return None
+
+        return None
+
+    def _get_agent_names(self) -> list[str]:
+        """Get list of agent names for completion."""
+        try:
+            from nanocode.agents import get_agent_registry
+            registry = get_agent_registry()
+            return [a.name for a in registry.list_primary()]
+        except Exception:
+            return []
 
     def _load_history(self):
         """Load history from file."""
@@ -488,6 +532,15 @@ class InteractiveCLI:
                         self.ui.print_info(
                             f"Show thinking: {'enabled' if self.show_thinking else 'disabled'}"
                         )
+                        continue
+
+                    if command == "/agents":
+                        self._list_agents()
+                        continue
+
+                    if command.startswith("/agent "):
+                        agent_name = user_input[8:].strip()
+                        await self._switch_agent(agent_name)
                         continue
 
                     # If it starts with "/" but doesn't match any known command, show error
@@ -930,6 +983,44 @@ class InteractiveCLI:
                 print(f"    {self.ui.color('gray', skill['location'])}")
         except ImportError:
             print(self.ui.color("gray", "\nSkills module not available."))
+
+    def _list_agents(self):
+        """List available agents."""
+        if not hasattr(self.nanocode, 'nanocode_registry'):
+            self.ui.print_error("Agent registry not available")
+            return
+
+        agents = self.nanocode.nanocode_registry.list_primary()
+        current = self.nanocode.current_agent.name if self.nanocode.current_agent else None
+
+        print(self.ui.color("cyan", "\nAvailable Agents:"))
+        print(self.ui.color("gray", "─" * 40))
+        for agent in agents:
+            marker = " *" if agent.name == current else ""
+            color = self.ui.color('green', agent.name) if agent.name == current else self.ui.color('white', agent.name)
+            print(f"  • {color}{marker}")
+            if agent.description:
+                print(f"    {self.ui.color('gray', agent.description)}")
+        print()
+        print(f"{self.ui.color('cyan', 'Current:')} {current}")
+        print(f"{self.ui.color('gray', 'Use /agent <name> to switch')}")
+
+    async def _switch_agent(self, agent_name: str):
+        """Switch to a different agent."""
+        if not agent_name:
+            self.ui.print_error("Agent name required. Use /agents to list available agents.")
+            return
+
+        if not hasattr(self.nanocode, 'switch_agent'):
+            self.ui.print_error("Agent switching not available")
+            return
+
+        success = self.nanocode.switch_agent(agent_name)
+        if success:
+            self.ui.print_success(f"Switched to agent: {agent_name}")
+        else:
+            available = [a.name for a in self.nanocode.nanocode_registry.list_primary()]
+            self.ui.print_error(f"Agent '{agent_name}' not found. Available: {', '.join(available)}")
 
     async def _create_snapshot(self):
         """Create a new snapshot."""
