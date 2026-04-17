@@ -1,12 +1,13 @@
 """Tests for snapshot module."""
 
-import pytest
-import tempfile
 import os
-import subprocess
 import shutil
+import subprocess
+import tempfile
 
-from nanocode.snapshot import SnapshotManager, Patch
+import pytest
+
+from nanocode.snapshot import Patch, SnapshotManager
 
 
 class TestSnapshotManager:
@@ -235,7 +236,8 @@ class TestSnapshotTools:
         result = await diff_tool.execute(snapshot=snapshot)
 
         assert result.success is True
-        assert "Snapshot created" in result.content
+        assert "Changed files since" in result.content
+        assert "test.txt" in result.content
 
     @pytest.mark.asyncio
     async def test_list_snapshots_tool(self, temp_git_dir):

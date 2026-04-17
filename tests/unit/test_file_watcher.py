@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 
 from nanocode.file_watcher import (
+    FileEventHandler,
     FileWatcher,
     FileWatcherEvent,
-    FileEventHandler,
     FileWatcherManager,
     create_file_watcher,
     get_watcher_manager,
@@ -45,7 +45,9 @@ class TestFileEventHandler:
 
         handler = FileEventHandler(callback, ignore_patterns=["*.pyc", "__pycache__"])
 
-        handler.on_created(type("MockEvent", (), {"src_path": "/test.py", "is_directory": False})())
+        handler.on_created(
+            type("MockEvent", (), {"src_path": "/test.py", "is_directory": False})()
+        )
         assert len(events) == 1
 
         events.clear()
@@ -62,7 +64,9 @@ class TestFileEventHandler:
             events.append(event)
 
         handler = FileEventHandler(callback)
-        handler.on_created(type("MockEvent", (), {"src_path": "/dir", "is_directory": True})())
+        handler.on_created(
+            type("MockEvent", (), {"src_path": "/dir", "is_directory": True})()
+        )
         assert len(events) == 0
 
 
@@ -133,10 +137,12 @@ class TestFileWatcher:
         """Test getting events from queue."""
         watcher = FileWatcher(root_dir=temp_dir, enabled=True)
         watcher.start()
+        await asyncio.sleep(0.1)  # Give observer time to initialize
 
         try:
             test_file = Path(temp_dir) / "test.txt"
             test_file.write_text("hello")
+            await asyncio.sleep(0.2)  # Give watchdog time to process event
 
             event = await watcher.get_event(timeout=2)
             assert event is not None
