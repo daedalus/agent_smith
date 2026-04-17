@@ -22,6 +22,31 @@ from nanocode.storage.cache import CachedResponse, PromptCache, get_prompt_cache
 from nanocode.tools import ToolExecutor, ToolRegistry
 from nanocode.tools.builtin import register_builtin_tools
 from nanocode.tools.file_tracker import FileTracker
+from nanocode.tools.text_detector import (
+    create_reprompt_message,
+    detect_commands_in_text,
+    format_detected_commands_message,
+    should_reprompt_for_tools,
+)
+
+DEFAULT_SYSTEM_PROMPT = """You are nanocode, an autonomous CLI coding agent.
+
+# Tool usage
+You have access to tools. Use them to complete tasks - do NOT just describe commands in text.
+
+Examples of correct tool usage:
+- [tool_call: bash for 'find . -name "*.py"']
+- [tool_call: glob for pattern '**/*.py']
+- [tool_call: read for path 'src/main.py']
+- [tool_call: edit for path 'src/main.py' oldString='foo' newString='bar']
+- [tool_call: write for path 'src/new.py' content='# New file']
+- [tool_call: grep for pattern 'def main']
+
+When you need to run shell commands, use the bash tool.
+When searching files, use glob and grep tools.
+When reading files, use the read tool - NOT cat.
+When modifying files, use the edit or write tools.
+"""
 
 logger = logging.getLogger("nanocode.agent")
 tool_logger = logging.getLogger("nanocode.tools")
@@ -259,6 +284,8 @@ class AutonomousAgent:
 
         if system_prompt := ctx_config.get("system_prompt"):
             self.context_manager.set_system_prompt(system_prompt)
+        else:
+            self.context_manager.set_system_prompt(DEFAULT_SYSTEM_PROMPT)
 
     def _init_mcp(self):
         """Initialize MCP connections."""
@@ -615,6 +642,34 @@ class AutonomousAgent:
             else:
                 content = response.content
 
+                # Text-to-Tool Detection: Handle model outputs text that looks like commands
+                detected = detect_commands_in_text(content)
+                if detected:
+                    logger.warning(
+                        f"[{agent_name}] Detected {len(detected)} command(s) in text that were not executed"
+                    )
+                    if self.debug:
+                        print(f"\n\033[93m[WARN] Detected unexecuted commands:\033[0m")
+                        for cmd in detected:
+                            print(f"  - [{cmd.tool_name}] {cmd.command[:60]}...")
+
+                # Check if model should have used tools but didn't
+                tools = self.tool_registry.get_schemas()
+                should_reprompt, reason = should_reprompt_for_tools(
+                    content,
+                    tools_were_expected=bool(tools)
+                )
+
+                if should_reprompt:
+                    logger.warning(f"[{agent_name}] Model didn't use tools: {reason}")
+                    if self.debug:
+                        print(f"\n\033[93m[WARN] {reason}\033[0m")
+
+                    # Add detected commands warning to content
+                    warning_msg = format_detected_commands_message(detected)
+                    if warning_msg:
+                        content += warning_msg
+
             self.context_manager.add_message("assistant", content)
 
             await self._generate_summary(tool_results_history)
@@ -709,6 +764,99 @@ class AutonomousAgent:
             cache_logger.info("Prompt cache cleared")
             return True
         return False
+
+    async def reprompt_for_tools(
+        self,
+        max_retries: int = 2,
+        show_thinking: bool = True,
+        show_messages: bool = False,
+    ) -> str:
+        """Re-prompt the model to use tools when it didn't.
+
+        Call this after process_input if you suspect the model didn't use
+        tools when it should have.
+
+        Args:
+            max_retries: Maximum number of re-prompt attempts
+            show_thinking: Whether to show thinking blocks
+            show_messages: Whether to show message details
+
+        Returns:
+            The model's response after re-prompting
+        """
+        agent_name = self.current_agent.name if self.current_agent else "unknown"
+        logger.info(f"[{agent_name}] Re-prompting for tool use")
+
+        tools = self.tool_registry.get_schemas()
+        detected = []
+        attempt = 0
+
+        while attempt < max_retries:
+            attempt += 1
+
+            # Detect commands in the last assistant message
+            messages = self.context_manager._messages
+            last_content = ""
+            for msg in reversed(messages):
+                if msg.role == "assistant":
+                    last_content = msg.content or ""
+                    break
+
+            detected = detect_commands_in_text(last_content)
+            should_reprompt, reason = should_reprompt_for_tools(
+                last_content,
+                tools_were_expected=bool(tools)
+            )
+
+            if not should_reprompt and not detected:
+                # Model is now using tools properly or response is complete
+                logger.info(f"[{agent_name}] Re-prompt succeeded on attempt {attempt}")
+                return last_content
+
+            # Add re-prompt message
+            reprompt_msg = create_reprompt_message(detected)
+            self.context_manager.add_message(
+                "user",
+                reprompt_msg,
+            )
+
+            if self.debug:
+                print(f"\n\033[93m[WARN] Re-prompting for tools (attempt {attempt}/{max_retries}):\033[0m")
+                print(f"  Reason: {reason}")
+                if detected:
+                    print(f"  Detected commands: {len(detected)}")
+
+            # Process the re-prompt
+            messages = self.context_manager.prepare_messages()
+            response = await self.llm.chat(
+                messages=messages,
+                tools=tools if tools else None,
+            )
+
+            if response.has_tool_calls:
+                logger.info(f"[{agent_name}] Re-prompt produced {len(response.tool_calls)} tool calls")
+                # Handle the tool calls
+                tool_results = await self._handle_tool_calls(response.tool_calls)
+                for tr in tool_results:
+                    result_content = tr["result"]
+                    result_content = self.context_manager.truncate_tool_result(result_content)
+                    self.context_manager.add_message(
+                        "tool",
+                        result_content,
+                        tool_call_id=tr["tool_call_id"],
+                    )
+
+            # Add assistant response
+            self.context_manager.add_message("assistant", response.content)
+
+        # Max retries reached
+        logger.warning(f"[{agent_name}] Max re-prompt retries ({max_retries}) reached")
+        messages = self.context_manager._messages
+        for msg in reversed(messages):
+            if msg.role == "assistant":
+                return msg.content or ""
+
+        return ""
 
     async def _generate_summary(self, tool_results: list = None):
         """Generate a session summary after processing."""
