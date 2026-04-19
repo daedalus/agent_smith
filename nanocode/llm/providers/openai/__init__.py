@@ -1,7 +1,17 @@
 """OpenAI-compatible LLM provider."""
 
 import json
+import logging
 import os
+import sys
+
+# Configure logging for this module
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("/tmp/nanocode.log"), logging.StreamHandler(sys.stdout)],
+)
+logger = logging.getLogger("nanocode.openai")
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
@@ -58,14 +68,19 @@ class OpenAILLM(LLMBase):
         }
 
         # DEBUG: Print request details
+        # DEBUG: Print each message in detail
         print(f"\n[DEBUG] OpenAI Request:")
         print(f"  URL: {self.base_url}/chat/completions")
         print(f"  Model: {payload['model']}")
         print(f"  Messages: {len(payload['messages'])}")
         for i, m in enumerate(payload['messages']):
-            print(f"    [{i}] {m.get('role', '?')}: {str(m.get('content', ''))[:80]}...")
+            msg_role = m.get('role', '?')
+            msg_content = str(m.get('content', ''))
+            print(f"    [{i}] {msg_role}: {msg_content[:100]}...")
             if m.get('tool_calls'):
-                print(f"        tool_calls: {m['tool_calls']}")
+                print(f"        tool_calls: {json.dumps(m['tool_calls'])[:500]}")
+            if msg_role == 'tool':
+                print(f"        tool_call_id: {m.get('tool_call_id')}")
         if payload.get('tools'):
             print(f"  Tools: {len(payload['tools'])} provided")
         if 'max_tokens' in payload:
@@ -83,9 +98,23 @@ class OpenAILLM(LLMBase):
         def on_retry(error: Exception, attempt: int):
             print(f"\n  \033[93mRate limited, retrying (attempt {attempt})...\033[0m")
 
-        def on_retry(error: Exception, attempt: int):
-            print(f"\n  \033[93mRate limited, retrying (attempt {attempt})...\033[0m")
-
+        # DEBUG: Log full request payload
+        logger.debug(f"[OpenAI] Request payload: {json.dumps(payload)}")
+        print(f"\n[DEBUG] OpenAI Request payload:")
+        print(f"  URL: {self.base_url}/chat/completions")
+        print(f"  Model: {payload['model']}")
+        print(f"  Message order:")
+        for i, m in enumerate(payload['messages']):
+            role = m.get('role', '?')
+            content = str(m.get('content', ''))[:80]
+            tc = m.get('tool_calls')
+            tid = m.get('tool_call_id')
+            print(f"    [{i}] {role}: {content}... tool_calls={bool(tc)} tool_call_id={tid}")
+        print(f"  Full messages JSON: {json.dumps(payload['messages'], indent=2)[:3000]}")
+        if payload.get('tools'):
+            print(f"  Tools: {len(payload['tools'])} (first: {payload['tools'][0].get('name', 'unknown')})")
+        print(f"  max_tokens: {payload.get('max_tokens')}")
+        
         response = await self._request_with_retry(
             "POST",
             f"{self.base_url}/chat/completions",
@@ -93,11 +122,21 @@ class OpenAILLM(LLMBase):
             json=payload,
             on_retry=on_retry,
         )
+        
+        # Debug: Print status code
+        status_code = response.status_code
+        print(f"[DEBUG] HTTP Response status: {status_code}")
+        
         data = response.json()
 
+        # DEBUG: Print raw response on error
+        if response.status_code != 200:
+            print(f"[DEBUG] OpenAI Raw response: status={response.status_code}, data={data}")
+            logger.error(f"[OpenAI] API Error: status={response.status_code}, data={data}")
         # DEBUG: Print response
         if "error" in data:
             print(f"[DEBUG] OpenAI Error: {data}")
+            logger.error(f"[OpenAI] API Error: {data}")
         if "choices" not in data:
             error_msg = data.get("error", {}).get("message", str(data))
             raise RuntimeError(f"LLM API error: {error_msg}")

@@ -1440,10 +1440,19 @@ class BatchTool(Tool):
         successful = sum(1 for r in results if r["success"])
         failed = len(results) - successful
 
-        output = (
-            f"All {successful} tools executed successfully."
+        output_parts = []
+        for r in results:
+            if r["success"]:
+                result = r.get("result")
+                if result and result.content:
+                    output_parts.append(f"**{r['tool']}**: {result.content}")
+            else:
+                output_parts.append(f"**{r['tool']}**: FAILED - {r.get('error', 'unknown error')}")
+
+        output = "\n".join(output_parts) if output_parts else (
+            "All tools executed successfully."
             if failed == 0
-            else f"Executed {successful}/{len(results)} tools successfully. {failed} failed."
+            else f"Executed {successful}/{len(results)} tools successfully."
         )
 
         return ToolResult(

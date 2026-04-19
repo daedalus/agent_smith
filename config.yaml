@@ -31,7 +31,7 @@ context:
   strategy: sliding_window  # sliding_window, summary, importance
   max_tokens: 8000
   preserve_system: true
-  preserve_last_n: 3
+  preserve_last_n: 6
   summarize_threshold: 0.8
 
 mcp:

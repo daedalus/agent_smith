@@ -45,7 +45,12 @@ class Message:
 
     def to_dict(self) -> dict:
         """Convert to provider-specific format."""
-        result = {"role": self.role, "content": self.content}
+        # When content is empty or a list, convert to string for OpenAI compatibility
+        content = self.content
+        if content is None or (isinstance(content, list) and not content):
+            content = ""
+        
+        result = {"role": self.role, "content": content}
         if self.tool_calls:
             result["tool_calls"] = [
                 {

@@ -162,6 +162,22 @@ class Message:
 
     def to_dict(self) -> dict:
         """Convert to dict for LLM API."""
+        # Tool role messages need flat format with tool_call_id at top level
+        if self.role == "tool":
+            # Get tool_call_id from the first tool result part
+            tool_call_id = None
+            content = ""
+            for part in self.parts:
+                if part.part_type == MessagePartType.TOOL_RESULT:
+                    tool_call_id = part.tool_call_id
+                    content = part.content
+                    break
+            
+            result = {"role": "tool", "content": content}
+            if tool_call_id:
+                result["tool_call_id"] = tool_call_id
+            return result
+        
         result = {"role": self.role}
 
         if len(self.parts) == 1 and self.parts[0].part_type == MessagePartType.TEXT:
@@ -583,8 +599,22 @@ class ContextManager:
                 }
             )
 
+        last_tool_call_ids = set()
+        last_has_tool_calls = False
+        for msg in reversed(self._messages):
+            msg_dict = msg.to_dict()
+            if msg_dict.get("role") == "assistant" and msg_dict.get("tool_calls"):
+                last_tool_call_ids = {tc.get("id") for tc in msg_dict["tool_calls"]}
+                last_has_tool_calls = True
+                break
+
         for msg in self._messages:
-            result.append(msg.to_dict())
+            msg_dict = msg.to_dict()
+            if msg_dict.get("role") == "tool":
+                tid = msg_dict.get("tool_call_id")
+                if tid and last_tool_call_ids and tid not in last_tool_call_ids:
+                    continue
+            result.append(msg_dict)
 
         return result
 
@@ -706,8 +736,20 @@ class ContextManager:
                 }
             )
 
+        last_tool_call_ids = set()
+        for msg in reversed(messages):
+            msg_dict = msg.to_dict()
+            if msg_dict.get("role") == "assistant" and msg_dict.get("tool_calls"):
+                last_tool_call_ids = {tc.get("id") for tc in msg_dict["tool_calls"]}
+                break
+
         for msg in messages:
-            result.append(msg.to_dict())
+            msg_dict = msg.to_dict()
+            if msg_dict.get("role") == "tool":
+                tid = msg_dict.get("tool_call_id")
+                if tid and last_tool_call_ids and tid not in last_tool_call_ids:
+                    continue
+            result.append(msg_dict)
 
         return result
 
