@@ -57,6 +57,20 @@ class OpenAILLM(LLMBase):
             **kwargs,
         }
 
+        # DEBUG: Print request details
+        print(f"\n[DEBUG] OpenAI Request:")
+        print(f"  URL: {self.base_url}/chat/completions")
+        print(f"  Model: {payload['model']}")
+        print(f"  Messages: {len(payload['messages'])}")
+        for i, m in enumerate(payload['messages']):
+            print(f"    [{i}] {m.get('role', '?')}: {str(m.get('content', ''))[:80]}...")
+            if m.get('tool_calls'):
+                print(f"        tool_calls: {m['tool_calls']}")
+        if payload.get('tools'):
+            print(f"  Tools: {len(payload['tools'])} provided")
+        if 'max_tokens' in payload:
+            print(f"  max_tokens: {payload['max_tokens']}")
+
         # Add max_tokens - default to 4096 for OpenRouter to avoid 402
         max_tokens = kwargs.get("max_tokens", self.max_tokens)
         if not max_tokens:
@@ -81,6 +95,9 @@ class OpenAILLM(LLMBase):
         )
         data = response.json()
 
+        # DEBUG: Print response
+        if "error" in data:
+            print(f"[DEBUG] OpenAI Error: {data}")
         if "choices" not in data:
             error_msg = data.get("error", {}).get("message", str(data))
             raise RuntimeError(f"LLM API error: {error_msg}")

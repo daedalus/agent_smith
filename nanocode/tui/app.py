@@ -17,6 +17,21 @@ from rich.text import Text
 from rich.console import Console
 
 
+# Gruvbox Dark Theme Colors
+GRUVBOX = {
+    "bg": "#282828",
+    "bg_soft": "#3c3836",
+    "fg": "#ebdbb2",
+    "red": "#cc241d",
+    "green": "#98971f",
+    "yellow": "#d79921",
+    "blue": "#458588",
+    "purple": "#b16286",
+    "aqua": "#689d6a",
+    "gray": "#928374",
+    "orange": "#d65d0e",
+}
+
 class Style:
     """ANSI color codes matching opencode UI.Style."""
     TEXT_HIGHLIGHT = "\x1b[96m"
@@ -166,10 +181,21 @@ class ToolCall:
 class NanoCodeTUI(App):
     """Main TUI application for NanoCode matching opencode style."""
     
-    CSS = """
-    Screen {
+    CSS = f"""
+    /* Gruvbox Dark Theme */
+    $primary: {GRUVBOX["blue"]};
+    $surface: {GRUVBOX["bg"]};
+    $background: {GRUVBOX["bg_soft"]};
+    $text: {GRUVBOX["fg"]};
+    $text-muted: {GRUVBOX["gray"]};
+    $warning: {GRUVBOX["yellow"]};
+    $error: {GRUVBOX["red"]};
+    $success: {GRUVBOX["green"]};
+    $accent: {GRUVBOX["aqua"]};
+    
+    Screen {{
         background: $surface;
-    }
+    }}
     
     #main-container {
         height: 100%;
