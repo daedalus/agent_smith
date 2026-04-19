@@ -33,6 +33,7 @@ context:
   preserve_system: true
   preserve_last_n: 6
   summarize_threshold: 0.8
+  tool_truncation: null  # null to disable, or number (e.g. 500) to enable truncation at token limit
 
 mcp:
   servers:

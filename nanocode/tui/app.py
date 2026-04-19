@@ -10,9 +10,11 @@ from typing import Any
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Header, Footer, Static, Button, Label, Input, TextArea
+from textual.widgets import Header, Footer, Static, Button, Label, Input, TextArea, RichLog
 from textual.binding import Binding
 from textual import work
+from rich.theme import Theme
+from rich.console import Console
 from rich.text import Text
 from rich.console import Console
 
@@ -33,21 +35,31 @@ GRUVBOX = {
 }
 
 class Style:
-    """ANSI color codes matching opencode UI.Style."""
-    TEXT_HIGHLIGHT = "\x1b[96m"
-    TEXT_HIGHLIGHT_BOLD = "\x1b[96m\x1b[1m"
-    TEXT_DIM = "\x1b[90m"
-    TEXT_DIM_BOLD = "\x1b[90m\x1b[1m"
+    """ANSI color codes matching Gruvbox theme (256-color)."""
+    TEXT_HIGHLIGHT = "\x1b[38;5;73m"
+    TEXT_HIGHLIGHT_BOLD = "\x1b[38;5;73m\x1b[1m"
+    TEXT_DIM = "\x1b[38;5;245m"
+    TEXT_DIM_BOLD = "\x1b[38;5;245m\x1b[1m"
     TEXT_NORMAL = "\x1b[0m"
     TEXT_NORMAL_BOLD = "\x1b[1m"
-    TEXT_WARNING = "\x1b[93m"
-    TEXT_WARNING_BOLD = "\x1b[93m\x1b[1m"
-    TEXT_DANGER = "\x1b[91m"
-    TEXT_DANGER_BOLD = "\x1b[91m\x1b[1m"
-    TEXT_SUCCESS = "\x1b[92m"
-    TEXT_SUCCESS_BOLD = "\x1b[92m\x1b[1m"
-    TEXT_INFO = "\x1b[94m"
-    TEXT_INFO_BOLD = "\x1b[94m\x1b[1m"
+    TEXT_WARNING = "\x1b[38;5;220m"
+    TEXT_WARNING_BOLD = "\x1b[38;5;220m\x1b[1m"
+    TEXT_DANGER = "\x1b[38;5;196m"
+    TEXT_DANGER_BOLD = "\x1b[38;5;196m\x1b[1m"
+    TEXT_SUCCESS = "\x1b[38;5;154m"
+    TEXT_SUCCESS_BOLD = "\x1b[38;5;154m\x1b[1m"
+    TEXT_INFO = "\x1b[38;5;176m"
+    TEXT_INFO_BOLD = "\x1b[38;5;176m\x1b[1m"
+    
+    USER_MESSAGE = "\x1b[38;5;154m"
+    USER_MESSAGE_BOLD = "\x1b[38;5;154m\x1b[1m"
+    ASSISTANT_MESSAGE = "\x1b[38;5;176m"
+    ASSISTANT_MESSAGE_BOLD = "\x1b[38;5;176m\x1b[1m"
+    TOOL_MESSAGE = "\x1b[38;5;73m"
+    TOOL_MESSAGE_BOLD = "\x1b[38;5;73m\x1b[1m"
+    SYSTEM_MESSAGE = "\x1b[38;5;245m"
+    SYSTEM_MESSAGE_BOLD = "\x1b[38;5;245m\x1b[1m"
+    THINKING = "\x1b[38;5;245m"
 
 
 class PermissionScreen(ModalScreen):
@@ -127,36 +139,49 @@ class PermissionScreen(ModalScreen):
         self.dismiss(self._result)
 
 
-class OutputArea(ScrollableContainer):
-    """Scrollable output area for the TUI."""
+class OutputArea(RichLog):
+    """Scrollable output area using RichLog widget for color support."""
     
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._lines: list[str] = []
     
-    def add_line(self, text: str, color: str = ""):
-        """Add a line to the output, stripping ANSI codes for Textual."""
-        # Strip ANSI escape codes from text
-        import re
-        ansi_escape = re.compile(r'\x1b\[[0-9;]*m')
-        clean_text = ansi_escape.sub('', text)
+    def add_line(self, text: str, style: str = ""):
+        """Add a line to output with Rich color."""
+        from rich.text import Text
+        from rich.style import Style as RichStyle
         
-        # Escape Rich markup characters to prevent markup errors
-        clean_text = clean_text.replace('[', '\\[').replace(']', '\\]')
+        # Map style to Rich style name (use lowercase for Rich)
+        style_map = {
+            "user": "green",
+            "assistant": "magenta",
+            "tool": "cyan",
+            "dim": "dim",
+            "success": "green",
+            "warning": "yellow",
+            "danger": "red",
+            "thinking": "dim",
+            "info": "blue",
+        }
         
-        self._lines.append(clean_text)
-        self.mount(Static(clean_text, classes="output-line"))
+        rich_style_name = style_map.get(style, "")
+        if rich_style_name:
+            rich_text = Text(text, style=rich_style_name)
+            self.write(rich_text)
+        else:
+            self.write(text)
+        
+        self._lines.append(text)
     
     def add_empty_line(self):
         """Add an empty line."""
+        self.write("")
         self._lines.append("")
-        self.mount(Static(" ", classes="output-line"))
     
     def clear_lines(self):
         """Clear all lines."""
         self._lines.clear()
-        for child in self.query(".output-line"):
-            child.remove()
+        self.clear()
 
 
 class ToolState(Enum):
@@ -234,6 +259,25 @@ Footer {
 .error {
     color: #cc241d;
 }
+/* Role-based colors for conversation */
+.user-message {
+    color: #98971f;
+}
+.assistant-message {
+    color: #b16286;
+}
+.tool-message {
+    color: #458588;
+}
+.tool-message {
+    color: #458588;
+}
+.thinking {
+    color: #928374;
+}
+.success {
+    color: #98971f;
+}
 .success {
     color: #98971f;
 }
@@ -259,7 +303,7 @@ Footer {
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="main-container"):
-            with OutputArea(id="output-area"):
+            with OutputArea(id="output-area", auto_scroll=True):
                 pass
             with Horizontal(id="input-container"):
                 yield Label("➜", id="input-prompt")
@@ -295,8 +339,32 @@ Footer {
     def _print_line(self, text: str, style: str = ""):
         """Print a line with optional style."""
         output = self.query_one("#output-area")
-        styled = f"{style}{text}{Style.TEXT_NORMAL}" if style else text
-        output.add_line(styled)
+        
+        # Convert ANSI style to simple Rich style name
+        style_map = {
+            Style.USER_MESSAGE: "user",
+            Style.USER_MESSAGE_BOLD: "user",
+            Style.ASSISTANT_MESSAGE: "assistant",
+            Style.ASSISTANT_MESSAGE_BOLD: "assistant",
+            Style.TOOL_MESSAGE: "tool",
+            Style.TOOL_MESSAGE_BOLD: "tool",
+            Style.TEXT_DIM: "dim",
+            Style.TEXT_DIM_BOLD: "dim",
+            Style.TEXT_NORMAL: "",
+            Style.TEXT_NORMAL_BOLD: "",
+            Style.TEXT_WARNING: "warning",
+            Style.TEXT_WARNING_BOLD: "warning",
+            Style.TEXT_DANGER: "danger",
+            Style.TEXT_DANGER_BOLD: "danger",
+            Style.TEXT_SUCCESS: "success",
+            Style.TEXT_SUCCESS_BOLD: "success",
+            Style.TEXT_INFO: "info",
+            Style.TEXT_INFO_BOLD: "info",
+            Style.THINKING: "thinking",
+        }
+        
+        rich_style = style_map.get(style, "")
+        output.add_line(text, rich_style)
     
     def _print_empty(self):
         """Print an empty line."""
@@ -483,7 +551,7 @@ Footer {
     @work(exclusive=True)
     async def _process_input(self, text: str):
         """Process user input through the agent."""
-        self._print_line(f"> {text}", Style.TEXT_SUCCESS)
+        self._print_line(f"> {text}", Style.USER_MESSAGE)
         self._print_empty()
         
         self._processing = True
@@ -514,7 +582,7 @@ Footer {
                         success = tr.get('success', False)
                         
                         icon = self._get_tool_icon(tool_name)
-                        self._print_line(f"{icon} {tool_name}", Style.TEXT_INFO)
+                        self._print_line(f"{icon} {tool_name}", Style.TOOL_MESSAGE)
                         if success:
                             for line in tool_result.strip().split('\n')[:20]:
                                 self._print_line(f"  {line}", Style.TEXT_DIM)
@@ -526,22 +594,22 @@ Footer {
                 if self.show_thinking and hasattr(self.agent, '_last_thinking'):
                     thinking = getattr(self.agent, '_last_thinking', None)
                     if thinking:
-                        self._print_line(f"Thinking: {thinking}", Style.TEXT_DIM)
+                        self._print_line(f"Thinking: {thinking}", Style.THINKING)
                         self._print_empty()
                 
-                # Display final response
+                # Display final response with role coloring
                 if result and len(result) > 10:
                     # Debug: show context state
                     msg_count = len(self.agent.context_manager._messages) if hasattr(self.agent, 'context_manager') else 0
                     self._print_line(f"[DEBUG ctx msgs={msg_count}, result len={len(result)}]", Style.TEXT_DIM)
-                    self._print_line(result[:300], Style.TEXT_NORMAL)
+                    self._print_line(result[:300], Style.ASSISTANT_MESSAGE)
                     if len(result) > 300:
                         self._print_line("...", Style.TEXT_DIM)
                     self._print_empty()
                 else:
                     self._print_line("(waiting for model response...)", Style.TEXT_DIM)
                 
-                self._print_success("✓", True)
+                self._print_line("✓", Style.TEXT_SUCCESS_BOLD)
             else:
                 self._print_error("No agent configured")
         except Exception as e:

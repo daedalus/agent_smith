@@ -399,6 +399,7 @@ class ContextManager:
         storage=None,
         model: str = "gpt-4o",
         compaction_enabled: bool = True,
+        tool_truncation: int = None,
     ):
         self.max_tokens = max_tokens
         self.strategy = strategy
@@ -409,6 +410,7 @@ class ContextManager:
         self.storage = storage
         self.model = model
         self.compaction_enabled = compaction_enabled
+        self.tool_truncation = tool_truncation
 
         self._system_parts: list[MessagePart] = []
         self._messages: list[Message] = []
@@ -880,11 +882,18 @@ Summary:"""
 
         return self._messages_to_dict(result_messages)
 
-    def truncate_tool_result(self, content: str, max_tokens: int = 500) -> str:
-        """Truncate long tool results intelligently."""
+    def truncate_tool_result(self, content: str, max_tokens: int = None) -> str:
+        """Truncate long tool results intelligently.
+        
+        If tool_truncation is disabled (None or 0), returns content unchanged.
+        """
+        effective_max = max_tokens if max_tokens is not None else self.tool_truncation
+        if effective_max is None or effective_max == 0:
+            return content
+            
         tokens = TokenCounter.count_tokens(content)
 
-        if tokens <= max_tokens:
+        if tokens <= effective_max:
             return content
 
         lines = content.split("\n")
@@ -893,7 +902,7 @@ Summary:"""
 
         for line in lines:
             line_tokens = TokenCounter.count_tokens(line)
-            if current_tokens + line_tokens > max_tokens - 50:
+            if current_tokens + line_tokens > effective_max - 50:
                 result_lines.append(f"... [truncated {tokens - current_tokens} tokens]")
                 break
             result_lines.append(line)

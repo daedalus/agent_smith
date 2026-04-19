@@ -343,6 +343,7 @@ class AutonomousAgent:
             llm=self.llm,
             session_id=session_id,
             storage=self.storage,
+            tool_truncation=ctx_config.get("tool_truncation"),
         )
 
         if system_prompt := ctx_config.get("system_prompt"):
