@@ -601,24 +601,37 @@ class ContextManager:
                 }
             )
 
-        # Collect ALL tool_call_ids from ALL assistant messages with tool_calls
-        all_tool_call_ids = set()
+        # Find the LAST assistant message with tool_calls in the filtered result
+        # Only include tool results for that specific assistant message
+        result_msgs = []
+        last_tool_call_ids = set()
+        
         for msg in self._messages:
             msg_dict = msg.to_dict()
+            # Track tool_call_ids from assistant messages
             if msg_dict.get("role") == "assistant" and msg_dict.get("tool_calls"):
+                last_tool_call_ids = set()
                 for tc in msg_dict.get("tool_calls", []):
                     tid = tc.get("id") if isinstance(tc, dict) else tc.id
                     if tid:
-                        all_tool_call_ids.add(tid)
+                        last_tool_call_ids.add(tid)
+            result_msgs.append((msg_dict, last_tool_call_ids))
 
-        # Include all messages, but filter tool results to only those with matching IDs
-        for msg in self._messages:
-            msg_dict = msg.to_dict()
+        # Now filter: only include tool results if they match the most recent assistant's tool_calls
+        for msg_dict, valid_tc_ids in result_msgs:
             if msg_dict.get("role") == "tool":
                 tid = msg_dict.get("tool_call_id")
-                if tid and all_tool_call_ids and tid not in all_tool_call_ids:
+                if tid and valid_tc_ids and tid not in valid_tc_ids:
                     continue
             result.append(msg_dict)
+
+        # DEBUG: log tool call IDs being sent
+        for msg in result:
+            if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                tcs = [tc.get("id") if isinstance(tc, dict) else tc.id for tc in msg.get("tool_calls", [])]
+                print(f"DEBUG: Sending assistant with tool_calls: {tcs}")
+            if msg.get("role") == "tool":
+                print(f"DEBUG: Sending tool result with tool_call_id: {msg.get('tool_call_id')}")
 
         return result
 
@@ -729,7 +742,7 @@ class ContextManager:
         return self._messages_to_dict(result_messages)
 
     def _messages_to_dict(self, messages: list[Message]) -> list[dict]:
-        """Convert messages to dict format."""
+        """Convert messages to dict format with proper tool_call_id filtering."""
         result = []
 
         if self._system_parts and self.preserve_system:
@@ -740,23 +753,36 @@ class ContextManager:
                 }
             )
 
-        # Collect ALL tool_call_ids from ALL assistant messages with tool_calls
-        all_tool_call_ids = set()
-        for msg in messages:
-            msg_dict = msg.to_dict()
-            if msg_dict.get("role") == "assistant" and msg_dict.get("tool_calls"):
-                for tc in msg_dict.get("tool_calls", []):
-                    tid = tc.get("id") if isinstance(tc, dict) else tc.id
-                    if tid:
-                        all_tool_call_ids.add(tid)
+        # Track tool_call_ids as we iterate - only include tool results for the most recent assistant message
+        result_msgs = []
+        last_tool_call_ids = set()
 
         for msg in messages:
             msg_dict = msg.to_dict()
+            # Track tool_call_ids from assistant messages - reset when we see new assistant with tool_calls
+            if msg_dict.get("role") == "assistant" and msg_dict.get("tool_calls"):
+                last_tool_call_ids = set()
+                for tc in msg_dict.get("tool_calls", []):
+                    tid = tc.get("id") if isinstance(tc, dict) else tc.id
+                    if tid:
+                        last_tool_call_ids.add(tid)
+            result_msgs.append((msg_dict, last_tool_call_ids))
+
+        # Filter: only include tool results if they match the most recent assistant's tool_calls
+        for msg_dict, valid_tc_ids in result_msgs:
             if msg_dict.get("role") == "tool":
                 tid = msg_dict.get("tool_call_id")
-                if tid and all_tool_call_ids and tid not in all_tool_call_ids:
+                if tid and valid_tc_ids and tid not in valid_tc_ids:
                     continue
             result.append(msg_dict)
+
+        # DEBUG: log tool call IDs being sent
+        for msg in result:
+            if msg.get("role") == "assistant" and msg.get("tool_calls"):
+                tcs = [tc.get("id") if isinstance(tc, dict) else tc.id for tc in msg.get("tool_calls", [])]
+                print(f"DEBUG: Sending assistant with tool_calls: {tcs}")
+            if msg.get("role") == "tool":
+                print(f"DEBUG: Sending tool result with tool_call_id: {msg.get('tool_call_id')}")
 
         return result
 

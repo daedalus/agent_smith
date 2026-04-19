@@ -1,14 +1,14 @@
 llm:
   default_provider: openrouter
   use_model_registry: false
-  default_model: "anthropic/claude-opus-4.6-fast"
+  default_model: "openrouter/auto"
   user_agent: "opencode/1.4.8"
   
   providers:
     openrouter:
       api_key: ${OPENROUTER_API_KEY}
       base_url: https://openrouter.ai/api/v1
-      model: anthropic/claude-opus-4.6-fast
+      model: openrouter/auto
      
     openai:
       api_key: ${OPENAI_API_KEY}
