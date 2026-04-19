@@ -179,68 +179,69 @@ class ToolCall:
 
 
 class NanoCodeTUI(App):
-    """Main TUI application for NanoCode matching opencode style."""
+    """Main TUI application for NanoCode matching Gruvbox dark theme."""
     
     CSS = """
-    /* Gruvbox Dark Theme */
-    Screen {
-        background: #282828;
-    }
-    
-    #main-container {
-        height: 100%;
-    }
-    
-    #output-area {
-        height: 1fr;
-        border: solid #458588;
-        margin: 1;
-        padding: 0 1;
-    }
-    
-    #input-container {
-        height: auto;
-        padding: 0 1 1 1;
-    }
-    
-    #input-prompt {
-        width: 2;
-        text-align: right;
-        color: #ebdbb2;
-    }
-
-    #input {
-        height: auto;
-        border: none;
-        width: 2fr;
-    }
-    
-    .tool-title {
-        color: #ebdbb2;
-    }
-    
-    .tool-description {
-        color: #928374;
-    }
-    
-    .thinking {
-        color: #928374;
-        text-style: italic;
-    }
-    
-    .error {
-        color: #cc241d;
-    }
-    
-    .success {
-        color: #98971f;
-    }
-    
+/* Gruvbox Dark Theme */
+Screen {
+    background: #282828;
+}
+Header {
+    background: #3c3836;
+    color: #ebdbb2;
+}
+Footer {
+    background: #3c3836;
+    color: #928374;
+}
+#main-container {
+    height: 100%;
+}
+#output-area {
+    height: 1fr;
+    border: solid #458588;
+    background: #282828;
+    margin: 1;
+    padding: 0 1;
+}
+#input-container {
+    height: auto;
+    padding: 0 1 1 1;
+    background: #282828;
+}
+#input-prompt {
+    width: 2;
+    text-align: right;
+    color: #ebdbb2;
+}
+#input {
+    height: auto;
+    border: none;
+    width: 2fr;
+    background: #282828;
+    color: #ebdbb2;
+}
+.tool-title {
+    color: #ebdbb2;
+}
+.tool-description {
+    color: #928374;
+}
+.thinking {
+    color: #928374;
+    text-style: italic;
+}
+.error {
+    color: #cc241d;
+}
+.success {
+    color: #98971f;
+}
 .tool-output {
-        color: #928374;
-        padding-left: 2;
-    }
-    """
+    color: #928374;
+    padding-left: 2;
+}
+"""
     
     BINDINGS = [
         Binding("enter", "submit", "Send"),
