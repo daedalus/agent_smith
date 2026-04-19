@@ -25,7 +25,7 @@ GRUVBOX = {
     "bg": "#282828",
     "bg_soft": "#3c3836",
     "fg": "#ebdbb2",
-    "red": "#cc241d",
+    "red": "#ebdbb2",
     "green": "#98971f",
     "yellow": "#d79921",
     "blue": "#458588",
@@ -45,8 +45,8 @@ class Style:
     TEXT_NORMAL_BOLD = "\x1b[1m"
     TEXT_WARNING = "\x1b[38;5;220m"
     TEXT_WARNING_BOLD = "\x1b[38;5;220m\x1b[1m"
-    TEXT_DANGER = "\x1b[38;5;196m"
-    TEXT_DANGER_BOLD = "\x1b[38;5;196m\x1b[1m"
+    TEXT_DANGER = "\x1b[38;5;15m"
+    TEXT_DANGER_BOLD = "\x1b[38;5;15m\x1b[1m"
     TEXT_SUCCESS = "\x1b[38;5;154m"
     TEXT_SUCCESS_BOLD = "\x1b[38;5;154m\x1b[1m"
     TEXT_INFO = "\x1b[38;5;176m"
@@ -160,7 +160,7 @@ class OutputArea(RichLog):
             "dim": "dim",
             "success": "green",
             "warning": "yellow",
-            "danger": "red",
+            "danger": "white",
             "thinking": "dim",
             "info": "blue",
         }
