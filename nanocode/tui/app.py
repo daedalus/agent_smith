@@ -614,22 +614,16 @@ Footer {
                 # Restore debug setting
                 self.agent.debug = original_debug
 
-                # Display tool calls and results if any
+                # Display tool calls (not full output, just mention)
                 if hasattr(self.agent, '_last_tool_results'):
                     tool_results = getattr(self.agent, '_last_tool_results', [])
                     for tr in tool_results:
                         tool_name = tr.get('tool_name', 'unknown')
-                        tool_result = tr.get('result', '')
                         success = tr.get('success', False)
                         
                         icon = self._get_tool_icon(tool_name)
-                        self._print_line(f"{icon} {tool_name}", Style.TOOL_MESSAGE)
-                        if success:
-                            output = self.query_one("#output-area")
-                            output.add_line(tool_result[:1000], "tool")
-                        else:
-                            self._print_error(f"  {tool_result[:100]}", True)
-                        self._print_empty()
+                        status = "✓" if success else "✗"
+                        self._print_line(f"{icon} {tool_name} {status}", Style.TOOL_MESSAGE)
 
                 # Display thinking if enabled
                 if self.show_thinking and hasattr(self.agent, '_last_thinking'):
