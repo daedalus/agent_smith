@@ -601,20 +601,22 @@ class ContextManager:
                 }
             )
 
-        last_tool_call_ids = set()
-        last_has_tool_calls = False
-        for msg in reversed(self._messages):
+        # Collect ALL tool_call_ids from ALL assistant messages with tool_calls
+        all_tool_call_ids = set()
+        for msg in self._messages:
             msg_dict = msg.to_dict()
             if msg_dict.get("role") == "assistant" and msg_dict.get("tool_calls"):
-                last_tool_call_ids = {tc.get("id") for tc in msg_dict["tool_calls"]}
-                last_has_tool_calls = True
-                break
+                for tc in msg_dict.get("tool_calls", []):
+                    tid = tc.get("id") if isinstance(tc, dict) else tc.id
+                    if tid:
+                        all_tool_call_ids.add(tid)
 
+        # Include all messages, but filter tool results to only those with matching IDs
         for msg in self._messages:
             msg_dict = msg.to_dict()
             if msg_dict.get("role") == "tool":
                 tid = msg_dict.get("tool_call_id")
-                if tid and last_tool_call_ids and tid not in last_tool_call_ids:
+                if tid and all_tool_call_ids and tid not in all_tool_call_ids:
                     continue
             result.append(msg_dict)
 
@@ -738,18 +740,21 @@ class ContextManager:
                 }
             )
 
-        last_tool_call_ids = set()
-        for msg in reversed(messages):
+        # Collect ALL tool_call_ids from ALL assistant messages with tool_calls
+        all_tool_call_ids = set()
+        for msg in messages:
             msg_dict = msg.to_dict()
             if msg_dict.get("role") == "assistant" and msg_dict.get("tool_calls"):
-                last_tool_call_ids = {tc.get("id") for tc in msg_dict["tool_calls"]}
-                break
+                for tc in msg_dict.get("tool_calls", []):
+                    tid = tc.get("id") if isinstance(tc, dict) else tc.id
+                    if tid:
+                        all_tool_call_ids.add(tid)
 
         for msg in messages:
             msg_dict = msg.to_dict()
             if msg_dict.get("role") == "tool":
                 tid = msg_dict.get("tool_call_id")
-                if tid and last_tool_call_ids and tid not in last_tool_call_ids:
+                if tid and all_tool_call_ids and tid not in all_tool_call_ids:
                     continue
             result.append(msg_dict)
 
