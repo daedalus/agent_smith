@@ -60,7 +60,7 @@ class Style:
     TOOL_MESSAGE_BOLD = "\x1b[38;5;73m\x1b[1m"
     SYSTEM_MESSAGE = "\x1b[38;5;245m"
     SYSTEM_MESSAGE_BOLD = "\x1b[38;5;245m\x1b[1m"
-    THINKING = "\x1b[38;5;245m"
+    THINKING = "\x1b[38;5;15m"
 
 
 class PermissionScreen(ModalScreen):
@@ -161,7 +161,7 @@ class OutputArea(RichLog):
             "success": "green",
             "warning": "yellow",
             "danger": "white",
-            "thinking": "dim",
+            "thinking": "white",
             "info": "blue",
         }
         
