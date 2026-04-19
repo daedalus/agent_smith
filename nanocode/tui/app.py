@@ -629,8 +629,7 @@ Footer {
                 if self.show_thinking and hasattr(self.agent, '_last_thinking'):
                     thinking = getattr(self.agent, '_last_thinking', None)
                     if thinking:
-                        truncated = thinking[:500] + "..." if len(thinking) > 500 else thinking
-                        self._print_line(f"[{truncated}]", Style.THINKING)
+                        self._print_line(f"Thinking: {thinking}", Style.THINKING)
                         self._print_empty()
                 
                 # Display final response with role coloring and syntax highlighting
