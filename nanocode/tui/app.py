@@ -54,13 +54,13 @@ class Style:
     
     USER_MESSAGE = "\x1b[38;5;154m"
     USER_MESSAGE_BOLD = "\x1b[38;5;154m\x1b[1m"
-    ASSISTANT_MESSAGE = "\x1b[38;5;176m"
-    ASSISTANT_MESSAGE_BOLD = "\x1b[38;5;176m\x1b[1m"
-    TOOL_MESSAGE = "\x1b[38;5;73m"
-    TOOL_MESSAGE_BOLD = "\x1b[38;5;73m\x1b[1m"
+    ASSISTANT_MESSAGE = "\x1b[38;5;15m"
+    ASSISTANT_MESSAGE_BOLD = "\x1b[38;5;15m\x1b[1m"
+    TOOL_MESSAGE = "\x1b[38;5;245m"
+    TOOL_MESSAGE_BOLD = "\x1b[38;5;245m\x1b[1m"
     SYSTEM_MESSAGE = "\x1b[38;5;245m"
     SYSTEM_MESSAGE_BOLD = "\x1b[38;5;245m\x1b[1m"
-    THINKING = "\x1b[38;5;15m"
+    THINKING = "\x1b[38;5;245m"
 
 
 class PermissionScreen(ModalScreen):
@@ -142,82 +142,96 @@ class PermissionScreen(ModalScreen):
 
 class OutputArea(RichLog):
     """Scrollable output area using RichLog widget for color support."""
-    
+
+    GRUVBOX = {
+        "fg": "#ebdbb2",
+        "gray": "#928374",
+        "red": "#cc241d",
+        "green": "#98971a",
+        "yellow": "#d79921",
+        "blue": "#458588",
+        "purple": "#b16286",
+        "aqua": "#689d6a",
+        "orange": "#d65d0e",
+        "red_bright": "#fb4934",
+        "green_bright": "#b8bb26",
+        "yellow_bright": "#fabd2f",
+        "blue_bright": "#83a598",
+        "purple_bright": "#d3869b",
+        "aqua_bright": "#8ec07c",
+        "orange_bright": "#fe8019",
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._lines: list[str] = []
-    
+
     def add_line(self, text: str, style: str = ""):
         """Add a line to output with Rich color and syntax highlighting."""
         import re
         from rich.text import Text
-        from rich.style import Style
-        
+
         style_map = {
-            "user": "green",
-            "assistant": "white",
-            "tool": "cyan",
-            "dim": "dim",
-            "success": "green",
-            "warning": "yellow",
-            "danger": "white",
-            "thinking": "white",
-            "info": "blue",
+            "user": self.GRUVBOX["green"],
+            "assistant": self.GRUVBOX["fg"],
+            "tool": self.GRUVBOX["gray"],
+            "dim": self.GRUVBOX["gray"],
+            "success": self.GRUVBOX["green"],
+            "warning": self.GRUVBOX["yellow"],
+            "danger": self.GRUVBOX["fg"],
+            "thinking": self.GRUVBOX["gray"],
+            "info": self.GRUVBOX["blue_bright"],
         }
-        
+
         base_color = style_map.get(style, "")
-        
+
         code_block_pattern = re.compile(r'```(\w*)\n(.*?)```', re.DOTALL)
-        bold_pattern = re.compile(r'\*\*([^*]+)\*\*')
-        
+
         last_end = 0
         for match in code_block_pattern.finditer(text):
             if match.start() > last_end:
                 text_part = text[last_end:match.start()]
-                self._write_formatted(text_part, base_color)
-            
+                if base_color:
+                    self.write(Text(text_part, style=base_color))
+                else:
+                    self.write(text_part)
+
             lang = match.group(1) or "python"
             code = match.group(2).rstrip()
-            
+
             syntax = Syntax(code, lang, theme="gruvbox-dark", line_numbers=False)
             self.write(syntax)
             last_end = match.end()
-        
+
         if last_end < len(text):
             text_part = text[last_end:]
-            self._write_formatted(text_part, base_color)
-    
+            if base_color:
+                self.write(Text(text_part, style=base_color))
+            else:
+                self.write(text_part)
+
     def _write_formatted(self, text: str, base_color: str):
-        """Write formatted text with bold and links."""
+        """Write formatted text with basic markdown highlighting."""
         import re
         from rich.text import Text
-        from rich.style import Style
-        
+
+        if not base_color:
+            self.write(text)
+            return
+
         bold_pattern = re.compile(r'\*\*([^*]+)\*\*')
+        code_pattern = re.compile(r'`([^`]+)`')
+
         last_end = 0
-        
         for match in bold_pattern.finditer(text):
             if match.start() > last_end:
-                plain = text[last_end:match.start()]
-                if base_color:
-                    self.write(Text(plain, style=base_color))
-                else:
-                    self.write(plain)
-            
-            bold_text = match.group(1)
-            if base_color:
-                self.write(Text(bold_text, style=base_color + " bold gold"))
-            else:
-                self.write(Text(bold_text, style="bold gold"))
+                self.write(text[last_end:match.start()])
+            self.write(Text(match.group(1), style=base_color + " bold"))
             last_end = match.end()
-        
+
         if last_end < len(text):
-            plain = text[last_end:]
-            if base_color:
-                self.write(Text(plain, style=base_color))
-            else:
-                self.write(plain)
-        
+            self.write(text[last_end:])
+
         self._lines.append(text)
     
     def add_empty_line(self):
@@ -454,25 +468,28 @@ Footer {
         icon = tool_call.icon
         title = tool_call.title
         desc = tool_call.description
-        
-        line = f"{icon} {title}"
+
+        # Use opencode's ~ icon format
+        line = f"~ {icon} {title}"
         if desc:
             line = f"{line} {Style.TEXT_DIM}{desc}{Style.TEXT_NORMAL}"
-        
+
         self._print_line(line, Style.TEXT_NORMAL)
-        
+
+        # Block tool style with left border for output
         if tool_call.state == ToolState.COMPLETED and tool_call.output:
             self._print_empty()
             for output_line in tool_call.output.strip().split("\n"):
-                self._print_line(f"  {output_line}", Style.TEXT_DIM)
+                if output_line.strip():  # Skip empty lines
+                    self._print_line(f"| {output_line}", Style.TEXT_DIM)
             self._print_empty()
-        
+
         if tool_call.state == ToolState.ERROR:
             self._print_error(tool_call.output if tool_call.output else "Tool failed")
     
     def _format_tool_call(self, tool_name: str, arguments: dict) -> ToolCall:
         """Format a tool call based on its type, matching opencode's tool handlers."""
-        
+
         def normalize_path(path: str) -> str:
             if not path:
                 return ""
@@ -480,48 +497,48 @@ Footer {
                 return os.path.relpath(path, os.getcwd()) or "."
             except ValueError:
                 return path
-        
+
         if tool_name == "glob":
             root = arguments.get("path", "")
             pattern = arguments.get("pattern", "")
             title = f'Glob "{pattern}"'
             suffix = f"in {normalize_path(root)}" if root else ""
             return ToolCall(tool=tool_name, title=title, description=suffix, icon="✱")
-        
+
         if tool_name == "grep":
             root = arguments.get("path", "")
             pattern = arguments.get("pattern", "")
             title = f'Grep "{pattern}"'
             suffix = f"in {normalize_path(root)}" if root else ""
             return ToolCall(tool=tool_name, title=title, description=suffix, icon="✱")
-        
+
         if tool_name == "read":
             filepath = normalize_path(arguments.get("filePath", ""))
-            extra_args = {k: v for k, v in arguments.items() 
+            extra_args = {k: v for k, v in arguments.items()
                          if k != "filePath" and isinstance(v, (str, int, bool))}
             desc = f"[{', '.join(f'{k}={v}' for k, v in extra_args.items())}]" if extra_args else ""
             return ToolCall(tool=tool_name, title=f"Read {filepath}", description=desc, icon="→")
-        
+
         if tool_name == "write":
             filepath = normalize_path(arguments.get("filePath", ""))
             return ToolCall(tool=tool_name, title=f"Write {filepath}", icon="←")
-        
+
         if tool_name == "edit":
             filepath = normalize_path(arguments.get("filePath", ""))
             return ToolCall(tool=tool_name, title=f"Edit {filepath}", icon="←")
-        
+
         if tool_name == "webfetch":
             url = arguments.get("url", "")
             return ToolCall(tool=tool_name, title=f"WebFetch {url}", icon="%")
-        
+
         if tool_name == "codesearch":
             query = arguments.get("query", "")
             return ToolCall(tool=tool_name, title=f'Exa Code Search "{query}"', icon="◇")
-        
+
         if tool_name == "websearch":
             query = arguments.get("query", "")
             return ToolCall(tool=tool_name, title=f'Exa Web Search "{query}"', icon="◈")
-        
+
         if tool_name == "task":
             desc = arguments.get("description", "")
             subagent = arguments.get("subagent_type", "")
@@ -529,14 +546,23 @@ Footer {
             icon = "•"
             name = desc if desc else f"{agent_name} Task"
             return ToolCall(tool=tool_name, title=name, description=f"{agent_name} Agent", icon=icon)
-        
+
         if tool_name == "skill":
             name = arguments.get("name", "")
             return ToolCall(tool=tool_name, title=f'Skill "{name}"', icon="→")
-        
+
         if tool_name == "bash":
             command = arguments.get("command", "")
-            return ToolCall(tool=tool_name, title=command, icon="$")
+            workdir = arguments.get("workdir", "")
+            if workdir and workdir != ".":
+                try:
+                    workdir = os.path.relpath(workdir, os.getcwd())
+                except ValueError:
+                    pass
+                title = f"# {command} in {workdir}"
+            else:
+                title = f"# {command}"
+            return ToolCall(tool=tool_name, title=title, icon="$")
         
         if tool_name == "todowrite":
             return ToolCall(tool=tool_name, title="Todos", icon="#")
@@ -591,15 +617,25 @@ Footer {
     
     @work(exclusive=True)
     async def _process_input(self, text: str):
-        """Process user input through the agent."""
+        import traceback
         self._print_line(f"> {text}", Style.USER_MESSAGE)
         self._print_empty()
-        
+
         self._processing = True
-        
+
         input_widget = self.query_one("#input", Input)
         input_widget.disabled = True
-        
+
+        if not self.agent:
+            self._print_error("No agent configured - run via 'nanocode -g textual'")
+            import sys
+            import threading
+            sys.stderr.write(f"DEBUG: agent is None, thread={threading.current_thread().name}\n")
+            self._processing = False
+            input_widget.disabled = False
+            input_widget.focus()
+            return
+
         try:
             if self.agent:
                 # Enable debug mode to capture tool output
@@ -614,24 +650,25 @@ Footer {
                 # Restore debug setting
                 self.agent.debug = original_debug
 
-                # Display tool calls (not full output, just mention)
+                # Display tool calls using opencode's `~ icon` format
                 if hasattr(self.agent, '_last_tool_results'):
                     tool_results = getattr(self.agent, '_last_tool_results', [])
                     for tr in tool_results:
                         tool_name = tr.get('tool_name', 'unknown')
                         success = tr.get('success', False)
-                        
+
                         icon = self._get_tool_icon(tool_name)
                         status = "✓" if success else "✗"
-                        self._print_line(f"{icon} {tool_name} {status}", Style.TOOL_MESSAGE)
+                        self._print_line(f"~ {icon} {tool_name} {status}", Style.TOOL_MESSAGE)
 
-                # Display thinking if enabled
+                # Display thinking (with left border styling like opencode)
+                # Only show if not already in the result to avoid duplication
                 if self.show_thinking and hasattr(self.agent, '_last_thinking'):
                     thinking = getattr(self.agent, '_last_thinking', None)
-                    if thinking:
-                        self._print_line(f"Thinking: {thinking}", Style.THINKING)
+                    if thinking and thinking not in (result or ""):
+                        self._print_line(f"| _Thinking: {thinking}", Style.THINKING)
                         self._print_empty()
-                
+
                 # Display final response with role coloring and syntax highlighting
                 if result and len(result) > 10:
                     max_display = 10000
@@ -642,12 +679,15 @@ Footer {
                     self._print_empty()
                 else:
                     self._print_line("(waiting for model response...)", Style.TEXT_DIM)
-                
-                self._print_line("✓", Style.TEXT_SUCCESS_BOLD)
+
+                # Completion marker like opencode's `▣`
+                self._print_line("▣", Style.TEXT_SUCCESS_BOLD)
             else:
                 self._print_error("No agent configured")
         except Exception as e:
+            import traceback
             self._print_error(f"Error: {e}")
+            traceback.print_exc()
         finally:
             self._processing = False
             input_widget.disabled = False
@@ -661,4 +701,5 @@ async def run_tui(agent=None, show_thinking: bool = True):
 
 
 if __name__ == "__main__":
-    run_tui()
+    import asyncio
+    asyncio.run(run_tui())
