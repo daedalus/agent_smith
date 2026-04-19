@@ -170,16 +170,13 @@ class OutputArea(RichLog):
     def _render_markdown(self, text: str) -> object:
         """Get a markdown renderer with gruvbox theme."""
         from rich.markdown import Markdown
-        if self._md_theme is None:
-            self._md_theme = Markdown(text)
-        else:
-            self._md_theme = Markdown(text)
-        return self._md_theme
+        return Markdown(text)
 
     def add_line(self, text: str, style: str = ""):
-        """Add a line to output with Rich color and syntax highlighting."""
+        """Add a line to output with Rich markdown rendering."""
         import re
         from rich.text import Text
+        from rich.markdown import Markdown
 
         style_map = {
             "user": self.GRUVBOX["green"],
@@ -195,30 +192,36 @@ class OutputArea(RichLog):
 
         base_color = style_map.get(style, "")
 
-        code_block_pattern = re.compile(r'```(\w*)\n(.*?)```', re.DOTALL)
+        # Use markdown rendering for non-code-block text
+        if '```' in text:
+            code_block_pattern = re.compile(r'```(\w*)\n(.*?)```', re.DOTALL)
+            last_end = 0
+            for match in code_block_pattern.finditer(text):
+                if match.start() > last_end:
+                    text_part = text[last_end:match.start()]
+                    if text_part.strip():
+                        md = Markdown(text_part)
+                        self.write(md)
 
-        last_end = 0
-        for match in code_block_pattern.finditer(text):
-            if match.start() > last_end:
-                text_part = text[last_end:match.start()]
-                if base_color:
-                    self.write(Text(text_part, style=base_color))
-                else:
-                    self.write(text_part)
+                # Code block - use syntax highlighting
+                lang = match.group(1) or "python"
+                code = match.group(2).rstrip()
+                from rich.syntax import Syntax
+                syntax = Syntax(code, lang, theme="gruvbox-dark", line_numbers=False)
+                self.write(syntax)
+                last_end = match.end()
 
-            lang = match.group(1) or "python"
-            code = match.group(2).rstrip()
+            if last_end < len(text):
+                text_part = text[last_end:]
+                if text_part.strip():
+                    md = Markdown(text_part)
+                    self.write(md)
+        else:
+            # Render as markdown
+            md = Markdown(text)
+            self.write(md)
 
-            syntax = Syntax(code, lang, theme="gruvbox-dark", line_numbers=False)
-            self.write(syntax)
-            last_end = match.end()
-
-        if last_end < len(text):
-            text_part = text[last_end:]
-            if base_color:
-                self.write(Text(text_part, style=base_color))
-            else:
-                self.write(text_part)
+        self._lines.append(text)
 
     def _write_formatted(self, text: str, base_color: str):
         """Write formatted text with basic markdown highlighting."""

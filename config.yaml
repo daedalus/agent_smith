@@ -5,6 +5,12 @@ llm:
   user_agent: "opencode/1.4.8"
   
   providers:
+
+    opencode:
+      api_key: public
+      base_url: https://opencode.ai/api/v1
+      model: opencode/big-pickle
+
     openrouter:
       api_key: ${OPENROUTER_API_KEY}
       base_url: https://openrouter.ai/api/v1
