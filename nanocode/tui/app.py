@@ -615,7 +615,7 @@ Footer {
                 if result and len(result) > 10:
                     max_display = 10000
                     output_area = self.query_one("#output-area")
-                    output_area.add_content(result[:max_display], "assistant")
+                    output_area.add_line(result[:max_display], "assistant")
                     if len(result) > max_display:
                         self._print_line(f"... [{len(result) - max_display} more chars]", Style.TEXT_DIM)
                     self._print_empty()
