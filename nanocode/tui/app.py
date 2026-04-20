@@ -7,10 +7,11 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from nanocode.core import ANSI
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Header, Footer, Static, Button, Label, Input, TextArea, RichLog
+from textual.widgets import Header, Footer, Static, Button, Label, Input, TextArea, RichLog, DataTable
 from textual.binding import Binding
 from textual import work
 from rich.theme import Theme
@@ -138,6 +139,86 @@ class PermissionScreen(ModalScreen):
             self._result = PermissionReply(request_id=self.request.id, reply=PermissionReplyType.ALWAYS)
         
         self.dismiss(self._result)
+
+
+class CommandPaletteScreen(ModalScreen):
+    """Modal screen for command palette."""
+    
+    CSS = """
+    CommandPaletteScreen {
+        align: center middle;
+    }
+    
+    CommandPaletteScreen > #container {
+        width: 60;
+        height: 20;
+        border: solid #458588;
+        background: #282828;
+    }
+    
+    #title {
+        text-style: bold;
+        color: #d79921;
+        padding: 1 2;
+    }
+    
+    #search {
+        padding: 0 2;
+    }
+    
+    #commands {
+        height: 1fr;
+        padding: 0 1;
+    }
+    
+    #help-text {
+        color: #928374;
+        padding: 0 2 1 2;
+    }
+    
+    DataTable {
+        height: 100%;
+    }
+    """
+    
+    def __init__(self, commands, **kwargs):
+        super().__init__(**kwargs)
+        self._commands = commands
+        self._filtered = commands
+    
+    def compose(self) -> ComposeResult:
+        yield Vertical(
+            Static("Command Palette", id="title"),
+            Input(placeholder="Search commands...", id="search"),
+            DataTable(id="commands"),
+            Static("↑↓ navigate  ⏎ select  esc cancel", id="help-text"),
+            id="container",
+        )
+    
+    def on_mount(self) -> None:
+        table = self.query_one("#commands", DataTable)
+        table.add_columns("Command", "Description")
+        for cmd, desc in self._commands:
+            table.add_row(cmd, desc)
+        table.cursor_type = "row"
+        self.query_one("#search", Input).focus()
+    
+    def on_input_changed(self, event: Input.Changed) -> None:
+        query = event.value.lower()
+        table = self.query_one("#commands", DataTable)
+        table.clear()
+        self._filtered = [
+            (cmd, desc) for cmd, desc in self._commands
+            if query in cmd.lower() or query in desc.lower()
+        ]
+        for cmd, desc in self._filtered:
+            table.add_row(cmd, desc)
+    
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        row_index = event.cursor_row
+        if 0 <= row_index < len(self._filtered):
+            cmd, _ = self._filtered[row_index]
+            self.dismiss(cmd)
 
 
 class OutputArea(RichLog):
@@ -368,14 +449,37 @@ Footer {
     padding-left: 2;
 }
 """
-    
     BINDINGS = [
         Binding("enter", "submit", "Send"),
         Binding("ctrl+l", "clear_output", "Clear"),
         Binding("escape", "quit", "Quit", show=True),
         Binding("ctrl+c", "interrupt", "Interrupt", show=False),
+        Binding("f1", "show_command_palette", "Commands", show=True),
     ]
-    
+
+    # CLI commands list (not Textual CommandPalette)
+    CLI_COMMANDS = [
+        ("/help", "Show help and commands"),
+        ("/clear", "Clear output"),
+        ("/exit", "Exit the application"),
+        ("/quit", "Exit the application"),
+        ("/history", "Show conversation history"),
+        ("/tools", "Show available tools"),
+        ("/provider", "Switch LLM provider"),
+        ("/plan", "Enter plan mode"),
+        ("/resume", "Resume a task"),
+        ("/checkpoint", "Create a checkpoint"),
+        ("/skills", "Show available skills"),
+        ("/snapshot", "Manage snapshots"),
+        ("/snapshots", "List snapshots"),
+        ("/trace", "Toggle trace mode"),
+        ("/debug", "Toggle debug mode"),
+        ("/compact", "Compact context"),
+        ("/show_thinking", "Toggle thinking display"),
+        ("/agents", "Show available agents"),
+        ("/agent", "Switch agent"),
+    ]
+
     def __init__(self, agent=None, show_thinking: bool = True):
         super().__init__()
         self.agent = agent
@@ -646,6 +750,28 @@ Footer {
         output = self.query_one("#output-area")
         output.clear_lines()
         self._show_welcome()
+    
+    def action_show_cli_commands(self):
+        """Show command palette."""
+        import sys
+        sys.stderr.write(f"DEBUG: action_show_cli_commands called\n")
+        sys.stderr.write(f"CLI_COMMANDS = {self.CLI_COMMANDS}\n")
+        sys.stderr.flush()
+        output = self.query_one("#output-area")
+        output.add_line(f"\n=== Available Commands ===")
+        for cmd, desc in self.CLI_COMMANDS:
+            output.add_line(f"  {cmd:<20} {desc}")
+        output.add_line(f"\nPress Ctrl+P to show this menu")
+    
+    @work()
+    async def action_show_command_palette(self):
+        """Show the command palette popup."""
+        screen = CommandPaletteScreen(self.CLI_COMMANDS)
+        result = await self.push_screen_wait(screen)
+        if result:
+            input_widget = self.query_one("#input", Input)
+            input_widget.value = result
+            input_widget.focus()
     
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle input changes."""

@@ -17,6 +17,7 @@ class ContextStrategy(Enum):
     SUMMARY = "summary"
     IMPORTANCE = "importance"
     COMPACTION = "compaction"
+    TOPIC_ID = "topic_id"
 
 
 class MessageRole(Enum):
@@ -639,7 +640,10 @@ class ContextManager:
 
     def prepare_messages(self) -> list[dict]:
         """Prepare messages for LLM call, applying strategy."""
-        if self.compaction_enabled and self.strategy == ContextStrategy.COMPACTION:
+        if self.compaction_enabled and self.strategy in (
+            ContextStrategy.COMPACTION,
+            ContextStrategy.TOPIC_ID,
+        ):
             self._maybe_compact()
 
         if self.strategy == ContextStrategy.SLIDING_WINDOW:
@@ -650,6 +654,8 @@ class ContextManager:
             return self._importance_strategy()
         elif self.strategy == ContextStrategy.COMPACTION:
             return self._compaction_strategy()
+        elif self.strategy == ContextStrategy.TOPIC_ID:
+            return self._topic_id_strategy()
 
         return self._get_messages_for_llm()
 
@@ -698,6 +704,11 @@ class ContextManager:
 
     def _compaction_strategy(self) -> list[dict]:
         """Compaction-based strategy."""
+        self._maybe_compact()
+        return self._get_messages_for_llm()
+
+    def _topic_id_strategy(self) -> list[dict]:
+        """Topic-ID based compaction strategy."""
         self._maybe_compact()
         return self._get_messages_for_llm()
 
