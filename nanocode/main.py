@@ -294,7 +294,7 @@ async def main():
             else:
                 auth_username = args.serve_auth
 
-        agent = AutonomousAgent(config, session_id=args.resume)
+        agent = AutonomousAgent(config, session_id=args.resume, verbose=args.verbose)
 
         if args.mdns:
             try:
@@ -374,7 +374,7 @@ async def main():
             args.model,
         )
 
-    agent = AutonomousAgent(config, session_id=args.resume)
+    agent = AutonomousAgent(config, session_id=args.resume, verbose=args.verbose)
     atexit.register(lambda: _save_session_on_exit(agent))
 
     show_thinking = getattr(args, "thinking", False)  # Default: disabled (use --thinking to enable)

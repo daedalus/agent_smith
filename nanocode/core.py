@@ -175,10 +175,10 @@ cache_logger = logging.getLogger("nanocode.cache")
 class AutonomousAgent:
     """Main autonomous agent class."""
 
-    def __init__(self, config: dict | None = None, session_id: str = None):
+    def __init__(self, config: dict | None = None, session_id: str = None, verbose: bool = False):
         self.config = config or get_config()
         self.state = AgentStateData()
-        self.debug = False
+        self.debug = verbose
         self._session_id = session_id
 
         self._init_session()
@@ -341,7 +341,7 @@ class AutonomousAgent:
                 logger.info(f"Using default_provider: {default_provider}, model: {model}")
                 logger.info(f"URL: {provider_config.get('base_url')}")
                 from nanocode.llm import create_llm
-                llm = create_llm(default_provider, model=model, user_agent=user_agent, proxy=proxy, **provider_config)
+                llm = create_llm(default_provider, model=model, user_agent=user_agent, proxy=proxy, debug=self.debug, **provider_config)
                 if max_tokens:
                     llm.max_tokens = max_tokens
                 self.llm = llm
@@ -394,7 +394,7 @@ class AutonomousAgent:
             if default in providers:
                 provider_config = providers[default]
                 self.llm = create_llm(
-                    default, **provider_config, user_agent=user_agent, proxy=proxy
+                    default, **provider_config, user_agent=user_agent, proxy=proxy, debug=self.debug
                 )
             else:
                 self.llm = create_llm(
@@ -403,6 +403,7 @@ class AutonomousAgent:
                     model="gpt-4",
                     user_agent=user_agent,
                     proxy=proxy,
+                    debug=self.debug,
                 )
 
     def _init_tools(self):

@@ -130,6 +130,7 @@ class LLMBase(ABC):
         retry_config: RetryConfig = None,
         user_agent: str = None,
         proxy: str = None,
+        debug: bool = False,
         **kwargs,
     ):
         self.api_key = api_key or os.getenv("API_KEY")
@@ -139,6 +140,7 @@ class LLMBase(ABC):
         self.extra_kwargs = kwargs
         self.retry_config = retry_config or RetryConfig.default()
         self.user_agent = user_agent or "nanocode/1.0"
+        self.debug = debug
         self.proxy = proxy
 
     @abstractmethod
