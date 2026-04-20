@@ -40,6 +40,7 @@ from nanocode.mcp import MCPManager
 from nanocode.multimodal import MultimodalManager
 from nanocode.planning import PlanExecutor, PlanMonitor, PlanningContext, TaskPlanner
 from nanocode.session_summary import SessionSummaryGenerator
+from nanocode.session_manager import SessionManager, get_session_manager
 from nanocode.state import AgentState, AgentStateData
 from nanocode.storage.cache import CachedResponse, PromptCache, get_prompt_cache
 from nanocode.tools import ToolExecutor, ToolRegistry
@@ -174,11 +175,13 @@ cache_logger = logging.getLogger("nanocode.cache")
 class AutonomousAgent:
     """Main autonomous agent class."""
 
-    def __init__(self, config: dict | None = None):
+    def __init__(self, config: dict | None = None, session_id: str = None):
         self.config = config or get_config()
         self.state = AgentStateData()
         self.debug = False
+        self._session_id = session_id
 
+        self._init_session()
         self._init_agents()
         self._init_storage()
         self._init_file_tracker()
@@ -191,6 +194,28 @@ class AutonomousAgent:
         self._init_planning()
         self._init_multimodal()
         self._init_cache()
+
+    def _init_session(self):
+        """Initialize session management."""
+        self.session_manager = get_session_manager()
+        if self._session_id:
+            self.session = self.session_manager.get(self._session_id)
+            if self.session:
+                logger.info(f"Resumed session: {self._session_id}")
+            else:
+                logger.warning(f"Session not found: {self._session_id}, creating new")
+                self.session = self.session_manager.create(f"Session - resumed from {self._session_id}")
+                self._session_id = self.session.id
+        else:
+            self.session = self.session_manager.create()
+            self._session_id = self.session.id
+        logger.info(f"Session: {self._session_id}")
+
+    def save_session(self):
+        """Save the current session to disk."""
+        if hasattr(self, "session") and self.session:
+            self.session_manager.save(self.session)
+            logger.debug(f"Saved session: {self._session_id}")
 
     def _init_cache(self):
         """Initialize the prompt cache."""

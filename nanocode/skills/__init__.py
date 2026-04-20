@@ -40,7 +40,15 @@ class SkillInvalidError(SkillError):
 class SkillsManager:
     """Manages custom skills/commands."""
 
-    DEFAULT_SKILL_DIRS = [".nanocode/skills", ".nanocode/commands"]
+    DEFAULT_SKILL_DIRS = [
+        ".nanocode/skills",
+        ".nanocode/commands",
+        "codex/skills",
+        "opencode/skills",
+        "claude/skills",
+        "gemini/skills",
+        os.path.expanduser("~/.nanocode/skills"),
+    ]
     SKILL_FILE_NAME = "skill.md"
 
     def __init__(self, base_dir: str = None):

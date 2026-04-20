@@ -3,12 +3,19 @@
 
 import asyncio
 import argparse
+import atexit
 import os
 
 from nanocode.core import AutonomousAgent
 from nanocode.cli import InteractiveCLI
 from nanocode.config import Config
 from nanocode.server import run_server
+
+
+def _save_session_on_exit(agent: AutonomousAgent):
+    """Save session on program exit."""
+    if agent:
+        agent.save_session()
 
 
 def parse_args():
@@ -169,6 +176,18 @@ def parse_args():
         default=None,
         help="Context compaction strategy",
     )
+    parser.add_argument(
+        "--resume",
+        "-r",
+        type=str,
+        default=None,
+        help="Resume an existing session by ID",
+    )
+    parser.add_argument(
+        "--list-sessions",
+        action="store_true",
+        help="List all sessions",
+    )
     return parser.parse_args()
 
 
@@ -236,7 +255,19 @@ async def run_acp(agent):
 async def main():
     """Main entry point."""
     args = parse_args()
-    
+
+    if args.list_sessions:
+        from nanocode.session_manager import get_session_manager
+        mgr = get_session_manager()
+        sessions = mgr.list()
+        if not sessions:
+            print("No sessions found")
+            return
+        print("Sessions:")
+        for s in sessions:
+            print(f"  {s.id}: {s.title} (updated: {s.updated_at.strftime('%Y-%m-%d %H:%M')})")
+        return
+
     gui_mode = getattr(args, "gui", "cli")
 
     if args.install_skills:
@@ -265,7 +296,7 @@ async def main():
             else:
                 auth_username = args.serve_auth
 
-        agent = AutonomousAgent(config)
+        agent = AutonomousAgent(config, session_id=args.resume)
 
         if args.mdns:
             try:
@@ -296,7 +327,7 @@ async def main():
             config.set("proxy", args.proxy)
         if args.user_agent:
             config.set("user_agent", args.user_agent)
-        agent = AutonomousAgent(config)
+        agent = AutonomousAgent(config, session_id=args.resume)
         await run_acp(agent)
         return
 
@@ -345,7 +376,8 @@ async def main():
             args.model,
         )
 
-    agent = AutonomousAgent(config)
+    agent = AutonomousAgent(config, session_id=args.resume)
+    atexit.register(lambda: _save_session_on_exit(agent))
 
     show_thinking = getattr(args, "thinking", False)  # Default: disabled (use --thinking to enable)
     show_messages = getattr(args, "show_messages", False)
