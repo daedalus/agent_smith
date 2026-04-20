@@ -23,6 +23,12 @@ except ImportError:
 HISTORY_FILE = os.path.expanduser("~/.config/nanocode/history")
 
 
+def _get_default_storage_dir() -> Path:
+    """Get default storage directory following XDG spec."""
+    xdg_data = os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+    return Path(xdg_data) / "nanocode" / "storage"
+
+
 class PromptHandler:
     """Simple prompt handler to mimic @clack/prompts functionality."""
 
@@ -626,7 +632,7 @@ class InteractiveCLI:
         self.ui.print_info("Provider/Model Selection")
 
         # Check if there are recent models to show
-        recent_file = Path.home() / ".nanocode" / "recent_models.json"
+        recent_file = _get_default_storage_dir() / "recent_models.json"
         has_recent = False
         if recent_file.exists():
             try:
@@ -752,7 +758,7 @@ class InteractiveCLI:
             return
 
         # Create secure storage directory
-        storage_dir = Path.home() / ".nanocode" / "credentials"
+        storage_dir = _get_default_storage_dir() / "credentials"
         storage_dir.mkdir(parents=True, exist_ok=True)
 
         # Store key (in a real implementation, this would be encrypted)
@@ -766,7 +772,7 @@ class InteractiveCLI:
 
     async def _get_stored_api_key(self, provider_id):
         """Retrieve stored API key."""
-        key_file = Path.home() / ".nanocode" / "credentials" / f"{provider_id}.key"
+        key_file = _get_default_storage_dir() / "credentials" / f"{provider_id}.key"
         if key_file.exists():
             try:
                 return key_file.read_text().strip()
@@ -885,7 +891,7 @@ class InteractiveCLI:
         model_full_id = f"{provider_id}/{model_id}"
 
         # Load existing recent models
-        recent_file = Path.home() / ".nanocode" / "recent_models.json"
+        recent_file = _get_default_storage_dir() / "recent_models.json"
         recent_models = []
 
         if recent_file.exists():
@@ -911,7 +917,7 @@ class InteractiveCLI:
 
     async def _show_recent_models_menu(self):
         """Show menu of recently used models."""
-        recent_file = Path.home() / ".nanocode" / "recent_models.json"
+        recent_file = _get_default_storage_dir() / "recent_models.json"
         recent_models = []
 
         if recent_file.exists():
@@ -947,7 +953,7 @@ class InteractiveCLI:
 
     def _list_checkpoints(self):
 
-        checkpoint_dir = ".nanocode"
+        checkpoint_dir = str(_get_default_storage_dir() / "checkpoints")
         if os.path.exists(checkpoint_dir):
             files = [
                 f for f in os.listdir(checkpoint_dir) if f.startswith("checkpoint_")

@@ -9,6 +9,12 @@ from pathlib import Path
 from typing import Optional
 
 
+def _get_default_storage_dir() -> Path:
+    """Get default storage directory following XDG spec."""
+    xdg_data = os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+    return Path(xdg_data) / "nanocode" / "storage"
+
+
 @dataclass
 class Patch:
     """Represents changes between snapshots."""
@@ -35,12 +41,11 @@ class SnapshotManager:
     Uses a separate git repository to track file states, similar to opencode.
     """
 
-    SNAPSHOT_DIR = ".nanocode/snapshots"
     DEFAULT_PRUNE_AGE_DAYS = 7
 
     def __init__(self, base_dir: str = None):
         self.base_dir = Path(base_dir) if base_dir else Path.cwd()
-        self.snapshot_dir = self.base_dir / self.SNAPSHOT_DIR
+        self.snapshot_dir = _get_default_storage_dir() / "snapshots"
         self.enabled = True
 
     def _git_dir(self) -> Path:

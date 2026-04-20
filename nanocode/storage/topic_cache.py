@@ -67,7 +67,9 @@ class TopicCache:
     """
 
     def __init__(self, storage_dir: str | Path | None = None, hash_length: int = 8):
-        self.storage_dir = Path(storage_dir or "storage")
+        if storage_dir is None:
+            storage_dir = _get_default_storage_dir()
+        self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
         self.hash_length = hash_length
         self._hits = 0
@@ -165,12 +167,20 @@ class TopicCache:
         logger.info("Topic cache cleared")
 
 
+def _get_default_storage_dir() -> Path:
+    """Get default storage directory following XDG spec."""
+    xdg_data = os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+    return Path(xdg_data) / "nanocode" / "storage"
+
+
 _default_cache: TopicCache | None = None
 
 
-def get_topic_cache(storage_dir: str | Path = "storage") -> TopicCache:
+def get_topic_cache(storage_dir: str | Path | None = None) -> TopicCache:
     """Get the global topic cache instance."""
     global _default_cache
     if _default_cache is None:
+        if storage_dir is None:
+            storage_dir = _get_default_storage_dir()
         _default_cache = TopicCache(storage_dir)
     return _default_cache

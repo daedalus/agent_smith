@@ -1,13 +1,21 @@
 """Planning engine for task decomposition and execution."""
 
 import json
+import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import Any, Optional
 
 from nanocode.state import ExecutionPlan, TaskStep
+
+
+def _get_default_storage_dir() -> Path:
+    """Get default storage directory following XDG spec."""
+    xdg_data = os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+    return Path(xdg_data) / "nanocode" / "storage"
 
 
 class PlanStrategy(Enum):
@@ -136,10 +144,12 @@ class PlanExecutor:
     """Executes plans with progress tracking and checkpointing."""
 
     def __init__(
-        self, planner: TaskPlanner, executor, checkpoint_dir: str = ".nanocode"
+        self, planner: TaskPlanner, executor, checkpoint_dir: str = None
     ):
         self.planner = planner
         self.executor = executor
+        if checkpoint_dir is None:
+            checkpoint_dir = str(_get_default_storage_dir() / "checkpoints")
         self.checkpoint_dir = checkpoint_dir
         self._current_step = 0
         self._retry_count = 0

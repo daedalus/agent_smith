@@ -295,7 +295,7 @@ class AutonomousAgent:
 
     def _init_file_tracker(self):
         """Initialize file tracker for auto-reload on modification."""
-        cache_dir = self.config.get("file_tracker.cache_dir", ".nanocode/cache")
+        cache_dir = self.config.get("file_tracker.cache_dir")
         self.file_tracker = FileTracker(cache_dir)
 
     def _init_llm(self):

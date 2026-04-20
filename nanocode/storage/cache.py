@@ -25,7 +25,7 @@ Important Notes:
 
 To clear the cache:
     agent.clear_cache()  # via Python API
-    # Or delete ~/.nanocode/cache/prompt_cache.db directly
+    # Or delete ~/.local/share/nanocode/storage/cache/prompt_cache.db directly
 """
 
 from __future__ import annotations
@@ -42,6 +42,12 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger("nanocode.cache")
+
+
+def _get_default_storage_dir() -> Path:
+    """Get default storage directory following XDG spec."""
+    xdg_data = os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+    return Path(xdg_data) / "nanocode" / "storage"
 
 
 class BloomFilter:
@@ -273,7 +279,7 @@ class PromptCache(SQLiteCache):
         - Identical multi-turn sessions → cache hits
 
     Storage:
-        - Default location: ~/.nanocode/cache/prompt_cache.db
+        - Default location: ~/.local/share/nanocode/storage/cache/prompt_cache.db
         - Can be overridden via config: cache.dir or cache_path in constructor
 
     Example:
@@ -290,7 +296,7 @@ class PromptCache(SQLiteCache):
     """
 
     def __init__(self, db_path: Path | None = None) -> None:
-        cache_dir = db_path or Path.home() / ".nanocode" / "cache"
+        cache_dir = db_path or _get_default_storage_dir() / "cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
         super().__init__(
             cache_dir / "prompt_cache.db",

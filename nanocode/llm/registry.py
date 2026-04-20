@@ -3,6 +3,13 @@
 import json
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
+
+
+def _get_default_storage_dir() -> Path:
+    """Get default storage directory following XDG spec."""
+    xdg_data = os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+    return Path(xdg_data) / "nanocode" / "storage"
 
 
 @dataclass
@@ -41,12 +48,13 @@ class ModelRegistry:
     Supports 75+ providers and 2000+ models.
     """
 
-    CACHE_DIR = ".nanocode/cache"
     CACHE_FILE = "models_registry.json"
     REFRESH_INTERVAL = 60 * 60 * 1000  # 1 hour
 
     def __init__(self, cache_dir: str = None):
-        self.cache_dir = cache_dir or self.CACHE_DIR
+        if cache_dir is None:
+            cache_dir = str(_get_default_storage_dir() / "llm_cache")
+        self.cache_dir = cache_dir
         self.cache_file = os.path.join(self.cache_dir, self.CACHE_FILE)
         self._providers: dict[str, ProviderInfo] = {}
         self._last_refresh = 0

@@ -7,6 +7,12 @@ from typing import Any
 import yaml
 
 
+def _get_default_storage_dir() -> Path:
+    """Get default storage directory following XDG spec."""
+    xdg_data = os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+    return Path(xdg_data) / "nanocode" / "storage"
+
+
 class Config:
     """Configuration manager for the agent."""
 
@@ -125,7 +131,7 @@ class Config:
         cache_path = self.get("cache.dir")
         if cache_path:
             return Path(cache_path)
-        return Path.home() / ".nanocode" / "cache"
+        return _get_default_storage_dir()
 
 
 _config: Config | None = None

@@ -6,6 +6,12 @@ from datetime import datetime
 from pathlib import Path
 
 
+def _get_default_storage_dir() -> Path:
+    """Get default storage directory following XDG spec."""
+    xdg_data = os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+    return Path(xdg_data) / "nanocode" / "storage"
+
+
 @dataclass
 class FileCacheEntry:
     """Cached file content with metadata."""
@@ -21,7 +27,9 @@ class FileCacheEntry:
 class FileTracker:
     """Track file modifications for auto-reload."""
 
-    def __init__(self, cache_dir: str = ".nanocode/cache", file_watcher=None):
+    def __init__(self, cache_dir: str = None, file_watcher=None):
+        if cache_dir is None:
+            cache_dir = str(_get_default_storage_dir() / "file_tracker")
         self._cache: dict[str, FileCacheEntry] = {}
         self._cache_dir = cache_dir
         self._file_watcher = file_watcher

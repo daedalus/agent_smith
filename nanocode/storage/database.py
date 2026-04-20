@@ -3,11 +3,18 @@
 import asyncio
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from .models import Base
+
+
+def _get_default_storage_dir() -> Path:
+    """Get default storage directory following XDG spec."""
+    xdg_data = os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+    return Path(xdg_data) / "nanocode" / "storage"
 
 
 class Database:
@@ -18,10 +25,9 @@ class Database:
 
     def __init__(self, db_path: str = None):
         if db_path is None:
-            home = os.path.expanduser("~")
-            data_dir = os.path.join(home, ".nanocode", "data")
-            os.makedirs(data_dir, exist_ok=True)
-            db_path = os.path.join(data_dir, "nanocode.db")
+            storage_dir = _get_default_storage_dir() / "db"
+            storage_dir.mkdir(parents=True, exist_ok=True)
+            db_path = str(storage_dir / "nanocode.db")
 
         self.db_path = db_path
         self._engine = None
