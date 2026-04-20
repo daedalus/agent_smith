@@ -43,7 +43,7 @@ class TestSkillsManager:
         skill_dir = os.path.join(tmpdir, ".nanocode", "skills", "test-skill")
         os.makedirs(skill_dir)
 
-        skill_file = os.path.join(skill_dir, "skill.md")
+        skill_file = os.path.join(skill_dir, "SKILL.md")
         with open(skill_file, "w") as f:
             f.write(
                 """---
@@ -69,7 +69,7 @@ This is a test skill content.
         skill_dir = os.path.join(tmpdir, ".nanocode", "skills", "no-fm-skill")
         os.makedirs(skill_dir)
 
-        skill_file = os.path.join(skill_dir, "skill.md")
+        skill_file = os.path.join(skill_dir, "SKILL.md")
         with open(skill_file, "w") as f:
             f.write(
                 """# No Frontmatter Skill
@@ -158,7 +158,7 @@ This skill has no frontmatter.
                 ".nanocode",
                 "skills",
                 "no-fm-skill",
-                "skill.md",
+                "SKILL.md",
             )
         )
 
@@ -323,7 +323,7 @@ class TestSkillTool:
         skill_dir = os.path.join(tmpdir, ".nanocode", "skills", "hello")
         os.makedirs(skill_dir)
 
-        skill_file = os.path.join(skill_dir, "skill.md")
+        skill_file = os.path.join(skill_dir, "SKILL.md")
         with open(skill_file, "w") as f:
             f.write(
                 """---
@@ -354,3 +354,120 @@ Returns a greeting.
 
         assert skill_tool is not None
         assert list_tool is not None
+
+
+class TestSkillDirectoryDiscovery:
+    """Test multi-directory skill discovery."""
+
+    @pytest.fixture
+    def temp_multi_dir(self):
+        """Create temporary directories for multiple tools."""
+        tmpdir = tempfile.mkdtemp()
+
+        dirs = [
+            (".nanocode/skills", "nanocode-skill"),
+            (".claude/skills", "claude-skill"),
+            (".opencode/skills", "opencode-skill"),
+            (".codex/skills", "codex-skill"),
+            (".gemini/skills", "gemini-skill"),
+            (".agents/skills", "agents-skill"),
+        ]
+
+        for skill_subdir, skill_name in dirs:
+            skill_dir = os.path.join(tmpdir, skill_subdir, skill_name)
+            os.makedirs(skill_dir)
+            with open(os.path.join(skill_dir, "SKILL.md"), "w") as f:
+                f.write(
+                    f"""---
+name: {skill_name}
+description: A skill from {skill_subdir}
+---
+
+# {skill_name}
+"""
+                )
+
+        yield tmpdir
+        shutil.rmtree(tmpdir)
+
+    def test_discover_skills_from_multiple_directories(
+        self, temp_multi_dir
+    ):
+        """Test discovering skills from multiple tool directories."""
+        manager = SkillsManager(temp_multi_dir)
+        discovered = manager.discover_skills()
+
+        skill_names = {s.name for s in discovered}
+        assert "nanocode-skill" in skill_names
+        assert "claude-skill" in skill_names
+        assert "opencode-skill" in skill_names
+        assert "codex-skill" in skill_names
+        assert "gemini-skill" in skill_names
+        assert "agents-skill" in skill_names
+
+    def test_default_skill_dirs_contains_all_tools(self):
+        """Test DEFAULT_SKILL_DIRS contains expected tool directories."""
+        from nanocode.skills import SkillsManager
+
+        dirs = SkillsManager.DEFAULT_SKILL_DIRS
+
+        project_dirs = [d for d in dirs if not d.startswith("/home") and not d.startswith("~")]
+        global_dirs = [d for d in dirs if d.startswith("~") or d.startswith("/home")]
+
+        assert ".nanocode/skills" in project_dirs
+        assert ".claude/skills" in project_dirs
+        assert ".opencode/skills" in project_dirs
+        assert ".codex/skills" in project_dirs
+        assert ".gemini/skills" in project_dirs
+        assert ".agents/skills" in project_dirs
+        assert len(global_dirs) >= 4
+
+    def test_default_skill_dirs_contains_all_tools(self):
+        """Test DEFAULT_SKILL_DIRS contains expected tool directories."""
+        from nanocode.skills import SkillsManager
+
+        dirs = SkillsManager.DEFAULT_SKILL_DIRS
+
+        project_dirs = [d for d in dirs if not d.startswith("/home") and not d.startswith("~")]
+        global_dirs = [d for d in dirs if d.startswith("~") or d.startswith("/home")]
+
+        assert ".nanocode/skills" in project_dirs
+        assert ".claude/skills" in project_dirs
+        assert ".opencode/skills" in project_dirs
+        assert ".codex/skills" in project_dirs
+        assert ".gemini/skills" in project_dirs
+        assert ".agents/skills" in project_dirs
+        assert len(global_dirs) >= 4
+
+    def test_load_skills_logs_available(self, caplog):
+        """Test load_skills logs each skill as available."""
+        import logging
+        from unittest.mock import patch
+        import tempfile
+        import os
+
+        tmpdir = tempfile.mkdtemp()
+        skill_dir = os.path.join(tmpdir, ".nanocode", "skills", "test-skill")
+        os.makedirs(skill_dir)
+        with open(os.path.join(skill_dir, "SKILL.md"), "w") as f:
+            f.write(
+                """---
+name: test-skill
+description: A test skill
+---
+
+# Test Skill
+"""
+            )
+
+        try:
+            manager = SkillsManager(tmpdir)
+            with patch("nanocode.skills.logger") as mock_logger:
+                manager.load_skills()
+                mock_logger.info.assert_called()
+                call_args = str(mock_logger.info.call_args_list)
+                assert "test-skill" in call_args
+        finally:
+            import shutil
+
+            shutil.rmtree(tmpdir)

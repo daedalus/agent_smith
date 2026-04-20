@@ -1,12 +1,15 @@
 """Skills system - custom commands defined in .nanocode/skills/."""
 
 import asyncio
+import logging
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Optional
 
 import frontmatter
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -43,13 +46,19 @@ class SkillsManager:
     DEFAULT_SKILL_DIRS = [
         ".nanocode/skills",
         ".nanocode/commands",
-        "codex/skills",
-        "opencode/skills",
-        "claude/skills",
-        "gemini/skills",
+        ".claude/skills",
+        ".opencode/skills",
+        ".codex/skills",
+        ".gemini/skills",
+        ".agents/skills",
         os.path.expanduser("~/.nanocode/skills"),
+        os.path.expanduser("~/.claude/skills"),
+        os.path.expanduser("~/.config/opencode/skills"),
+        os.path.expanduser("~/.codex/skills"),
+        os.path.expanduser("~/.gemini/skills"),
+        os.path.expanduser("~/.agents/skills"),
     ]
-    SKILL_FILE_NAME = "skill.md"
+    SKILL_FILE_NAME = "SKILL.md"
 
     def __init__(self, base_dir: str = None):
         self.base_dir = base_dir or os.getcwd()
@@ -60,11 +69,37 @@ class SkillsManager:
         """Discover skills in the configured directories."""
         discovered = []
 
-        for skill_dir in self.DEFAULT_SKILL_DIRS:
-            full_path = os.path.join(self.base_dir, skill_dir)
-            if not os.path.isdir(full_path):
-                continue
+        default_dirs = [
+            ".nanocode/skills",
+            ".nanocode/commands",
+            ".claude/skills",
+            ".opencode/skills",
+            ".codex/skills",
+            ".gemini/skills",
+            ".agents/skills",
+        ]
+        global_dirs = [
+            os.path.expanduser("~/.nanocode/skills"),
+            os.path.expanduser("~/.claude/skills"),
+            os.path.expanduser("~/.config/opencode/skills"),
+            os.path.expanduser("~/.codex/skills"),
+            os.path.expanduser("~/.gemini/skills"),
+            os.path.expanduser("~/.agents/skills"),
+        ]
 
+        search_paths = []
+
+        for d in default_dirs:
+            search_paths.append(os.path.join(self.base_dir, d))
+
+        if self.base_dir == os.getcwd():
+            for d in global_dirs:
+                if os.path.isabs(d):
+                    search_paths.append(d)
+
+        to_scan = [p for p in search_paths if os.path.isdir(p)]
+
+        for full_path in to_scan:
             for root, dirs, files in os.walk(full_path):
                 if self.SKILL_FILE_NAME in files:
                     skill_path = os.path.join(root, self.SKILL_FILE_NAME)
@@ -112,6 +147,7 @@ class SkillsManager:
         discovered = self.discover_skills()
         for skill in discovered:
             self.skills[skill.name] = skill
+            logger.info(f"Skill available: {skill.name} ({skill.location})")
 
         return len(self.skills)
 
