@@ -162,6 +162,13 @@ def parse_args():
         action="store_true",
         help="Enable prompt/completion caching",
     )
+    parser.add_argument(
+        "--use-compaction-strategy",
+        type=str,
+        choices=["sliding_window", "summary", "importance", "compaction", "topic_id"],
+        default=None,
+        help="Context compaction strategy",
+    )
     return parser.parse_args()
 
 
@@ -327,6 +334,8 @@ async def main():
         config.set("user_agent", args.user_agent)
     if args.cache:
         config.set("cache.enabled", True)
+    if args.use_compaction_strategy:
+        config.set("context.strategy", args.use_compaction_strategy)
 
     if args.provider:
         config.set("llm.default_provider", args.provider)
