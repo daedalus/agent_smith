@@ -204,8 +204,25 @@ When asked to review code:
 - Config file: {config_file}"""
 
 logger = logging.getLogger("nanocode.agent")
+logger = logging.getLogger("nanocode.agent")
 tool_logger = logging.getLogger("nanocode.tools")
 cache_logger = logging.getLogger("nanocode.cache")
+
+
+class SessionLoggerAdapter(logging.LoggerAdapter):
+    """Logger adapter that includes session_id in all log messages."""
+    
+    def process(self, msg, kwargs):
+        session_id = self.extra.get('session_id', 'unknown') if self.extra else 'unknown'
+        return f"[session={session_id}] {msg}", kwargs
+
+
+def get_session_logger(session_id: str = None):
+    """Get a logger that includes session_id in all messages."""
+    base_logger = logging.getLogger("nanocode.agent")
+    if session_id:
+        return SessionLoggerAdapter(base_logger, {'session_id': session_id[:8]})
+    return base_logger
 
 
 class AutonomousAgent:
@@ -216,6 +233,7 @@ class AutonomousAgent:
         self.state = AgentStateData()
         self.debug = verbose
         self._session_id = session_id
+        self._session_logger = None
 
         self._init_session()
         self._init_agents()
@@ -246,6 +264,7 @@ class AutonomousAgent:
             self.session = self.session_manager.create()
             self._session_id = self.session.id
         logger.info(f"Session: {self._session_id}")
+        self._session_logger = get_session_logger(self._session_id)
 
     def save_session(self):
         """Save the current session to disk."""
@@ -878,7 +897,10 @@ class AutonomousAgent:
     ) -> str:
         """Process a user input through the agent."""
         agent_name = self.current_agent.name if self.current_agent else "unknown"
-        logger.info(f"[{agent_name}] Processing input: {user_input}")
+        if self._session_logger:
+            self._session_logger.info(f"[{agent_name}] Processing input: {user_input}")
+        else:
+            logger.info(f"[{agent_name}] Processing input: {user_input}")
 
         self.state.state = AgentState.EXECUTING
         self.state.task = user_input
