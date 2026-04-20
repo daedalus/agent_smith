@@ -663,16 +663,33 @@ Footer {
                 # Restore debug setting
                 self.agent.debug = original_debug
 
-                # Display tool calls using opencode's `~ icon` format
+                # Display tool calls using opencode's format
                 if hasattr(self.agent, '_last_tool_results'):
                     tool_results = getattr(self.agent, '_last_tool_results', [])
                     for tr in tool_results:
                         tool_name = tr.get('tool_name', 'unknown')
+                        arguments = tr.get('arguments', {})
                         success = tr.get('success', False)
 
-                        icon = self._get_tool_icon(tool_name)
+                        # Format with full details using _format_tool_call
+                        tool_call = self._format_tool_call(tool_name, arguments)
+
+                        # Add result info from the tool call
+                        result = tr.get('result', '')
+                        if tool_name in ('grep', 'glob') and result:
+                            # Count results
+                            lines = result.strip().split('\n') if result else []
+                            count = len([l for l in lines if l.strip()])
+                            suffix = f"({count} matches)"
+                            tool_call.description = suffix
+                        elif tool_name == 'read' and result:
+                            lines = result.strip().split('\n')
+                            count = len(lines)
+                            suffix = f"[{count} lines]"
+                            tool_call.description = suffix
+
                         status = "✓" if success else "✗"
-                        self._print_line(f"~ {icon} {tool_name} {status}", Style.TOOL_MESSAGE)
+                        self._print_line(f"~ {tool_call.icon} {tool_call.title} {tool_call.description} {status}", Style.TOOL_MESSAGE)
 
                 # Display thinking (with left border styling like opencode)
                 # Only show if not already in the result to avoid duplication
