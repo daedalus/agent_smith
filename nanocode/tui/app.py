@@ -968,11 +968,15 @@ Footer {
             return
 
         if cmd == "/tools":
-            if self.agent:
+            if self.agent and hasattr(self.agent, "tool_registry"):
                 tools = self.agent.tool_registry.list_tools()
                 self._print_line("Available tools:")
                 for t in tools:
-                    self._print_line(f"  {t.name}: {t.description}")
+                    name = t.name if hasattr(t, "name") else "unknown"
+                    desc = t.description[:60] if hasattr(t, "description") else ""
+                    self._print_line(f"  {name}: {desc}")
+            else:
+                self._print_line("No tools available")
             return
 
         if cmd == "/provider":
@@ -996,7 +1000,9 @@ Footer {
                 skills = self.agent.skills_manager.list_skills()
                 self._print_line("Available skills:")
                 for s in skills:
-                    self._print_line(f"  {s.name}: {s.description}")
+                    name = s.get("name", "unknown") if isinstance(s, dict) else getattr(s, "name", "unknown")
+                    desc = s.get("description", "")[:60] if isinstance(s, dict) else getattr(s, "description", "")[:60]
+                    self._print_line(f"  {name}: {desc}")
             else:
                 self._print_line("No skills found")
             return
@@ -1030,7 +1036,9 @@ Footer {
                 agents = self.agent.nanocode_registry.list_primary()
                 self._print_line("Available agents:")
                 for a in agents:
-                    self._print_line(f"  {a.name}: {a.description}")
+                    name = a.name if hasattr(a, "name") else "unknown"
+                    desc = a.description[:60] if hasattr(a, "description") else ""
+                    self._print_line(f"  {name}: {desc}")
             return
 
         if cmd.startswith("/agent "):
