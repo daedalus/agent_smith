@@ -1016,7 +1016,7 @@ Footer {
 
         if cmd == "/compact":
             if self.agent and hasattr(self.agent, "context_manager"):
-                self.agent.context_manager.compact()
+                self.agent.context_manager._compact()
                 self._print_line("Context compacted")
             return
 
