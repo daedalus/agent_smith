@@ -60,7 +60,7 @@ class Style:
     TOOL_MESSAGE_BOLD = "\x1b[38;5;245m\x1b[1m"
     SYSTEM_MESSAGE = "\x1b[38;5;245m"
     SYSTEM_MESSAGE_BOLD = "\x1b[38;5;245m\x1b[1m"
-    THINKING = "\x1b[38;5;245m"
+    THINKING = "\x1b[38;5;214m\x1b[1m\x1b[3m"
 
 
 class PermissionScreen(ModalScreen):
