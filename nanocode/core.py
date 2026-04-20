@@ -917,7 +917,10 @@ class AutonomousAgent:
 
             cached_response = self._check_cache(messages, tools)
             if cached_response:
-                cache_logger.info(f"[{agent_name}] Using cached response")
+                cache_logger.warning(f"[{agent_name}] Using CACHED response (this is a bug if input changed!)")
+                logger.warning(f"[{agent_name}] Cache hit! Messages: {len(messages)}, User input: {user_input[:50]}")
+                if self.debug:
+                    print(f"\n{ANSI.WARNING.value}[WARN] CACHE HIT - Previous response reused!{ANSI.RESET.value}")
                 response = cached_response
             else:
                 response = await self.llm.chat(
