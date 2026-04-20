@@ -681,18 +681,18 @@ Footer {
             return ToolCall(tool=tool_name, title=title, description=suffix, icon="✱")
 
         if tool_name == "read":
-            filepath = normalize_path(arguments.get("filePath", ""))
+            filepath = normalize_path(arguments.get("path", ""))
             extra_args = {k: v for k, v in arguments.items()
                          if k != "filePath" and isinstance(v, (str, int, bool))}
             desc = f"[{', '.join(f'{k}={v}' for k, v in extra_args.items())}]" if extra_args else ""
             return ToolCall(tool=tool_name, title=f"Read {filepath}", description=desc, icon="→")
 
         if tool_name == "write":
-            filepath = normalize_path(arguments.get("filePath", ""))
+            filepath = normalize_path(arguments.get("path", ""))
             return ToolCall(tool=tool_name, title=f"Write {filepath}", icon="←")
 
         if tool_name == "edit":
-            filepath = normalize_path(arguments.get("filePath", ""))
+            filepath = normalize_path(arguments.get("path", ""))
             return ToolCall(tool=tool_name, title=f"Edit {filepath}", icon="←")
 
         if tool_name == "webfetch":
