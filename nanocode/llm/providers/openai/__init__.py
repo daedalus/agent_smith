@@ -3,15 +3,10 @@
 import json
 import logging
 import os
-import sys
 
-# Configure logging for this module
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("/tmp/nanocode.log"), logging.StreamHandler(sys.stdout)],
-)
+# Configure logging for this module (file only, defer to main.py for proper config)
 logger = logging.getLogger("nanocode.openai")
+
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 

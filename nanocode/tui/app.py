@@ -686,9 +686,63 @@ Footer {
                 self.agent.debug = False  # Don't print debug to stdout
                 
                 # Use process_input - let agent handle tool execution normally
-                result = await self.agent.process_input(
-                    text, show_thinking=True  # Enable to capture thinking for display
-                )
+                # Suppress stdout/stderr print output to TUI but write to log file
+                import io
+                import sys
+                import logging
+                import datetime
+                import traceback
+                
+                # Save original stdout/stderr
+                self._saved_stdout = sys.stdout
+                self._saved_stderr = sys.stderr
+                
+                # Create capture buffers
+                stdout_capture = io.StringIO()
+                stderr_capture = io.StringIO()
+                sys.stdout = stdout_capture
+                sys.stderr = stderr_capture
+                
+                # Suppress all loggers to file only
+                root_logger = logging.getLogger()
+                old_level = root_logger.level
+                root_logger.setLevel(logging.DEBUG)
+                
+                # Disable all handlers and add file handler only
+                for h in root_logger.handlers[:]:
+                    root_logger.removeHandler(h)
+                fh = logging.FileHandler("/tmp/nanocode.log")
+                fh.setLevel(logging.DEBUG)
+                root_logger.addHandler(fh)
+                
+                try:
+                    result = await self.agent.process_input(
+                        text, show_thinking=True, show_messages=False
+                    )
+                finally:
+                    # Restore logging
+                    root_logger.removeHandler(fh)
+                    fh.close()
+                    for h in root_logger.handlers[:]:
+                        root_logger.removeHandler(h)
+                    root_logger.setLevel(old_level)
+                
+                # Restore stdout/stderr (but don't restore - keep them captured!)
+                # Actually, keep them captured permanently to prevent any print from showing
+                # sys.stdout = self._saved_stdout
+                # sys.stderr = self._saved_stderr
+                
+                # Write captured output to log
+                stdout_output = stdout_capture.getvalue()
+                stderr_output = stderr_capture.getvalue()
+                
+                if stdout_output or stderr_output:
+                    logger = logging.getLogger("nanocode.tui")
+                    log_output = f"\n=== TUI Debug Output {datetime.datetime.now().isoformat()} ===\n"
+                    log_output += stdout_output
+                    if stderr_output:
+                        log_output += f"\nSTDERR:\n{stderr_output}"
+                    logger.debug(log_output)
 
                 # Restore debug setting
                 self.agent.debug = original_debug

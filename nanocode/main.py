@@ -342,11 +342,16 @@ async def main():
     show_messages = getattr(args, "show_messages", False)
     gui_show_thinking = True if gui_mode == "textual" else show_thinking
 
+    import logging
+    
     log_file = getattr(args, "log_file", None)
-    if log_file or getattr(args, "debug_logging", False):
-        import logging
-
+    
+    # Always configure file logging (to capture debug output for TUI)
+    # Only add StreamHandler when --debug-logging is explicitly passed
+    if log_file or getattr(args, "debug_logging", False) or gui_mode == "textual":
         handlers = [logging.FileHandler(log_file) if log_file else logging.FileHandler("/tmp/nanocode.log")]
+        
+        # Only add StreamHandler if --debug-logging is explicitly passed
         if getattr(args, "debug_logging", False):
             handlers.append(logging.StreamHandler())
         
