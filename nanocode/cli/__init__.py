@@ -549,12 +549,13 @@ class InteractiveCLI:
                         await self._switch_agent(agent_name)
                         continue
 
-                    # If it starts with "/" but doesn't match any known command, show error
+                    # If it starts with "/" but doesn't match any known command, show error and stop processing
                     cmd = find_command(user_input)
                     if cmd is None:
                         self.ui.print_error(
                             f"Unknown command: {user_input}. Type /help for available commands."
                         )
+                        continue
                 else:
                     # Treat ALL non-slash-prefixed input as regular agent input
                     # Do NOT convert "help" to "/help" or treat any plain text as commands

@@ -994,6 +994,7 @@ Footer {
 
         # Unknown command
         self._print_error(f"Unknown command: {command}. Type /help for available commands.")
+        return
 
 
 async def run_tui(agent=None, show_thinking: bool = True):
