@@ -272,7 +272,7 @@ class AutonomousAgent:
             self.session_manager.save(self.session)
             logger.debug(f"Saved session: {self._session_id}")
 
-def _init_cache(self):
+    def _init_cache(self):
         """Initialize the prompt cache."""
         self.prompt_cache: PromptCache | None = None
         cache_enabled = self.config.cache_enabled
