@@ -656,7 +656,7 @@ Footer {
             ctx = self.agent.context_manager
             usage = ctx.get_token_usage()
             current = usage.get("current_tokens", 0)
-            max_tok = usage.get("max_tokens", 0)
+            max_tok = usage.get("context_limit", 0)
             if max_tok > 0:
                 pct = (current / max_tok) * 100
                 lines.append(f"Context: {current:,} / {max_tok:,} ({pct:.0f}%)")
