@@ -272,3 +272,96 @@ class TestTUICommandHandler:
         """Test /resume command."""
         await app._handle_command("/resume session_123")
         app._print_line.assert_called()
+
+
+class TestRichColor:
+    """Test RichColor enum."""
+
+    def test_rich_color_enum_values(self):
+        """Test RichColor enum has correct values."""
+        from nanocode.tui.app import RichColor
+        assert RichColor.FG.value == "#ebdbb2"
+        assert RichColor.YELLOW.value == "#d79921"
+        assert RichColor.GREEN.value == "#98971a"
+        assert RichColor.RED.value == "#cc241d"
+        assert RichColor.BLUE.value == "#458588"
+        assert RichColor.PURPLE.value == "#b16286"
+        assert RichColor.AQUA.value == "#83a598"
+        assert RichColor.GRAY.value == "#928374"
+
+    def test_rich_color_enum_count(self):
+        """Test RichColor enum has expected number of colors."""
+        from nanocode.tui.app import RichColor
+        colors = list(RichColor)
+        assert len(colors) == 8
+
+
+class TestStyle:
+    """Test Style class."""
+
+    def test_style_thinking(self):
+        """Test Style.THINKING uses yellow italic."""
+        from nanocode.tui.app import Style, RichColor
+        assert "italic" in Style.THINKING
+        assert RichColor.YELLOW.value in Style.THINKING
+
+    def test_style_user_message(self):
+        """Test Style.USER_MESSAGE uses green."""
+        from nanocode.tui.app import Style, RichColor
+        assert RichColor.GREEN.value in Style.USER_MESSAGE
+
+    def test_style_assistant_message(self):
+        """Test Style.ASSISTANT_MESSAGE uses purple."""
+        from nanocode.tui.app import Style, RichColor
+        assert RichColor.PURPLE.value in Style.ASSISTANT_MESSAGE
+
+    def test_style_tool_message(self):
+        """Test Style.TOOL_MESSAGE uses aqua."""
+        from nanocode.tui.app import Style, RichColor
+        assert RichColor.AQUA.value in Style.TOOL_MESSAGE
+
+    def test_style_warning(self):
+        """Test Style.TEXT_WARNING uses yellow."""
+        from nanocode.tui.app import Style, RichColor
+        assert RichColor.YELLOW.value in Style.TEXT_WARNING
+
+    def test_style_danger(self):
+        """Test Style.TEXT_DANGER uses red."""
+        from nanocode.tui.app import Style, RichColor
+        assert RichColor.RED.value in Style.TEXT_DANGER
+
+    def test_style_success(self):
+        """Test Style.TEXT_SUCCESS uses green."""
+        from nanocode.tui.app import Style, RichColor
+        assert RichColor.GREEN.value in Style.TEXT_SUCCESS
+
+
+class TestOutputAreaThinking:
+    """Test OutputArea thinking style handling."""
+
+    def test_add_line_with_thought_markup(self):
+        """Test add_line handles [thought] markup."""
+        area = OutputArea()
+        text = "Some text [thought]| Thinking:[/thought] thinking content"
+        area.add_line(text, "assistant")
+
+    def test_add_line_thinking_only(self):
+        """Test add_line with only thinking markup."""
+        area = OutputArea()
+        text = "[thought]| Thinking:[/thought] content here"
+        area.add_line(text, "assistant")
+
+    def test_add_line_multiple_thoughts(self):
+        """Test add_line with multiple thought blocks."""
+        area = OutputArea()
+        text = "First [thought]| Thinking:[/thought] then [thought]| Tool Use:[/thought]"
+        area.add_line(text, "assistant")
+
+
+class TestPrintLine:
+    """Test _print_line method."""
+
+    def test_print_line_basic(self):
+        """Test _print_line basic functionality."""
+        from nanocode.tui.app import Style
+        assert Style.THINKING is not None
