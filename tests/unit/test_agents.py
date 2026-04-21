@@ -15,6 +15,8 @@ from nanocode.agents import (
     match_pattern,
 )
 
+from nanocode.tools.task import SubAgentSession
+
 
 class TestPermissionRule:
     """Test permission rule."""
@@ -425,3 +427,28 @@ class TestCreateRegistryFromConfig:
         registry = create_registry_from_config(config)
 
         assert registry.get("build").description == "Custom description"
+
+
+class TestSubAgentSession:
+    """Test subagent session dataclass."""
+
+    def test_create_session(self):
+        """Test creating a subagent session."""
+        agent = AgentInfo(name="explore", mode=AgentMode.SUBAGENT, description="Explore")
+        session = SubAgentSession(id="test-123", agent=agent)
+
+        assert session.id == "test-123"
+        assert session.agent.name == "explore"
+        assert session.completed is False
+        assert session.result is None
+
+    def test_session_completion(self):
+        """Test marking session as complete."""
+        agent = AgentInfo(name="explore", mode=AgentMode.SUBAGENT, description="Explore")
+        session = SubAgentSession(id="test-123", agent=agent)
+
+        session.completed = True
+        session.result = "Done!"
+
+        assert session.completed is True
+        assert session.result == "Done!"

@@ -505,6 +505,8 @@ Footer {
         ("/show_thinking", "Toggle thinking display"),
         ("/agents", "Show available agents"),
         ("/agent", "Switch agent"),
+        ("/tasks", "Show active subagent sessions"),
+        ("/kill", "Kill a subagent session"),
     ]
 
     def __init__(self, agent=None, show_thinking: bool = True):
@@ -534,6 +536,22 @@ Footer {
         
         if self.agent:
             self._setup_permission_callback()
+        
+        self._status_timer = self.set_interval(1.0, self._update_status_bar)
+
+    def _update_status_bar(self) -> None:
+        """Update status bar with subagent count."""
+        status_bar = self.query_one("#status-bar", Static)
+        
+        if self.agent and hasattr(self.agent, "tool_registry"):
+            task_tool = self.agent.tool_registry.get_tool("task")
+            if task_tool and hasattr(task_tool, "sessions"):
+                active = sum(1 for s in task_tool.sessions.values() if not s.completed)
+                if active > 0:
+                    status_bar.update(f"Tasks: {active}")
+                    return
+        
+        status_bar.update("")
     
     def _update_spinner(self) -> None:
         """Update spinner animation."""
@@ -1134,6 +1152,36 @@ Footer {
                     self._print_error(f"Unknown agent: {agent_name}")
             else:
                 self._print_line("Use /agents to list available agents")
+            return
+
+        if cmd == "/tasks":
+            if self.agent and hasattr(self.agent, "tool_registry"):
+                task_tool = self.agent.tool_registry.get_tool("task")
+                if task_tool and hasattr(task_tool, "sessions"):
+                    sessions = task_tool.sessions
+                    if sessions:
+                        self._print_line("Active subagent sessions:")
+                        for sid, sess in sessions.items():
+                            status = "completed" if sess.completed else "running"
+                            aname = sess.agent.name if hasattr(sess.agent, "name") else "?"
+                            self._print_line(f"  {sid[:8]}: {aname} [{status}]")
+                    else:
+                        self._print_line("No active subagent sessions")
+                else:
+                    self._print_line("Task tool not available")
+            return
+
+        if cmd.startswith("/kill "):
+            task_id = parts[1] if len(parts) > 1 else None
+            if task_id and self.agent and hasattr(self.agent, "tool_registry"):
+                task_tool = self.agent.tool_registry.get_tool("task")
+                if task_tool and hasattr(task_tool, "sessions") and task_id in task_tool.sessions:
+                    del task_tool.sessions[task_id]
+                    self._print_line(f"Killed session: {task_id[:8]}")
+                else:
+                    self._print_error(f"Session not found: {task_id[:8]}")
+            else:
+                self._print_error("Usage: /kill <session_id>")
             return
 
         if cmd == "/debug":
