@@ -6,6 +6,8 @@ import argparse
 import atexit
 import os
 
+from rich.console import Console
+
 from nanocode.core import AutonomousAgent
 from nanocode.cli import InteractiveCLI
 from nanocode.config import Config
@@ -358,12 +360,13 @@ async def main():
         except KeyboardInterrupt:
             session_id = getattr(agent, '_session_id', 'unknown') if agent else 'unknown'
             print()
-            print("\033[96m" + "░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ " + "\033[0m")
-            print("\033[96m" + "██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗" + "\033[0m")
-            print("\033[96m" + "██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║" + "\033[0m")
-            print("\033[96m" + "██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║" + "\033[0m")
-            print("\033[96m" + "╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║" + "\033[0m")
-            print("\033[96m" + " ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝" + "\033[0m")
+            c = Console()
+            c.print(f"[cyan]░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ [/cyan]")
+            c.print(f"[cyan]██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗[/cyan]")
+            c.print(f"[cyan]██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║[/cyan]")
+            c.print(f"[cyan]██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║[/cyan]")
+            c.print(f"[cyan]╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║[/cyan]")
+            c.print(f"[cyan] ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/cyan]")
             print()
             print(f"Session: {session_id}")
         finally:
@@ -451,13 +454,11 @@ async def main():
 
 
 def _format_markdown(text: str) -> str:
-    """Format markdown bold (**text**) as bold + magenta."""
+    """Format markdown bold (**text**) as bold + magenta using Rich markup."""
     import re
-    MAGENTA_BOLD = "\033[38;5;95;1m"
-    RESET = "\033[0m"
 
     def replace_bold(match):
-        return f"{MAGENTA_BOLD}{match.group(1)}{RESET}"
+        return f"[magenta bold]{match.group(1)}[/magenta bold]"
 
     return re.sub(r'\*\*(.+?)\*\*', replace_bold, text)
 

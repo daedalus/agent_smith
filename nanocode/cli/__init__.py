@@ -124,17 +124,17 @@ class Spinner:
 class ConsoleUI:
     """Terminal UI for the agent."""
 
-    COLORS = {
-        "reset": "\033[0m",
-        "bold": "\033[1m",
-        "red": "\033[91m",
-        "green": "\033[92m",
-        "yellow": "\033[93m",
-        "blue": "\033[94m",
-        "magenta": "\033[95m",
-        "cyan": "\033[96m",
-        "white": "\033[97m",
-        "gray": "\033[90m",
+    RICH_COLORS = {
+        "reset": "[/]",
+        "bold": "[bold]",
+        "red": "[red]",
+        "green": "[green]",
+        "yellow": "[yellow]",
+        "blue": "[blue]",
+        "magenta": "[magenta]",
+        "cyan": "[cyan]",
+        "white": "[white]",
+        "gray": "[dim]",
     }
 
     def __init__(self, use_colors: bool = True):
@@ -244,11 +244,14 @@ class ConsoleUI:
         print(f"\n{self.color('yellow', '⚠ Warning:')} {message}")
 
     def color(self, color: str, text: str) -> str:
-        """Apply color to text."""
+        """Apply color to text using Rich markup."""
         if not self.use_colors:
             return text
-        c = self.COLORS.get(color, "")
-        return f"{c}{text}{self.COLORS['reset']}"
+        open_tag = self.RICH_COLORS.get(color, "")
+        close_tag = self.RICH_COLORS.get("reset", "[/]")
+        if open_tag:
+            return f"{open_tag}{text}{close_tag}"
+        return text
 
     def print_welcome(self):
         """Print welcome message."""
@@ -574,12 +577,14 @@ class InteractiveCLI:
                 self.ui.save_history()
                 session_id = getattr(self.nanocode, '_session_id', 'unknown')
                 print()
-                print("\033[96m" + "░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ " + "\033[0m")
-                print("\033[96m" + "██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗" + "\033[0m")
-                print("\033[96m" + "██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║" + "\033[0m")
-                print("\033[96m" + "██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║" + "\033[0m")
-                print("\033[96m" + "╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║" + "\033[0m")
-                print("\033[96m" + " ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝" + "\033[0m")
+                from rich.console import Console
+                c = Console()
+                c.print(f"[cyan]░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ [/cyan]")
+                c.print(f"[cyan]██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗[/cyan]")
+                c.print(f"[cyan]██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║[/cyan]")
+                c.print(f"[cyan]██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║[/cyan]")
+                c.print(f"[cyan]╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║[/cyan]")
+                c.print(f"[cyan] ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/cyan]")
                 print()
                 print(f"Session: {session_id}")
                 break

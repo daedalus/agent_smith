@@ -4,10 +4,20 @@ import asyncio
 import os
 import sys
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, auto
+
+class RichColor(Enum):
+    """Gruvbox-inspired color palette for rich text."""
+    FG = "#ebdbb2"           # Light gray - main text
+    YELLOW = "#d79921"       # Yellow - highlights/titles
+    GREEN = "#98971a"        # Green - success/user
+    RED = "#cc241d"          # Red - danger/error
+    BLUE = "#458588"         # Blue - info
+    PURPLE = "#b16286"       # Purple - assistant
+    AQUA = "#83a598"         # Aqua - tool
+    GRAY = "#928374"         # Gray - dim/system
 from typing import Any
 
-from nanocode.core import ANSI
 from rich.text import Text
 from rich.style import Style
 from textual.app import App, ComposeResult
@@ -39,31 +49,31 @@ GRUVBOX = {
 }
 
 class Style:
-    """ANSI color codes (basic 8-color palette for maximum compatibility)."""
-    TEXT_HIGHLIGHT = "\x1b[96m"
-    TEXT_HIGHLIGHT_BOLD = "\x1b[96m\x1b[1m"
-    TEXT_DIM = "\x1b[90m"
-    TEXT_DIM_BOLD = "\x1b[90m\x1b[1m"
-    TEXT_NORMAL = "\x1b[0m"
-    TEXT_NORMAL_BOLD = "\x1b[1m"
-    TEXT_WARNING = "\x1b[93m"
-    TEXT_WARNING_BOLD = "\x1b[93m\x1b[1m"
-    TEXT_DANGER = "\x1b[91m"
-    TEXT_DANGER_BOLD = "\x1b[91m\x1b[1m"
-    TEXT_SUCCESS = "\x1b[92m"
-    TEXT_SUCCESS_BOLD = "\x1b[92m\x1b[1m"
-    TEXT_INFO = "\x1b[96m"
-    TEXT_INFO_BOLD = "\x1b[96m\x1b[1m"
+    """Rich text style names for output area."""
+    TEXT_HIGHLIGHT = "cyan"
+    TEXT_HIGHLIGHT_BOLD = "cyan bold"
+    TEXT_DIM = "dim"
+    TEXT_DIM_BOLD = "dim"
+    TEXT_NORMAL = ""
+    TEXT_NORMAL_BOLD = "bold"
+    TEXT_WARNING = RichColor.YELLOW.value
+    TEXT_WARNING_BOLD = f"{RichColor.YELLOW.value} bold"
+    TEXT_DANGER = RichColor.RED.value
+    TEXT_DANGER_BOLD = f"{RichColor.RED.value} bold"
+    TEXT_SUCCESS = RichColor.GREEN.value
+    TEXT_SUCCESS_BOLD = f"{RichColor.GREEN.value} bold"
+    TEXT_INFO = RichColor.BLUE.value
+    TEXT_INFO_BOLD = f"{RichColor.BLUE.value} bold"
 
-    USER_MESSAGE = "\x1b[92m"
-    USER_MESSAGE_BOLD = "\x1b[92m\x1b[1m"
-    ASSISTANT_MESSAGE = "\x1b[97m"
-    ASSISTANT_MESSAGE_BOLD = "\x1b[97m\x1b[1m"
-    TOOL_MESSAGE = "\x1b[90m"
-    TOOL_MESSAGE_BOLD = "\x1b[90m\x1b[1m"
-    SYSTEM_MESSAGE = "\x1b[90m"
-    SYSTEM_MESSAGE_BOLD = "\x1b[90m\x1b[1m"
-    THINKING = "\x1b[93m\x1b[1m\x1b[3m"
+    USER_MESSAGE = RichColor.GREEN.value
+    USER_MESSAGE_BOLD = f"{RichColor.GREEN.value} bold"
+    ASSISTANT_MESSAGE = RichColor.PURPLE.value
+    ASSISTANT_MESSAGE_BOLD = f"{RichColor.PURPLE.value} bold"
+    TOOL_MESSAGE = RichColor.AQUA.value
+    TOOL_MESSAGE_BOLD = f"{RichColor.AQUA.value} bold"
+    SYSTEM_MESSAGE = RichColor.GRAY.value
+    SYSTEM_MESSAGE_BOLD = f"{RichColor.GRAY.value} bold"
+    THINKING = f"{RichColor.YELLOW.value} italic"
 
 
 class PermissionScreen(ModalScreen):
@@ -283,10 +293,21 @@ class OutputArea(RichLog):
 
         base_color = style_map.get(style, "")
 
-        # Handle Rich markup only for thinking style (e.g., [bold italic yellow]| Thinking:[/])
-        if style == "thinking" and "[" in text and "]" in text:
+        # Handle custom styles before markdown rendering
+        if "[thought]" in text:
             from rich.text import Text as RichText
-            rich_text = RichText.from_markup(text)
+            rich_text = RichText()
+            parts = text.split("[thought]")
+            if parts[0]:
+                rich_text.append(parts[0])
+            for part in parts[1:]:
+                if "[/thought]" in part:
+                    label, rest = part.split("[/thought]", 1)
+                    rich_text.append(label, f"{self.GRUVBOX['yellow']} italic")
+                    if rest:
+                        rich_text.append(rest)
+                else:
+                    rich_text.append(part)
             self.write(rich_text)
             self._lines.append(text)
             return
@@ -806,29 +827,8 @@ Footer {
         output = self.query_one("#output-area")
         
         # Convert ANSI style to simple Rich style name
-        style_map = {
-            Style.USER_MESSAGE: "user",
-            Style.USER_MESSAGE_BOLD: "user",
-            Style.ASSISTANT_MESSAGE: "assistant",
-            Style.ASSISTANT_MESSAGE_BOLD: "assistant",
-            Style.TOOL_MESSAGE: "tool",
-            Style.TOOL_MESSAGE_BOLD: "tool",
-            Style.TEXT_DIM: "dim",
-            Style.TEXT_DIM_BOLD: "dim",
-            Style.TEXT_NORMAL: "",
-            Style.TEXT_NORMAL_BOLD: "",
-            Style.TEXT_WARNING: "warning",
-            Style.TEXT_WARNING_BOLD: "warning",
-            Style.TEXT_DANGER: "danger",
-            Style.TEXT_DANGER_BOLD: "danger",
-            Style.TEXT_SUCCESS: "success",
-            Style.TEXT_SUCCESS_BOLD: "success",
-            Style.TEXT_INFO: "info",
-            Style.TEXT_INFO_BOLD: "info",
-        }
-        
         if style == Style.THINKING:
-            # Split: "Thinking:" gets bold italic yellow, rest gets white
+            # Split: "Thinking:" gets yellow italic, rest gets normal
             prefix = ""
             rest = text
             if "| Thinking:" in text:
@@ -839,10 +839,10 @@ Footer {
             from rich.text import Text as RichText
             if prefix and rest:
                 full_text = RichText()
-                full_text.append(prefix + " ", style="bold italic yellow")
-                full_text.append(rest, style="white")
+                full_text.append(prefix + " ", style=f"{RichColor.YELLOW.value} italic")
+                full_text.append(rest, style=RichColor.FG.value)
             elif prefix:
-                full_text = RichText(prefix, style="bold italic yellow")
+                full_text = RichText(prefix, style=f"{RichColor.YELLOW.value} italic")
             else:
                 full_text = RichText.from_markup(text)
             
@@ -850,8 +850,7 @@ Footer {
             output._lines.append(text)
             return
         
-        rich_style = style_map.get(style, "")
-        output.add_line(text, rich_style)
+        output.add_line(text, style)
     
     def _print_empty(self):
         """Print an empty line."""
@@ -1268,12 +1267,14 @@ Footer {
             session_id = getattr(self.agent, '_session_id', 'unknown') if self.agent else 'unknown'
             self.exit()
             print()
-            print("\033[96m" + "░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ " + "\033[0m")
-            print("\033[96m" + "██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗" + "\033[0m")
-            print("\033[96m" + "██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║" + "\033[0m")
-            print("\033[96m" + "██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║" + "\033[0m")
-            print("\033[96m" + "╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║" + "\033[0m")
-            print("\033[96m" + " ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝" + "\033[0m")
+            from rich.console import Console
+            c = Console()
+            c.print(f"[cyan]░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ [/cyan]")
+            c.print(f"[cyan]██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗[/cyan]")
+            c.print(f"[cyan]██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║[/cyan]")
+            c.print(f"[cyan]██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║[/cyan]")
+            c.print(f"[cyan]╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║[/cyan]")
+            c.print(f"[cyan] ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/cyan]")
             print()
             print(f"Session: {session_id}")
             return
