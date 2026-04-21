@@ -257,12 +257,16 @@ class ModelLimits:
     @classmethod
     async def load_registry(cls):
         """Load model registry from models.dev."""
+        import logging
+        logger = logging.getLogger("nanocode.context")
+        logger.debug("Loading model registry from API...")
         registry = cls._get_registry()
         if registry:
             try:
                 await registry.load()
-            except Exception:
-                pass
+                logger.debug(f"Model registry loaded: {len(registry._providers)} providers")
+            except Exception as e:
+                logger.debug(f"Failed to load model registry: {e}")
 
     @classmethod
     def get_limits(cls, model: str) -> dict:
@@ -293,6 +297,8 @@ class ModelLimits:
     @classmethod
     def get_limits_sync(cls, model: str) -> dict:
         """Synchronous version of get_limits (uses cache only)."""
+        import logging
+        logger = logging.getLogger("nanocode.context")
         registry = cls._get_registry()
 
         if registry and registry._providers:
@@ -302,12 +308,16 @@ class ModelLimits:
                 if model_info:
                     context_limit = model_info.context_limit
                     output_limit = min(context_limit // 8, 16384)
+                    logger.debug(f"get_limits_sync({model}): found in registry, context={context_limit}")
                     return {"context": context_limit, "output": output_limit}
+            logger.debug(f"get_limits_sync({model}): not found in registry, checking defaults")
 
         model_lower = model.lower()
         for key, limits in cls.DEFAULT_LIMITS.items():
             if key in model_lower:
+                logger.debug(f"get_limits_sync({model}): using default '{key}', context={limits['context']}")
                 return limits.copy()
+        logger.debug(f"get_limits_sync({model}): using default fallback, context={cls.DEFAULT_LIMITS['default']['context']}")
         return cls.DEFAULT_LIMITS["default"].copy()
 
 
@@ -425,11 +435,16 @@ class ContextManager:
 
     async def init_async(self):
         """Async initialization - load model limits from registry."""
+        import logging
+        logger = logging.getLogger("nanocode.context")
+        logger.debug(f"ContextManager.init_async: model={self.model}")
         await ModelLimits.load_registry()
         model_limits = ModelLimits.get_limits_sync(self.model)
+        logger.debug(f"ContextManager.init_async: limits={model_limits}")
         self._context_limit = model_limits["context"]
         self._output_limit = model_limits["output"]
         self._reserved_tokens = min(2000, self._output_limit // 4)
+        logger.debug(f"ContextManager.init_async: _context_limit={self._context_limit}")
 
     def set_system_prompt(self, content: str):
         """Set the system prompt as text part."""
