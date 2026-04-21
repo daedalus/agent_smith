@@ -532,6 +532,7 @@ class AutonomousAgent:
             session_id=session_id,
             storage=self.storage,
             tool_truncation=ctx_config.get("tool_truncation"),
+            model=getattr(self.llm, "model", "gpt-4o"),
         )
 
         # Build composable system prompt
