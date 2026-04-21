@@ -628,7 +628,8 @@ class AutonomousAgent:
 
         mcp_servers = self.config.mcp_servers
         for name, server_config in mcp_servers.items():
-            self.mcp_manager.add_server(name, server_config)
+            if server_config.get("enabled", True):
+                self.mcp_manager.add_server(name, server_config)
 
     def _init_planning(self):
         """Initialize planning system."""
