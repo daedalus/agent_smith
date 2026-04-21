@@ -130,7 +130,7 @@ class SessionManager:
 
     def create(self, title: str = None, metadata: dict = None) -> Session:
         """Create a new session."""
-        session_id = f"session_{uuid.uuid4().hex[:12]}"
+        session_id = uuid.uuid4().hex[:12]
         session = Session(
             id=session_id,
             title=title or f"Session - {datetime.now().strftime('%Y-%m-%d %H:%M')}",

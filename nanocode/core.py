@@ -1,5 +1,6 @@
 """Core agent implementation."""
 
+import hashlib
 import json
 import logging
 import traceback
@@ -73,7 +74,9 @@ Examples:
 - "search X" → call grep tool
 - "list files" → call ls tool
 
-**STRICT RULE**: If a tool can do the task, call it. NEVER respond with text about previous requests.
+**CRITICAL**: For any task, CALL TOOLS. Don't explain, don't discuss, just execute.
+
+**EXCEPTION**: If input is ONLY a greeting ("hi", "hello", "hey") → respond conversationally, no tool.
 
 # Core Principles
 
@@ -218,10 +221,11 @@ class SessionLoggerAdapter(logging.LoggerAdapter):
 
 
 def get_session_logger(session_id: str = None):
-    """Get a logger that includes session_id in all messages."""
+    """Get a logger that includes session_id in all log messages."""
     base_logger = logging.getLogger("nanocode.agent")
     if session_id:
-        return SessionLoggerAdapter(base_logger, {'session_id': session_id[:8]})
+        hashed = hashlib.sha256(session_id.encode()).hexdigest()[:8]
+        return SessionLoggerAdapter(base_logger, {'session_id': hashed})
     return base_logger
 
 
@@ -927,6 +931,13 @@ class AutonomousAgent:
 
             messages = self.context_manager.prepare_messages()
             logger.debug(f"[{agent_name}] Context has {len(messages)} messages")
+# DEBUG: Print all messages being sent to LLM
+            # logger.warning(f"[DEBUG LLM] ===== MESSAGES TO LLM =====")
+            # for i, m in enumerate(messages):
+            #     role = m.get("role", "?") if isinstance(m, dict) else getattr(m, "role", "?")
+            #     content = m.get("content", "") if isinstance(m, dict) else getattr(m, "content", "")
+            #     if content:
+            #         logger.warning(f"[DEBUG LLM] Msg {i}: {role}: {str(content)[:200]}")
 
             if self.debug:
                 print(
@@ -961,8 +972,8 @@ class AutonomousAgent:
             logger.debug(f"[{agent_name}] Sending request to LLM...")
 
             cached_response = self._check_cache(messages, tools)
-            logger.warning(f"[DEBUG] User input: '{user_input}'")
-            logger.warning(f"[DEBUG] Context messages before LLM: {len(messages)}")
+            logger.debug(f"[DEBUG] User input: '{user_input}'")
+            logger.debug(f"[DEBUG] Context messages before LLM: {len(messages)}")
             if cached_response:
                 cache_logger.warning(f"[{agent_name}] Using CACHED response (this is a bug if input changed!)")
                 logger.warning(f"[{agent_name}] Cache hit! Messages: {len(messages)}, User input: {user_input[:50]}")

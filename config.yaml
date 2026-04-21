@@ -3,7 +3,7 @@ llm:
   use_model_registry: false
   default_model: "openrouter/free"
   user_agent: "opencode/1.4.8"
-  
+
   providers:
 
     opencode:
@@ -14,7 +14,7 @@ llm:
     openrouter:
       api_key: ${OPENROUTER_API_KEY}
       base_url: https://openrouter.ai/api/v1
-      model: openrouter/free
+      model: "openrouter/free"
      
     openai:
       api_key: ${OPENAI_API_KEY}

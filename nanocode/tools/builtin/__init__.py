@@ -719,8 +719,9 @@ class WriteFileTool(Tool):
         self.root_dir = Path(root_dir) if root_dir else Path.cwd()
         self.file_tracker = file_tracker
 
-    async def execute(self, path: str, content: str, mode: str = "w") -> ToolResult:
+    async def execute(self, path: str = None, content: str = "", filePath: str = None, mode: str = "w") -> ToolResult:
         """Write to a file atomically."""
+        path = path or filePath  # Handle both 'path' and 'filePath'
         try:
             file_path = self.root_dir / path
             atomic_write(file_path, content)

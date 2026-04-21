@@ -596,6 +596,11 @@ class ContextManager:
         """Get messages in format for LLM API."""
         result = []
 
+        # DEBUG: Print internal messages
+        print(f"DEBUG _get_messages: internals has {len(self._messages)} messages:")
+        for i, m in enumerate(self._messages):
+            print(f"  [{i}] {m.role}: {str(m.get_text_content())[:50]}...")
+        
         if self._system_parts and self.preserve_system:
             result.append(
                 {
@@ -714,6 +719,17 @@ class ContextManager:
 
     def _sliding_window(self) -> list[dict]:
         """Apply sliding window strategy."""
+        if self._system_parts and self.preserve_system:
+            system_tokens = sum(p.tokens for p in self._system_parts)
+        else:
+            system_tokens = 0
+
+        recent_messages = (
+            self._messages[-self.preserve_last_n:] if self._messages else []
+        )
+
+        result_messages = []
+        current_tokens = 0
 
         if self._system_parts and self.preserve_system:
             system_tokens = sum(p.tokens for p in self._system_parts)
@@ -721,26 +737,27 @@ class ContextManager:
             system_tokens = 0
 
         recent_messages = (
-            self._messages[-self.preserve_last_n :] if self._messages else []
+            self._messages[-self.preserve_last_n:] if self._messages else []
         )
 
         result_messages = []
-        current_tokens = system_tokens
+        current_tokens = 0  # Don't count system tokens for recent messages
 
         for msg in reversed(recent_messages):
-            if current_tokens + msg.tokens > self.max_tokens - self._token_buffer:
-                break
             result_messages.insert(0, msg)
             current_tokens += msg.tokens
 
         older = (
-            [m for m in self._messages[: -self.preserve_last_n]]
+            [m for m in self._messages[:-self.preserve_last_n]]
             if self.preserve_last_n > 0
             else self._messages
         )
+        
+        # Only apply token limit to older messages
+        token_limit = self.max_tokens - self._token_buffer
 
         for msg in reversed(older):
-            if current_tokens + msg.tokens > self.max_tokens - self._token_buffer:
+            if current_tokens + msg.tokens > token_limit:
                 continue
             result_messages.insert(
                 (
@@ -755,7 +772,29 @@ class ContextManager:
         return self._messages_to_dict(result_messages)
 
     def _messages_to_dict(self, messages: list[Message]) -> list[dict]:
-        """Convert messages to dict format with proper tool_call_id filtering."""
+        """Convert messages to dict format."""
+        result = []
+        
+        if self._system_parts and self.preserve_system:
+            result.append({
+                "role": "system",
+                "content": " ".join(p.content for p in self._system_parts),
+            })
+        
+        for msg in messages:
+            msg_dict = msg.to_dict()
+            # Only include tool results if they match the most recent assistant's tool_calls
+            if msg_dict.get("role") == "tool":
+                tid = msg_dict.get("tool_call_id")
+                if tid:
+                    result.append(msg_dict)
+            else:
+                result.append(msg_dict)
+        
+        return result
+
+    def _get_messages_for_llm(self) -> list[dict]:
+        """Get messages in format for LLM API."""
         result = []
 
         if self._system_parts and self.preserve_system:
