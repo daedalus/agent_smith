@@ -544,7 +544,7 @@ Footer {
         status_bar = self.query_one("#status-bar", Static)
         
         if self.agent and hasattr(self.agent, "tool_registry"):
-            task_tool = self.agent.tool_registry.get_tool("task")
+            task_tool = self.agent.tool_registry.get("task")
             if task_tool and hasattr(task_tool, "sessions"):
                 active = sum(1 for s in task_tool.sessions.values() if not s.completed)
                 if active > 0:
