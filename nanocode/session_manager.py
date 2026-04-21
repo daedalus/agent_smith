@@ -130,7 +130,7 @@ class SessionManager:
 
     def create(self, title: str = None, metadata: dict = None) -> Session:
         """Create a new session."""
-        session_id = uuid.uuid4().hex[:12]
+        session_id = f"ses_{uuid.uuid4().hex[:12]}"
         session = Session(
             id=session_id,
             title=title or f"Session - {datetime.now().strftime('%Y-%m-%d %H:%M')}",
@@ -163,7 +163,7 @@ class SessionManager:
         """List all sessions, most recent first."""
         sessions = []
         for filepath in sorted(
-            self.storage_dir.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True
+            self.storage_dir.glob("ses_*.json"), key=lambda p: p.stat().st_mtime, reverse=True
         ):
             if limit and len(sessions) >= limit:
                 break

@@ -8,7 +8,7 @@ llm:
 
     opencode:
       api_key: public
-      base_url: https://api.opencode.ai/v1
+      base_url: https://api.opencode.ai/v1/
       model: opencode/big-pickle
 
     openrouter:
