@@ -375,6 +375,8 @@ Special Commands (prefix with '/'):
 - `/show_thinking` - Toggle thinking display
 - `/agents` - List available agents
 - `/agent <name>` - Switch to a different agent
+- `/tasks` - List active subagent sessions
+- `/kill <session_id>` - Kill a subagent session
 
 ### Command Palette (TUI)
 

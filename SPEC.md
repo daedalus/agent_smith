@@ -16,6 +16,7 @@ Nanocode is an autonomous AI agent for console with advanced tool use. It suppor
 - HTTP server with authentication for remote operation
 - mDNS service discovery
 - Multi-agent system with permission controls
+- Subagent session management (/tasks, /kill commands)
 - Persistent SQLite session storage
 - File watcher for cache invalidation
 - Skills system for custom commands
