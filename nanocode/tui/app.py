@@ -684,6 +684,25 @@ Footer {
                         content = t.get("content", "")[:30]
                         lines.append(f"  {icon} {content}")
 
+        if self.agent:
+            if hasattr(self.agent, 'mcp_manager') and self.agent.mcp_manager:
+                mcp_clients = list(self.agent.mcp_manager._clients.keys()) if hasattr(self.agent.mcp_manager, '_clients') else []
+                if mcp_clients:
+                    lines.append("─ MCP ─")
+                    for name in mcp_clients[:10]:
+                        lines.append(f"  {name}")
+                    if len(mcp_clients) > 10:
+                        lines.append(f"  ... and {len(mcp_clients) - 10} more")
+
+            if hasattr(self.agent, 'lsp_manager') and self.agent.lsp_manager:
+                lsp_servers = list(self.agent.lsp_manager._servers.keys()) if hasattr(self.agent.lsp_manager, '_servers') else []
+                if lsp_servers:
+                    lines.append("─ LSP ─")
+                    for server_id in lsp_servers[:10]:
+                        lines.append(f"  {server_id}")
+                    if len(lsp_servers) > 10:
+                        lines.append(f"  ... and {len(lsp_servers) - 10} more")
+
         try:
             sidebar_body = self.query_one("#sidebar-body", Static)
             sidebar_body.update("\n".join(lines))
