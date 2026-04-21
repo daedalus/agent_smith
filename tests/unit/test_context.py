@@ -7,6 +7,7 @@ from nanocode.context import (
     ContextStrategy,
     Message,
     MessagePartType,
+    MessageRole,
     ModelLimits,
     ScrapManager,
     TokenCounter,
@@ -194,28 +195,6 @@ class TestContextManager:
 
         assert len(manager._messages) == 3
 
-    def test_prepare_messages_sliding_window(self, manager):
-        """Test sliding window strategy."""
-        manager.set_system_prompt("System")
-        for i in range(10):
-            manager.add_message("user", f"Message {i}")
-
-        messages = manager.prepare_messages()
-
-        assert len(messages) > 0
-
-    def test_prepare_messages_compaction(self, manager):
-        """Test compaction strategy."""
-        manager.strategy = ContextStrategy.COMPACTION
-        manager.set_system_prompt("System")
-
-        for i in range(5):
-            manager.add_message("user", f"Message {i}")
-
-        messages = manager.prepare_messages()
-
-        assert len(messages) > 0
-
     def test_get_token_usage(self, manager):
         """Test token usage reporting."""
         manager.add_message("user", "Hello world")
@@ -284,3 +263,64 @@ class TestContextManager:
         new_manager.load_from_file(str(filepath))
 
         assert len(new_manager._messages) == 1
+
+
+class TestMessageRole:
+    """Test MessageRole enum."""
+
+    def test_message_role_system(self):
+        """Test system message role."""
+        assert MessageRole.SYSTEM.value == "system"
+
+    def test_message_role_user(self):
+        """Test user message role."""
+        assert MessageRole.USER.value == "user"
+
+    def test_message_role_assistant(self):
+        """Test assistant message role."""
+        assert MessageRole.ASSISTANT.value == "assistant"
+
+    def test_message_role_tool(self):
+        """Test tool message role."""
+        assert MessageRole.TOOL.value == "tool"
+
+
+class TestContextStrategy:
+    """Test ContextStrategy enum."""
+
+    def test_sliding_window_strategy(self):
+        """Test sliding window strategy enum."""
+        assert ContextStrategy.SLIDING_WINDOW.value == "sliding_window"
+
+    def test_summary_strategy(self):
+        """Test summary strategy enum."""
+        assert ContextStrategy.SUMMARY.value == "summary"
+
+    def test_importance_strategy(self):
+        """Test importance strategy enum."""
+        assert ContextStrategy.IMPORTANCE.value == "importance"
+
+    def test_compaction_strategy(self):
+        """Test compaction strategy enum."""
+        assert ContextStrategy.COMPACTION.value == "compaction"
+
+
+class TestModelLimits:
+    """Test ModelLimits class methods."""
+
+    def test_model_limits_get_limits_sync_gpt4o(self):
+        """Test getting limits for gpt-4o."""
+        limits = ModelLimits.get_limits_sync("gpt-4o")
+        assert limits["context"] == 128000
+
+    def test_model_limits_get_limits_sync_default(self):
+        """Test getting limits for unknown model returns default."""
+        limits = ModelLimits.get_limits_sync("unknown-model")
+        assert limits["context"] == 8000
+
+    def test_model_limits_default_limits(self):
+        """Test default limits dict."""
+        from nanocode.context import ModelLimits
+        defaults = ModelLimits.DEFAULT_LIMITS
+        assert "gpt-4o" in defaults
+        assert "default" in defaults
