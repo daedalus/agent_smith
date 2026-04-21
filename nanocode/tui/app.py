@@ -690,7 +690,7 @@ Footer {
                 if mcp_available:
                     lines.append("─ MCP ─")
                     for name, enabled in list(mcp_available.items())[:15]:
-                        dot = "🟢" if enabled else "⚪"
+                        dot = "●" if enabled else "○"
                         lines.append(f"  {dot} {name}")
 
             if hasattr(self.agent, 'lsp_manager') and self.agent.lsp_manager:
