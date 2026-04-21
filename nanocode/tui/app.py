@@ -8,6 +8,8 @@ from enum import Enum
 from typing import Any
 
 from nanocode.core import ANSI
+from rich.text import Text
+from rich.style import Style
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import ModalScreen
@@ -37,31 +39,31 @@ GRUVBOX = {
 }
 
 class Style:
-    """ANSI color codes matching Gruvbox theme (256-color)."""
-    TEXT_HIGHLIGHT = "\x1b[38;5;73m"
-    TEXT_HIGHLIGHT_BOLD = "\x1b[38;5;73m\x1b[1m"
-    TEXT_DIM = "\x1b[38;5;245m"
-    TEXT_DIM_BOLD = "\x1b[38;5;245m\x1b[1m"
+    """ANSI color codes (basic 8-color palette for maximum compatibility)."""
+    TEXT_HIGHLIGHT = "\x1b[96m"
+    TEXT_HIGHLIGHT_BOLD = "\x1b[96m\x1b[1m"
+    TEXT_DIM = "\x1b[90m"
+    TEXT_DIM_BOLD = "\x1b[90m\x1b[1m"
     TEXT_NORMAL = "\x1b[0m"
     TEXT_NORMAL_BOLD = "\x1b[1m"
-    TEXT_WARNING = "\x1b[38;5;220m"
-    TEXT_WARNING_BOLD = "\x1b[38;5;220m\x1b[1m"
-    TEXT_DANGER = "\x1b[38;5;15m"
-    TEXT_DANGER_BOLD = "\x1b[38;5;15m\x1b[1m"
-    TEXT_SUCCESS = "\x1b[38;5;154m"
-    TEXT_SUCCESS_BOLD = "\x1b[38;5;154m\x1b[1m"
-    TEXT_INFO = "\x1b[38;5;176m"
-    TEXT_INFO_BOLD = "\x1b[38;5;176m\x1b[1m"
-    
-    USER_MESSAGE = "\x1b[38;5;154m"
-    USER_MESSAGE_BOLD = "\x1b[38;5;154m\x1b[1m"
-    ASSISTANT_MESSAGE = "\x1b[38;5;15m"
-    ASSISTANT_MESSAGE_BOLD = "\x1b[38;5;15m\x1b[1m"
-    TOOL_MESSAGE = "\x1b[38;5;245m"
-    TOOL_MESSAGE_BOLD = "\x1b[38;5;245m\x1b[1m"
-    SYSTEM_MESSAGE = "\x1b[38;5;245m"
-    SYSTEM_MESSAGE_BOLD = "\x1b[38;5;245m\x1b[1m"
-    THINKING = "\x1b[38;5;214m\x1b[1m\x1b[3m"
+    TEXT_WARNING = "\x1b[93m"
+    TEXT_WARNING_BOLD = "\x1b[93m\x1b[1m"
+    TEXT_DANGER = "\x1b[91m"
+    TEXT_DANGER_BOLD = "\x1b[91m\x1b[1m"
+    TEXT_SUCCESS = "\x1b[92m"
+    TEXT_SUCCESS_BOLD = "\x1b[92m\x1b[1m"
+    TEXT_INFO = "\x1b[96m"
+    TEXT_INFO_BOLD = "\x1b[96m\x1b[1m"
+
+    USER_MESSAGE = "\x1b[92m"
+    USER_MESSAGE_BOLD = "\x1b[92m\x1b[1m"
+    ASSISTANT_MESSAGE = "\x1b[97m"
+    ASSISTANT_MESSAGE_BOLD = "\x1b[97m\x1b[1m"
+    TOOL_MESSAGE = "\x1b[90m"
+    TOOL_MESSAGE_BOLD = "\x1b[90m\x1b[1m"
+    SYSTEM_MESSAGE = "\x1b[90m"
+    SYSTEM_MESSAGE_BOLD = "\x1b[90m\x1b[1m"
+    THINKING = "\x1b[93m\x1b[1m\x1b[3m"
 
 
 class PermissionScreen(ModalScreen):
@@ -430,6 +432,36 @@ Footer {
     color: #928374;
     padding: 0 1;
 }
+.sidebar-header {
+    color: #d79921;
+}
+.sidebar-path {
+    color: #83a598;
+}
+.sidebar-add {
+    color: #98971f;
+}
+.sidebar-del {
+    color: #fb4934;
+}
+.sidebar-done {
+    color: #98971f;
+}
+.sidebar-active {
+    color: #83a598;
+}
+.sidebar-cancel {
+    color: #fb4934;
+}
+.sidebar-dim {
+    color: #928374;
+}
+.sidebar-mcp-on {
+    color: #98971f;
+}
+.sidebar-mcp-off {
+    color: #928374;
+}
 #input-prompt {
     width: 2;
     text-align: right;
@@ -558,7 +590,7 @@ Footer {
             with Vertical(id="sidebar"):
                 yield Static("╭─ Info ──╮", id="sidebar-title")
                 with ScrollableContainer(id="sidebar-content"):
-                    yield Static("", id="sidebar-body")
+                    yield RichLog(id="sidebar-body")
                 yield Static("╰─────────╯", id="sidebar-footer")
         yield Static("", id="status-bar")
         yield Footer()
@@ -658,29 +690,29 @@ Footer {
                 if session_id:
                     todos = todo_tool.todo_service.get_todos(session_id)
                     if todos:
-                        lines.append("─ Todos ─")
+                        lines.append("[#d79921]─ Todos ─[/#d79921]")
                         for t in todos:
                             if t.status == "completed":
-                                icon = "✓"
+                                icon = "[#98971f]✓[/#98971f]"
                             elif t.status == "in_progress":
-                                icon = "◐"
+                                icon = "[#83a598]◐[/#83a598]"
                             elif t.status == "cancelled":
-                                icon = "✗"
+                                icon = "[#fb4934]✗[/#fb4934]"
                             else:
-                                icon = "○"
+                                icon = "[#928374]○[/#928374]"
                             content = t.content[:30] + "..." if len(t.content) > 30 else t.content
                             lines.append(f"  {icon} {content}")
             elif todo_tool and hasattr(todo_tool, "tasks"):
                 todo_items = todo_tool.tasks
                 if todo_items:
-                    lines.append("─ Todos ─")
+                    lines.append("[#d79921]─ Todos ─[/#d79921]")
                     for tid, t in todo_items.items():
                         if t.get("status") == "completed":
-                            icon = "✓"
+                            icon = "[#98971f]✓[/#98971f]"
                         elif t.get("status") == "in_progress":
-                            icon = "◐"
+                            icon = "[#83a598]◐[/#83a598]"
                         else:
-                            icon = "○"
+                            icon = "[#928374]○[/#928374]"
                         content = t.get("content", "")[:30]
                         lines.append(f"  {icon} {content}")
 
@@ -688,15 +720,15 @@ Footer {
             if hasattr(self.agent, '_mcp_available'):
                 mcp_available = self.agent._mcp_available
                 if mcp_available:
-                    lines.append("─ MCP ─")
+                    lines.append(Text("─ MCP ─", style="#d79921"))
                     for name, enabled in list(mcp_available.items())[:15]:
-                        dot = "●" if enabled else "○"
-                        lines.append(f"  {dot} {name}")
+                        dot = Text("●", style="#98971f") if enabled else Text("○", style="#928374")
+                        lines.append(Text("  ") + dot + Text(f" {name}"))
 
             if hasattr(self.agent, 'lsp_manager') and self.agent.lsp_manager:
                 lsp_servers = list(self.agent.lsp_manager._servers.keys()) if hasattr(self.agent.lsp_manager, '_servers') else []
                 if lsp_servers:
-                    lines.append("─ LSP ─")
+                    lines.append(Text("─ LSP ─", style="#d79921"))
                     for server_id in lsp_servers[:10]:
                         lines.append(f"  {server_id}")
                     if len(lsp_servers) > 10:
@@ -707,25 +739,30 @@ Footer {
                     self.agent.modified_files.refresh_from_git()
                     modified = self.agent.modified_files.get_modified_files()
                     if modified:
-                        lines.append("─ Modified ─")
+                        lines.append(Text("─ Modified ─", style="#d79921"))
                         for f in modified[:15]:
-                            adds_str = f"+{f.additions}" if f.additions > 0 else ""
-                            dels_str = f"-{f.deletions}" if f.deletions > 0 else ""
-                            stats_parts = []
-                            if adds_str:
-                                stats_parts.append(adds_str)
-                            if dels_str:
-                                stats_parts.append(dels_str)
-                            stats = " " + " ".join(stats_parts) if stats_parts else ""
-                            lines.append(f"  {f.relative_path}{stats}")
+                            adds = Text(f"+{f.additions}", style="#98971f") if f.additions > 0 else Text("")
+                            dels = Text(f"-{f.deletions}", style="#fb4934") if f.deletions > 0 else Text("")
+                            parts = []
+                            if adds:
+                                parts.append(adds)
+                            if dels:
+                                parts.append(dels)
+                            stats = Text(" ") + adds + dels if parts else Text("")
+                            lines.append(Text("  ") + Text(f.relative_path, style="#83a598") + stats)
                         if len(modified) > 15:
                             lines.append(f"  ... and {len(modified) - 15} more")
                 except Exception:
                     pass
 
         try:
-            sidebar_body = self.query_one("#sidebar-body", Static)
-            sidebar_body.update("\n".join(lines))
+            sidebar_body = self.query_one("#sidebar-body", RichLog)
+            sidebar_body.clear()
+            for line in lines:
+                if isinstance(line, Text):
+                    sidebar_body.write(line)
+                else:
+                    sidebar_body.write(Text(line))
         except Exception:
             pass
 
