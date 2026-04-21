@@ -27,6 +27,15 @@ class ModelInfo:
     supports_vision: bool = False
     supports_streaming: bool = True
     is_free: bool = False
+    max_output_tokens: int = 0
+    latency_tier: str = ""
+    throughput_tier: str = ""
+    reasoning_effort: str = ""
+    description: str = ""
+    provider_name: str = ""
+    provider_url: str = ""
+    provider_logo: str = ""
+    model_url: str = ""
 
 
 @dataclass
@@ -39,6 +48,9 @@ class ProviderInfo:
     models: dict[str, ModelInfo] = field(default_factory=dict)
     env_vars: list[str] = field(default_factory=list)
     auth_type: str = "api_key"
+    provider_url: str = ""
+    provider_logo: str = ""
+    provider_description: str = ""
 
 
 class ModelRegistry:
@@ -103,6 +115,15 @@ class ModelRegistry:
                         supports_vision=mdata.get("supports_vision", False),
                         supports_streaming=mdata.get("supports_streaming", True),
                         is_free=mdata.get("is_free", False),
+                        max_output_tokens=mdata.get("max_output_tokens", 0),
+                        latency_tier=mdata.get("latency_tier", ""),
+                        throughput_tier=mdata.get("throughput_tier", ""),
+                        reasoning_effort=mdata.get("reasoning_effort", ""),
+                        description=mdata.get("description", ""),
+                        provider_name=mdata.get("provider_name", ""),
+                        provider_url=mdata.get("provider_url", ""),
+                        provider_logo=mdata.get("provider_logo", ""),
+                        model_url=mdata.get("model_url", ""),
                     )
 
                 providers[pid] = ProviderInfo(
@@ -112,6 +133,9 @@ class ModelRegistry:
                     models=models,
                     env_vars=pdata.get("env_vars", []),
                     auth_type=pdata.get("auth_type", "api_key"),
+                    provider_url=pdata.get("provider_url", ""),
+                    provider_logo=pdata.get("provider_logo", ""),
+                    provider_description=pdata.get("provider_description", ""),
                 )
 
             return providers
@@ -128,6 +152,9 @@ class ModelRegistry:
                 "api_base": provider.api_base,
                 "env_vars": provider.env_vars,
                 "auth_type": provider.auth_type,
+                "provider_url": provider.provider_url,
+                "provider_logo": provider.provider_logo,
+                "provider_description": provider.provider_description,
                 "models": {
                     mid: {
                         "id": m.id,
@@ -141,6 +168,15 @@ class ModelRegistry:
                         "supports_vision": m.supports_vision,
                         "supports_streaming": m.supports_streaming,
                         "is_free": m.is_free,
+                        "max_output_tokens": m.max_output_tokens,
+                        "latency_tier": m.latency_tier,
+                        "throughput_tier": m.throughput_tier,
+                        "reasoning_effort": m.reasoning_effort,
+                        "description": m.description,
+                        "provider_name": m.provider_name,
+                        "provider_url": m.provider_url,
+                        "provider_logo": m.provider_logo,
+                        "model_url": m.model_url,
                     }
                     for mid, m in provider.models.items()
                 },
@@ -181,6 +217,7 @@ class ModelRegistry:
             for model_id, model_data in provider_data.get("models", {}).items():
                 cost = model_data.get("cost", {})
                 limit = model_data.get("limit", {})
+                modalities = model_data.get("modalities", {})
 
                 models[model_id] = ModelInfo(
                     id=model_data.get("id", model_id),
@@ -191,10 +228,18 @@ class ModelRegistry:
                     input_cost=cost.get("input", 0),
                     output_cost=cost.get("output", 0),
                     supports_tools=model_data.get("tool_call", False),
-                    supports_vision="image"
-                    in str(model_data.get("modalities", {}).get("input", [])),
-                    supports_streaming=True,
+                    supports_vision="image" in str(modalities.get("input", [])),
+                    supports_streaming=model_data.get("stream", True),
                     is_free=cost.get("input", 0) == 0 and cost.get("output", 0) == 0,
+                    max_output_tokens=limit.get("max_output", 0),
+                    latency_tier=model_data.get("latency_tier", ""),
+                    throughput_tier=model_data.get("throughput_tier", ""),
+                    reasoning_effort=model_data.get("reasoning_effort", ""),
+                    description=model_data.get("description", ""),
+                    provider_name=provider_data.get("name", ""),
+                    provider_url=provider_data.get("url", ""),
+                    provider_logo=provider_data.get("logo", ""),
+                    model_url=model_data.get("url", ""),
                 )
 
             self._providers[provider_id] = ProviderInfo(
@@ -203,7 +248,10 @@ class ModelRegistry:
                 api_base=api_base,
                 models=models,
                 env_vars=provider_data.get("env", []),
-                auth_type="api_key",
+                auth_type=provider_data.get("auth_type", "api_key"),
+                provider_url=provider_data.get("url", ""),
+                provider_logo=provider_data.get("logo", ""),
+                provider_description=provider_data.get("description", ""),
             )
 
     def get_provider(self, provider_id: str) -> ProviderInfo | None:
