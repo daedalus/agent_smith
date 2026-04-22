@@ -6,42 +6,47 @@ import logging
 import traceback
 from enum import Enum
 
+from rich.console import Console
+from rich.theme import Theme
+
 from nanocode.agents import AgentInfo, PermissionAction, get_agent_registry
 from nanocode.agents.permission import (
     PermissionHandler,
 )
 
 
-class ANSI(Enum):
-    """ANSI color and style codes for terminal output."""
-    
-    RESET = "\033[0m"
-    BOLD = "\033[1m"
-    ITALIC = "\033[3m"
-    RED = "\033[91m"
-    GREEN = "\033[92m"
-    YELLOW = "\033[93m"
-    BLUE = "\033[94m"
-    MAGENTA = "\033[95m"
-    CYAN = "\033[96m"
-    GRAY = "\033[90m"
-    
-    THOUGHT = "\033[93m\033[1m\033[3m"
-    TOOL_CALL = "\033[91m"
-    TOOL_RESULT = "\033[96m"
-    CONTENT = "\033[92m"
-    DEBUG = "\033[96m"
-    WARNING = "\033[93m"
+class RichColor(Enum):
+    """Rich color palette."""
+    RESET = "reset"
+    RED = "red"
+    GREEN = "green"
+    YELLOW = "yellow"
+    BLUE = "blue"
+    MAGENTA = "magenta"
+    CYAN = "cyan"
+    GRAY = "dim"
+
+
+custom_theme = Theme({
+    "thought": "yellow italic",
+    "tool_call": "red",
+    "tool_result": "cyan",
+    "content": "green",
+    "debug": "cyan",
+    "warning": "yellow",
+})
+
+console = Console(theme=custom_theme)
 from nanocode.config import get_config
 from nanocode.context import ContextManager, ContextStrategy
-from nanocode.llm import create_llm
+from nanocode.hooks import HookManager
 from nanocode.llm.base import LLMResponse
 from nanocode.lsp import LSPServerManager
 from nanocode.mcp import MCPManager
 from nanocode.multimodal import MultimodalManager
 from nanocode.planning import PlanExecutor, PlanMonitor, PlanningContext, TaskPlanner
+from nanocode.session_manager import get_session_manager
 from nanocode.session_summary import SessionSummaryGenerator
-from nanocode.session_manager import SessionManager, get_session_manager
 from nanocode.state import AgentState, AgentStateData
 from nanocode.storage.cache import CachedResponse, PromptCache, get_prompt_cache
 from nanocode.tools import ToolExecutor, ToolRegistry
@@ -246,10 +251,12 @@ def get_current_session_id() -> str | None:
 class AutonomousAgent:
     """Main autonomous agent class."""
 
-    def __init__(self, config: dict | None = None, session_id: str = None, verbose: bool = False):
+    def __init__(self, config: dict | None = None, session_id: str = None, verbose: bool = False, yolo: bool = False, drift_alert: bool = False, drift_intervene: bool = False):
         self.config = config or get_config()
         self.state = AgentStateData()
         self.debug = verbose
+        self.yolo = yolo
+        self.drift_mode = "intervene" if drift_intervene else ("alert" if drift_alert else "off")
         self._session_id = session_id
         self._session_logger = None
 
@@ -259,12 +266,15 @@ class AutonomousAgent:
         self._init_file_tracker()
         self._init_llm()
         self._init_lsp()
+        self._init_hooks()
         self._init_tools()
         self._init_skills()
         self._init_mcp()
+        self._init_modified_files()
         self._init_context()
         self._init_planning()
         self._init_multimodal()
+        self._init_drift_watchdog() if self.drift_mode != "off" else None
         self._init_cache()
 
     def _init_session(self):
@@ -485,13 +495,20 @@ class AutonomousAgent:
                     debug=self.debug,
                 )
 
+    def _init_hooks(self):
+        """Initialize hook system."""
+
+        self.hook_manager = HookManager(base_dir=self.config.get("base_dir", "."))
+        self.hook_manager.discover_hooks()
+        logger.info(f"Hook system initialized: {len(sum(self.hook_manager.hooks.values(), []))} hooks loaded")
+
     def _init_tools(self):
         """Initialize tool system."""
         from nanocode.doom_loop import create_doom_loop_handler
         from nanocode.tools.task import create_task_tool
 
         self.tool_registry = ToolRegistry()
-        self.tool_executor = ToolExecutor(self.tool_registry)
+        self.tool_executor = ToolExecutor(self.tool_registry, self.hook_manager)
 
         register_builtin_tools(
             self.tool_registry, self.config.tools, self.file_tracker, self.lsp_manager
@@ -531,6 +548,7 @@ class AutonomousAgent:
             session_id=session_id,
             storage=self.storage,
             tool_truncation=ctx_config.get("tool_truncation"),
+            model=getattr(self.llm, "model", "gpt-4o"),
         )
 
         # Build composable system prompt
@@ -538,8 +556,12 @@ class AutonomousAgent:
             final_prompt = system_prompt
         else:
             final_prompt = self._build_system_prompt()
-        
+
         self.context_manager.set_system_prompt(final_prompt)
+
+    async def init_async(self):
+        """Async initialization - load model registry from API."""
+        await self.context_manager.init_async()
 
     def _build_system_prompt(self) -> str:
         """Build system prompt from template with dynamic capabilities."""
@@ -625,16 +647,31 @@ class AutonomousAgent:
     def _init_mcp(self):
         """Initialize MCP connections."""
         self.mcp_manager = MCPManager()
+        self._mcp_available = {}
 
         mcp_servers = self.config.mcp_servers
         for name, server_config in mcp_servers.items():
-            self.mcp_manager.add_server(name, server_config)
+            self._mcp_available[name] = server_config.get("enabled", True)
+            if self._mcp_available[name]:
+                self.mcp_manager.add_server(name, server_config)
+
+    def _init_modified_files(self):
+        """Initialize modified files tracker."""
+        from nanocode.modified_files import ModifiedFilesTracker
+        self.modified_files = ModifiedFilesTracker()
 
     def _init_planning(self):
         """Initialize planning system."""
         self.planner = TaskPlanner(self.llm, self.tool_registry)
         self.plan_executor = PlanExecutor(self.planner, self.tool_executor)
         self.plan_monitor = PlanMonitor(self.llm)
+
+    def _init_drift_watchdog(self):
+        """Initialize drift watchdog."""
+        from nanocode.drift import create_drift_watchdog
+
+        self.drift_watchdog = create_drift_watchdog(self.drift_mode)
+        logger.debug(f"Drift watchdog initialized: mode={self.drift_mode}")
 
     def _init_multimodal(self):
         """Initialize multimodal support."""
@@ -669,7 +706,7 @@ class AutonomousAgent:
                             f"[{agent_name}] DOOM LOOP DETECTED for '{tool_name}': {warning}"
                         )
                         if self.debug:
-                            print(f"\n{ANSI.RED.value}{warning}{ANSI.RESET.value}\n")
+                            console.print(f"\n[red]{warning}[/red]\n")
                 
                 doom_loop_msg = f"\n[DOOM LOOP WARNING] {self.doom_loop_handler.get_loop_warning()}\n"
 
@@ -732,12 +769,16 @@ class AutonomousAgent:
                         continue
 
             if self.current_agent:
-                action = self.permission_handler.check_permission(
-                    self.current_agent, tool_name, args
-                )
-                logger.debug(
-                    f"[{agent_name}] Permission check for '{tool_name}': {action.value}"
-                )
+                if self.yolo:
+                    action = PermissionAction.ALLOW
+                    logger.debug(f"[YOLO] Auto-allowing '{tool_name}'")
+                else:
+                    action = self.permission_handler.check_permission(
+                        self.current_agent, tool_name, args
+                    )
+                    logger.debug(
+                        f"[{agent_name}] Permission check for '{tool_name}': {action.value}"
+                    )
 
                 if action == PermissionAction.DENY:
                     logger.warning(
@@ -778,7 +819,7 @@ class AutonomousAgent:
                         continue
 
             logger.debug(f"[{agent_name}] Executing tool: {tool_name}")
-            result = await self.tool_executor.execute(tool_name, args)
+            result = await self.tool_executor.execute(tool_name, args, self._session_id, agent_name)
 
             if result.success:
                 logger.info(f"[{agent_name}] Tool '{tool_name}' succeeded")
@@ -807,7 +848,7 @@ class AutonomousAgent:
         """Format thinking content for display."""
         lines = thinking.strip().split("\n")
         formatted = "\n".join(f"  {line}" for line in lines)
-        return f"{ANSI.THOUGHT.value}| Thinking:\n{formatted}{ANSI.RESET.value}"
+        return f"[thought]| Thinking:[/thought]\n{formatted}"
 
     def _get_cache_key(self, messages: list, tools: list[dict] | None) -> str:
         """Generate a cache key from messages and tools."""
@@ -958,9 +999,7 @@ class AutonomousAgent:
             #         logger.warning(f"[DEBUG LLM] Msg {i}: {role}: {str(content)[:200]}")
 
             if self.debug:
-                print(
-                    f"\n{ANSI.DEBUG.value}[DEBUG] Sending {len(messages)} messages to LLM...{ANSI.RESET.value}"
-                )
+                console.print(f"\n[debug][DEBUG] Sending {len(messages)} messages to LLM...[/debug]")
                 for i, msg in enumerate(messages):
                     content = (
                         msg.content
@@ -968,10 +1007,10 @@ class AutonomousAgent:
                         else str(msg.get("content", ""))
                     )
                     role = msg.role if hasattr(msg, "role") else msg.get("role", "?")
-                    print(f"  {ANSI.GRAY.value}{i}: {role}: {content}{ANSI.RESET.value}")
+                    console.print(f"  [dim]{i}: {role}: {content}[/dim]")
 
             if show_messages:
-                print(f"\n{ANSI.DEBUG.value}=== LLM REQUEST ==={ANSI.RESET.value}")
+                console.print("\n[debug]=== LLM REQUEST ===[/debug]")
                 for i, msg in enumerate(messages):
                     content = (
                         msg.content
@@ -996,7 +1035,7 @@ class AutonomousAgent:
                 cache_logger.warning(f"[{agent_name}] Using CACHED response (this is a bug if input changed!)")
                 logger.warning(f"[{agent_name}] Cache hit! Messages: {len(messages)}, User input: {user_input[:50]}")
                 if self.debug:
-                    print(f"\n{ANSI.WARNING.value}[WARN] CACHE HIT - Previous response reused!{ANSI.RESET.value}")
+                    console.print("\n[warning][WARN] CACHE HIT - Previous response reused![/warning]")
                 response = cached_response
             else:
                 response = await self.llm.chat(
@@ -1011,22 +1050,22 @@ class AutonomousAgent:
                 self._last_thinking = response.thinking
 
             if self.debug:
-                print(f"\n{ANSI.DEBUG.value}[DEBUG] LLM Response:{ANSI.RESET.value}")
+                console.print("\n[debug][DEBUG] LLM Response:[/debug]")
                 if response.thinking:
-                    print(f"  {ANSI.THOUGHT.value}| Thinking:\n{response.thinking}{ANSI.RESET.value}")
+                    console.print(f"  [thought]| Thinking:[/thought]\n{response.thinking}")
                 if response.has_tool_calls:
-                    print(
-                        f"  {ANSI.TOOL_CALL.value}Tool Calls: {[tc.name for tc in response.tool_calls]}{ANSI.RESET.value}"
+                    console.print(
+                        f"  [tool_call]Tool Calls: {[tc.name for tc in response.tool_calls]}[/tool_call]"
                     )
                 else:
-                    print(f"  {ANSI.CONTENT.value}Content: {response.content}{ANSI.RESET.value}")
+                    console.print(f"  [content]Content: {response.content}[/content]")
 
             if show_messages:
-                print(f"\n{ANSI.DEBUG.value}=== LLM RESPONSE ==={ANSI.RESET.value}")
+                console.print("\n[debug]=== LLM RESPONSE ===[/debug]")
                 if response.thinking:
-                    print(f"\n{ANSI.THOUGHT.value}| Thinking:\n{response.thinking}{ANSI.RESET.value}")
+                    console.print(f"\n[thought]| Thinking:[/thought]\n{response.thinking}")
                 if response.has_tool_calls:
-                    print(f"\nTool Calls:")
+                    print("\nTool Calls:")
                     for tc in response.tool_calls:
                         print(f"  - {tc.name}: {tc.arguments}")
                 print(
@@ -1036,15 +1075,15 @@ class AutonomousAgent:
 
             if response.thinking and show_thinking and self.debug:
                 # Only print thinking when debug is explicitly enabled
-                print(f"\n{self._format_thinking(response.thinking)}")
+                console.print(self._format_thinking(response.thinking))
 
             if response.has_tool_calls:
                 logger.info(
                     f"[{agent_name}] LLM requested {len(response.tool_calls)} tool call(s): {[tc.name for tc in response.tool_calls]}"
                 )
                 if self.debug:
-                    print(
-                        f"\n{ANSI.DEBUG.value}[DEBUG] Handling {len(response.tool_calls)} tool calls...{ANSI.RESET.value}"
+                    console.print(
+                        f"\n[debug][DEBUG] Handling {len(response.tool_calls)} tool calls...[/debug]"
                     )
                 
                 tool_results = await self._handle_tool_calls(response.tool_calls)
@@ -1054,8 +1093,8 @@ class AutonomousAgent:
 
                 for tr in tool_results:
                     if self.debug:
-                        print(
-                            f"\n{ANSI.DEBUG.value}[DEBUG] Tool {tr['tool_name']} result:{ANSI.RESET.value} {tr['result']}"
+                        console.print(
+                            f"\n[debug][DEBUG] Tool {tr['tool_name']} result:[/debug] {tr['result']}"
                         )
                     result_content = tr["result"]
                     result_content = self.context_manager.truncate_tool_result(
@@ -1092,7 +1131,7 @@ class AutonomousAgent:
                 # Track thinking from second response
                 if final_response.thinking and show_thinking and self.debug:
                     self._last_thinking = final_response.thinking
-                    print(f"\n{self._format_thinking(final_response.thinking)}")
+                    console.print(self._format_thinking(final_response.thinking))
 
                 # Continue handling tool calls in a loop until no more are requested
                 # Use agent's configured steps limit, or default to 10
@@ -1123,7 +1162,7 @@ class AutonomousAgent:
                     if final_response.thinking:
                         self._last_thinking = final_response.thinking
                         if show_thinking and self.debug:
-                            print(f"\n{self._format_thinking(final_response.thinking)}")
+                            console.print(self._format_thinking(final_response.thinking))
 
                     # On last step, inject MAX_STEPS message and disable tools (like opencode)
                     if is_last_step:
@@ -1174,9 +1213,9 @@ class AutonomousAgent:
                         f"[{agent_name}] Detected {len(detected)} command(s) in text that were not executed"
                     )
                     if self.debug:
-                        print(f"\n{ANSI.WARNING.value}[WARN] Detected unexecuted commands:{ANSI.RESET.value}")
+                        console.print("\n[warning][WARN] Detected unexecuted commands:[/warning]")
                         for cmd in detected:
-                            print(f"  - [{cmd.tool_name}] {cmd.command[:60]}...")
+                            console.print(f"  - [{cmd.tool_name}] {cmd.command[:60]}...")
 
                 # Check if model should have used tools but didn't
                 tools = self.tool_registry.get_schemas()
@@ -1188,7 +1227,7 @@ class AutonomousAgent:
                 if should_reprompt:
                     logger.warning(f"[{agent_name}] Model didn't use tools: {reason}")
                     if self.debug:
-                        print(f"\n{ANSI.WARNING.value}[WARN] {reason}{ANSI.RESET.value}")
+                        console.print(f"\n[warning][WARN] {reason}[/warning]")
 
                     # Add detected commands warning to content
                     warning_msg = format_detected_commands_message(detected)
@@ -1204,12 +1243,12 @@ class AutonomousAgent:
             
             # Always include thinking if available
             if show_thinking and hasattr(self, '_last_thinking') and self._last_thinking:
-                augmented += f"\n\n{ANSI.THOUGHT.value}| Thinking:{ANSI.RESET.value}\n{self._last_thinking}"
+                augmented += f"\n\n[thought]| Thinking:[/thought] {self._last_thinking}"
             
             # Include tool use info (full output, not truncated)
             if tool_results_history:
                 if show_thinking:
-                    tool_info = f"\n\n{ANSI.THOUGHT.value}| Tool Use:{ANSI.RESET.value}"
+                    tool_info = "\n\n[thought]| Tool Use:[/thought]"
                     for tr in tool_results_history:
                         result_str = str(tr['result'])
                         # Include full result for display
@@ -1369,10 +1408,10 @@ class AutonomousAgent:
             )
 
             if self.debug:
-                print(f"\n{ANSI.WARNING.value}[WARN] Re-prompting for tools (attempt {attempt}/{max_retries}):{ANSI.RESET.value}")
-                print(f"  Reason: {reason}")
+                console.print(f"\n[warning][WARN] Re-prompting for tools (attempt {attempt}/{max_retries}):[/warning]")
+                console.print(f"  Reason: {reason}")
                 if detected:
-                    print(f"  Detected commands: {len(detected)}")
+                    console.print(f"  Detected commands: {len(detected)}")
 
             # Process the re-prompt
             messages = self.context_manager.prepare_messages()

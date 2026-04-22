@@ -168,6 +168,48 @@ class TestTraceCommand:
         finally:
             sys.stdout = old_stdout
 
+
+class TestRichColors:
+    """Test Rich color handling in CLI."""
+
+    def test_rich_colors_defined(self):
+        """Test RICH_COLORS dict is defined."""
+        from nanocode.cli import ConsoleUI
+        assert hasattr(ConsoleUI, "RICH_COLORS")
+        assert "[cyan]" in ConsoleUI.RICH_COLORS["cyan"]
+        assert "[green]" in ConsoleUI.RICH_COLORS["green"]
+        assert "[yellow]" in ConsoleUI.RICH_COLORS["yellow"]
+        assert "[red]" in ConsoleUI.RICH_COLORS["red"]
+
+    def test_color_method_cyan(self):
+        """Test color method with cyan."""
+        from nanocode.cli import ConsoleUI
+        ui = ConsoleUI.__new__(ConsoleUI)
+        ui.use_colors = False
+        ui.RICH_COLORS = ConsoleUI.RICH_COLORS
+
+        result = ui.color("cyan", "test")
+        assert "test" in result or result == "test"
+
+    def test_color_method_disabled(self):
+        """Test color method when colors disabled."""
+        from nanocode.cli import ConsoleUI
+        ui = ConsoleUI.__new__(ConsoleUI)
+        ui.use_colors = False
+
+        result = ui.color("cyan", "test")
+        assert result == "test"
+
+    def test_color_unknown(self):
+        """Test color method with unknown color."""
+        from nanocode.cli import ConsoleUI
+        ui = ConsoleUI.__new__(ConsoleUI)
+        ui.use_colors = True
+        ui.RICH_COLORS = ConsoleUI.RICH_COLORS
+
+        result = ui.color("unknown", "test")
+        assert result == "test"
+
     def test_trace_with_error(self):
         """Test /trace command when an error has occurred."""
         mock_agent = Mock()

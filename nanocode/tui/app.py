@@ -4,10 +4,22 @@ import asyncio
 import os
 import sys
 from dataclasses import dataclass
-from enum import Enum
+from enum import Enum, auto
+
+class RichColor(Enum):
+    """Gruvbox-inspired color palette for rich text."""
+    FG = "#ebdbb2"           # Light gray - main text
+    YELLOW = "#d79921"       # Yellow - highlights/titles
+    GREEN = "#98971a"        # Green - success/user
+    RED = "#cc241d"          # Red - danger/error
+    BLUE = "#458588"         # Blue - info
+    PURPLE = "#b16286"       # Purple - assistant
+    AQUA = "#83a598"         # Aqua - tool
+    GRAY = "#928374"         # Gray - dim/system
 from typing import Any
 
-from nanocode.core import ANSI
+from rich.text import Text
+from rich.style import Style
 from textual.app import App, ComposeResult
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import ModalScreen
@@ -37,31 +49,31 @@ GRUVBOX = {
 }
 
 class Style:
-    """ANSI color codes matching Gruvbox theme (256-color)."""
-    TEXT_HIGHLIGHT = "\x1b[38;5;73m"
-    TEXT_HIGHLIGHT_BOLD = "\x1b[38;5;73m\x1b[1m"
-    TEXT_DIM = "\x1b[38;5;245m"
-    TEXT_DIM_BOLD = "\x1b[38;5;245m\x1b[1m"
-    TEXT_NORMAL = "\x1b[0m"
-    TEXT_NORMAL_BOLD = "\x1b[1m"
-    TEXT_WARNING = "\x1b[38;5;220m"
-    TEXT_WARNING_BOLD = "\x1b[38;5;220m\x1b[1m"
-    TEXT_DANGER = "\x1b[38;5;15m"
-    TEXT_DANGER_BOLD = "\x1b[38;5;15m\x1b[1m"
-    TEXT_SUCCESS = "\x1b[38;5;154m"
-    TEXT_SUCCESS_BOLD = "\x1b[38;5;154m\x1b[1m"
-    TEXT_INFO = "\x1b[38;5;176m"
-    TEXT_INFO_BOLD = "\x1b[38;5;176m\x1b[1m"
-    
-    USER_MESSAGE = "\x1b[38;5;154m"
-    USER_MESSAGE_BOLD = "\x1b[38;5;154m\x1b[1m"
-    ASSISTANT_MESSAGE = "\x1b[38;5;15m"
-    ASSISTANT_MESSAGE_BOLD = "\x1b[38;5;15m\x1b[1m"
-    TOOL_MESSAGE = "\x1b[38;5;245m"
-    TOOL_MESSAGE_BOLD = "\x1b[38;5;245m\x1b[1m"
-    SYSTEM_MESSAGE = "\x1b[38;5;245m"
-    SYSTEM_MESSAGE_BOLD = "\x1b[38;5;245m\x1b[1m"
-    THINKING = "\x1b[38;5;214m\x1b[1m\x1b[3m"
+    """Rich text style names for output area."""
+    TEXT_HIGHLIGHT = "cyan"
+    TEXT_HIGHLIGHT_BOLD = "cyan bold"
+    TEXT_DIM = "dim"
+    TEXT_DIM_BOLD = "dim"
+    TEXT_NORMAL = ""
+    TEXT_NORMAL_BOLD = "bold"
+    TEXT_WARNING = RichColor.YELLOW.value
+    TEXT_WARNING_BOLD = f"{RichColor.YELLOW.value} bold"
+    TEXT_DANGER = RichColor.RED.value
+    TEXT_DANGER_BOLD = f"{RichColor.RED.value} bold"
+    TEXT_SUCCESS = RichColor.GREEN.value
+    TEXT_SUCCESS_BOLD = f"{RichColor.GREEN.value} bold"
+    TEXT_INFO = RichColor.BLUE.value
+    TEXT_INFO_BOLD = f"{RichColor.BLUE.value} bold"
+
+    USER_MESSAGE = RichColor.GREEN.value
+    USER_MESSAGE_BOLD = f"{RichColor.GREEN.value} bold"
+    ASSISTANT_MESSAGE = RichColor.PURPLE.value
+    ASSISTANT_MESSAGE_BOLD = f"{RichColor.PURPLE.value} bold"
+    TOOL_MESSAGE = RichColor.AQUA.value
+    TOOL_MESSAGE_BOLD = f"{RichColor.AQUA.value} bold"
+    SYSTEM_MESSAGE = RichColor.GRAY.value
+    SYSTEM_MESSAGE_BOLD = f"{RichColor.GRAY.value} bold"
+    THINKING = f"{RichColor.YELLOW.value} italic"
 
 
 class PermissionScreen(ModalScreen):
@@ -281,10 +293,21 @@ class OutputArea(RichLog):
 
         base_color = style_map.get(style, "")
 
-        # Handle Rich markup only for thinking style (e.g., [bold italic yellow]| Thinking:[/])
-        if style == "thinking" and "[" in text and "]" in text:
+        # Handle custom styles before markdown rendering
+        if "[thought]" in text:
             from rich.text import Text as RichText
-            rich_text = RichText.from_markup(text)
+            rich_text = RichText()
+            parts = text.split("[thought]")
+            if parts[0]:
+                rich_text.append(parts[0])
+            for part in parts[1:]:
+                if "[/thought]" in part:
+                    label, rest = part.split("[/thought]", 1)
+                    rich_text.append(label, f"{self.GRUVBOX['yellow']} italic")
+                    if rest:
+                        rich_text.append(rest)
+                else:
+                    rich_text.append(part)
             self.write(rich_text)
             self._lines.append(text)
             return
@@ -430,6 +453,36 @@ Footer {
     color: #928374;
     padding: 0 1;
 }
+.sidebar-header {
+    color: #d79921;
+}
+.sidebar-path {
+    color: #83a598;
+}
+.sidebar-add {
+    color: #98971f;
+}
+.sidebar-del {
+    color: #fb4934;
+}
+.sidebar-done {
+    color: #98971f;
+}
+.sidebar-active {
+    color: #83a598;
+}
+.sidebar-cancel {
+    color: #fb4934;
+}
+.sidebar-dim {
+    color: #928374;
+}
+.sidebar-mcp-on {
+    color: #98971f;
+}
+.sidebar-mcp-off {
+    color: #928374;
+}
 #input-prompt {
     width: 2;
     text-align: right;
@@ -558,7 +611,7 @@ Footer {
             with Vertical(id="sidebar"):
                 yield Static("╭─ Info ──╮", id="sidebar-title")
                 with ScrollableContainer(id="sidebar-content"):
-                    yield Static("", id="sidebar-body")
+                    yield RichLog(id="sidebar-body")
                 yield Static("╰─────────╯", id="sidebar-footer")
         yield Static("", id="status-bar")
         yield Footer()
@@ -624,7 +677,7 @@ Footer {
             ctx = self.agent.context_manager
             usage = ctx.get_token_usage()
             current = usage.get("current_tokens", 0)
-            max_tok = usage.get("max_tokens", 0)
+            max_tok = usage.get("context_limit", 0)
             if max_tok > 0:
                 pct = (current / max_tok) * 100
                 lines.append(f"Context: {current:,} / {max_tok:,} ({pct:.0f}%)")
@@ -658,35 +711,79 @@ Footer {
                 if session_id:
                     todos = todo_tool.todo_service.get_todos(session_id)
                     if todos:
-                        lines.append("─ Todos ─")
+                        lines.append("[#d79921]─ Todos ─[/#d79921]")
                         for t in todos:
                             if t.status == "completed":
-                                icon = "✓"
+                                icon = "[#98971f]✓[/#98971f]"
                             elif t.status == "in_progress":
-                                icon = "◐"
+                                icon = "[#83a598]◐[/#83a598]"
                             elif t.status == "cancelled":
-                                icon = "✗"
+                                icon = "[#fb4934]✗[/#fb4934]"
                             else:
-                                icon = "○"
+                                icon = "[#928374]○[/#928374]"
                             content = t.content[:30] + "..." if len(t.content) > 30 else t.content
                             lines.append(f"  {icon} {content}")
             elif todo_tool and hasattr(todo_tool, "tasks"):
                 todo_items = todo_tool.tasks
                 if todo_items:
-                    lines.append("─ Todos ─")
+                    lines.append("[#d79921]─ Todos ─[/#d79921]")
                     for tid, t in todo_items.items():
                         if t.get("status") == "completed":
-                            icon = "✓"
+                            icon = "[#98971f]✓[/#98971f]"
                         elif t.get("status") == "in_progress":
-                            icon = "◐"
+                            icon = "[#83a598]◐[/#83a598]"
                         else:
-                            icon = "○"
+                            icon = "[#928374]○[/#928374]"
                         content = t.get("content", "")[:30]
                         lines.append(f"  {icon} {content}")
 
+        if self.agent:
+            if hasattr(self.agent, '_mcp_available'):
+                mcp_available = self.agent._mcp_available
+                if mcp_available:
+                    lines.append(Text("─ MCP ─", style="#d79921"))
+                    for name, enabled in list(mcp_available.items())[:15]:
+                        dot = Text("●", style="#98971f") if enabled else Text("○", style="#928374")
+                        lines.append(Text("  ") + dot + Text(f" {name}"))
+
+            if hasattr(self.agent, 'lsp_manager') and self.agent.lsp_manager:
+                lsp_servers = list(self.agent.lsp_manager._servers.keys()) if hasattr(self.agent.lsp_manager, '_servers') else []
+                if lsp_servers:
+                    lines.append(Text("─ LSP ─", style="#d79921"))
+                    for server_id in lsp_servers[:10]:
+                        lines.append(f"  {server_id}")
+                    if len(lsp_servers) > 10:
+                        lines.append(f"  ... and {len(lsp_servers) - 10} more")
+
+            if hasattr(self.agent, 'modified_files') and self.agent.modified_files:
+                try:
+                    self.agent.modified_files.refresh_from_git()
+                    modified = self.agent.modified_files.get_modified_files()
+                    if modified:
+                        lines.append(Text("─ Modified ─", style="#d79921"))
+                        for f in modified[:15]:
+                            adds = Text(f"+{f.additions}", style="#98971f") if f.additions > 0 else Text("")
+                            dels = Text(f"-{f.deletions}", style="#fb4934") if f.deletions > 0 else Text("")
+                            parts = []
+                            if adds:
+                                parts.append(adds)
+                            if dels:
+                                parts.append(dels)
+                            stats = Text(" ") + adds + dels if parts else Text("")
+                            lines.append(Text("  ") + Text(f.relative_path, style="#83a598") + stats)
+                        if len(modified) > 15:
+                            lines.append(f"  ... and {len(modified) - 15} more")
+                except Exception:
+                    pass
+
         try:
-            sidebar_body = self.query_one("#sidebar-body", Static)
-            sidebar_body.update("\n".join(lines))
+            sidebar_body = self.query_one("#sidebar-body", RichLog)
+            sidebar_body.clear()
+            for line in lines:
+                if isinstance(line, Text):
+                    sidebar_body.write(line)
+                else:
+                    sidebar_body.write(Text(line))
         except Exception:
             pass
 
@@ -730,29 +827,8 @@ Footer {
         output = self.query_one("#output-area")
         
         # Convert ANSI style to simple Rich style name
-        style_map = {
-            Style.USER_MESSAGE: "user",
-            Style.USER_MESSAGE_BOLD: "user",
-            Style.ASSISTANT_MESSAGE: "assistant",
-            Style.ASSISTANT_MESSAGE_BOLD: "assistant",
-            Style.TOOL_MESSAGE: "tool",
-            Style.TOOL_MESSAGE_BOLD: "tool",
-            Style.TEXT_DIM: "dim",
-            Style.TEXT_DIM_BOLD: "dim",
-            Style.TEXT_NORMAL: "",
-            Style.TEXT_NORMAL_BOLD: "",
-            Style.TEXT_WARNING: "warning",
-            Style.TEXT_WARNING_BOLD: "warning",
-            Style.TEXT_DANGER: "danger",
-            Style.TEXT_DANGER_BOLD: "danger",
-            Style.TEXT_SUCCESS: "success",
-            Style.TEXT_SUCCESS_BOLD: "success",
-            Style.TEXT_INFO: "info",
-            Style.TEXT_INFO_BOLD: "info",
-        }
-        
         if style == Style.THINKING:
-            # Split: "Thinking:" gets bold italic yellow, rest gets white
+            # Split: "Thinking:" gets yellow italic, rest gets normal
             prefix = ""
             rest = text
             if "| Thinking:" in text:
@@ -763,10 +839,10 @@ Footer {
             from rich.text import Text as RichText
             if prefix and rest:
                 full_text = RichText()
-                full_text.append(prefix + " ", style="bold italic yellow")
-                full_text.append(rest, style="white")
+                full_text.append(prefix + " ", style=f"{RichColor.YELLOW.value} italic")
+                full_text.append(rest, style=RichColor.FG.value)
             elif prefix:
-                full_text = RichText(prefix, style="bold italic yellow")
+                full_text = RichText(prefix, style=f"{RichColor.YELLOW.value} italic")
             else:
                 full_text = RichText.from_markup(text)
             
@@ -774,8 +850,7 @@ Footer {
             output._lines.append(text)
             return
         
-        rich_style = style_map.get(style, "")
-        output.add_line(text, rich_style)
+        output.add_line(text, style)
     
     def _print_empty(self):
         """Print an empty line."""
@@ -1192,12 +1267,14 @@ Footer {
             session_id = getattr(self.agent, '_session_id', 'unknown') if self.agent else 'unknown'
             self.exit()
             print()
-            print("\033[96m" + "░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ " + "\033[0m")
-            print("\033[96m" + "██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗" + "\033[0m")
-            print("\033[96m" + "██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║" + "\033[0m")
-            print("\033[96m" + "██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║" + "\033[0m")
-            print("\033[96m" + "╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║" + "\033[0m")
-            print("\033[96m" + " ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝" + "\033[0m")
+            from rich.console import Console
+            c = Console()
+            c.print(f"[cyan]░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ [/cyan]")
+            c.print(f"[cyan]██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗[/cyan]")
+            c.print(f"[cyan]██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║[/cyan]")
+            c.print(f"[cyan]██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║[/cyan]")
+            c.print(f"[cyan]╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║[/cyan]")
+            c.print(f"[cyan] ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/cyan]")
             print()
             print(f"Session: {session_id}")
             return

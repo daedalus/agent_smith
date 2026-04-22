@@ -43,23 +43,15 @@ context:
 
 mcp:
   servers:
-    filesystem:
-      url: http://localhost:3000
-      enabled: false
-    
-    git:
-      url: http://localhost:3001
-      enabled: false
-
     # Free Exa MCP - no API key required
     exa:
       url: https://mcp.exa.ai/mcp?tools=web_search_exa,deep_search_exa,get_code_context_exa
-      enabled: false
+      enabled: True
 
     # Open WebSearch MCP - free multi-engine search
     openwebsearch:
       url: https://open-web-search.vercel.app/mcp
-      enabled: false
+      enabled: True
 
 planning:
   max_steps: 20

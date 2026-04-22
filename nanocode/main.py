@@ -6,6 +6,8 @@ import argparse
 import atexit
 import os
 
+from rich.console import Console
+
 from nanocode.core import AutonomousAgent
 from nanocode.cli import InteractiveCLI
 from nanocode.config import Config
@@ -76,6 +78,22 @@ def parse_args():
         "--acp",
         action="store_true",
         help="Start ACP (Agent Client Protocol) server",
+    )
+    parser.add_argument(
+        "--yolo",
+        "-y",
+        action="store_true",
+        help="YOLO mode: auto-approve all tool permissions without asking",
+    )
+    parser.add_argument(
+        "--drift-alert",
+        action="store_true",
+        help="Drift watchdog: alert on goal drift (no intervention)",
+    )
+    parser.add_argument(
+        "--drift-intervene",
+        action="store_true",
+        help="Drift watchdog: intervene and refocus on goal drift",
     )
     parser.add_argument(
         "--serve",
@@ -300,7 +318,8 @@ async def main():
             else:
                 auth_username = args.serve_auth
 
-        agent = AutonomousAgent(config, session_id=args.resume, verbose=args.verbose)
+        agent = AutonomousAgent(config, session_id=args.resume, verbose=args.verbose, yolo=args.yolo, drift_alert=args.drift_alert, drift_intervene=args.drift_intervene)
+        await agent.init_async()
 
         if args.mdns:
             try:
@@ -331,7 +350,8 @@ async def main():
             config.set("proxy", args.proxy)
         if args.user_agent:
             config.set("user_agent", args.user_agent)
-        agent = AutonomousAgent(config, session_id=args.resume)
+        agent = AutonomousAgent(config, session_id=args.resume, yolo=args.yolo, drift_alert=args.drift_alert, drift_intervene=args.drift_intervene)
+        await agent.init_async()
         await run_acp(agent)
         return
 
@@ -356,12 +376,13 @@ async def main():
         except KeyboardInterrupt:
             session_id = getattr(agent, '_session_id', 'unknown') if agent else 'unknown'
             print()
-            print("\033[96m" + "░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ " + "\033[0m")
-            print("\033[96m" + "██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗" + "\033[0m")
-            print("\033[96m" + "██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║" + "\033[0m")
-            print("\033[96m" + "██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║" + "\033[0m")
-            print("\033[96m" + "╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║" + "\033[0m")
-            print("\033[96m" + " ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝" + "\033[0m")
+            c = Console()
+            c.print(f"[cyan]░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ [/cyan]")
+            c.print(f"[cyan]██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗[/cyan]")
+            c.print(f"[cyan]██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║[/cyan]")
+            c.print(f"[cyan]██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║[/cyan]")
+            c.print(f"[cyan]╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║[/cyan]")
+            c.print(f"[cyan] ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/cyan]")
             print()
             print(f"Session: {session_id}")
         finally:
@@ -389,7 +410,8 @@ async def main():
             args.model,
         )
 
-    agent = AutonomousAgent(config, session_id=args.resume, verbose=args.verbose)
+    agent = AutonomousAgent(config, session_id=args.resume, verbose=args.verbose, yolo=args.yolo, drift_alert=args.drift_alert, drift_intervene=args.drift_intervene)
+    await agent.init_async()
     atexit.register(lambda: _save_session_on_exit(agent))
 
     show_thinking = getattr(args, "thinking", False)  # Default: disabled (use --thinking to enable)
@@ -448,13 +470,11 @@ async def main():
 
 
 def _format_markdown(text: str) -> str:
-    """Format markdown bold (**text**) as bold + magenta."""
+    """Format markdown bold (**text**) as bold + magenta using Rich markup."""
     import re
-    MAGENTA_BOLD = "\033[38;5;95;1m"
-    RESET = "\033[0m"
 
     def replace_bold(match):
-        return f"{MAGENTA_BOLD}{match.group(1)}{RESET}"
+        return f"[magenta bold]{match.group(1)}[/magenta bold]"
 
     return re.sub(r'\*\*(.+?)\*\*', replace_bold, text)
 
