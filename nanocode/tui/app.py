@@ -4,7 +4,8 @@ import asyncio
 import os
 import sys
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import Enum
+
 
 class RichColor(Enum):
     """Gruvbox-inspired color palette for rich text."""
@@ -16,22 +17,24 @@ class RichColor(Enum):
     PURPLE = "#b16286"       # Purple - assistant
     AQUA = "#83a598"         # Aqua - tool
     GRAY = "#928374"         # Gray - dim/system
-from typing import Any
 
-from rich.text import Text
 from rich.style import Style
+from rich.text import Text
+from textual import work
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Horizontal, ScrollableContainer, Vertical
 from textual.screen import ModalScreen
-from textual.widgets import Header, Footer, Static, Button, Label, Input, TextArea, RichLog, DataTable
-from textual.binding import Binding
-from textual import work
-from rich.theme import Theme
-from rich.console import Console
-from rich.text import Text
-from rich.console import Console
-from rich.syntax import Syntax
-
+from textual.widgets import (
+    Button,
+    DataTable,
+    Footer,
+    Header,
+    Input,
+    Label,
+    RichLog,
+    Static,
+)
 
 # Gruvbox Dark Theme Colors
 GRUVBOX = {
@@ -153,6 +156,80 @@ class PermissionScreen(ModalScreen):
         self.dismiss(self._result)
 
 
+class MessageActionScreen(ModalScreen):
+    """Modal screen for message actions: fork, copy, revert."""
+
+    CSS = """
+    MessageActionScreen {
+        align: center middle;
+    }
+
+    MessageActionScreen > #msg-dialog {
+        width: 60;
+        height: auto;
+        border: solid #98971f;
+        background: #282828;
+        padding: 1 2;
+    }
+
+    #msg-dialog-title {
+        text-align: center;
+        text-style: bold;
+        color: #98971f;
+        margin-bottom: 1;
+    }
+
+    #msg-dialog-preview {
+        color: #ebdbb2;
+        margin-bottom: 1;
+        height: 5;
+    }
+
+    #msg-dialog-buttons {
+        align: center middle;
+        margin-top: 1;
+    }
+
+    #msg-dialog-buttons > Button {
+        margin: 0 1;
+        min-width: 10;
+    }
+    """
+
+    def __init__(self, message_text: str, message_index: int = 0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._message_text = message_text
+        self._message_index = message_index
+        self._result = None
+
+    def compose(self) -> ComposeResult:
+        preview = self._message_text[:200] + "..." if len(self._message_text) > 200 else self._message_text
+        yield Vertical(
+            Static("Message Actions", id="msg-dialog-title"),
+            Static(preview, id="msg-dialog-preview"),
+            Horizontal(
+                Button("Fork", id="btn-fork", variant="primary"),
+                Button("Copy", id="btn-copy", variant="default"),
+                Button("Revert", id="btn-revert", variant="warning"),
+                Button("Cancel", id="btn-cancel", variant="default"),
+                id="msg-dialog-buttons",
+            ),
+            id="msg-dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        action = event.button.id
+        if action == "btn-fork":
+            self._result = ("fork", self._message_text, self._message_index)
+        elif action == "btn-copy":
+            self._result = ("copy", self._message_text, self._message_index)
+        elif action == "btn-revert":
+            self._result = ("revert", self._message_text, self._message_index)
+        else:
+            self._result = None
+        self.dismiss(self._result)
+
+
 class CommandPaletteScreen(ModalScreen):
     """Modal screen for command palette."""
     
@@ -267,16 +344,51 @@ class OutputArea(RichLog):
         super().__init__(*args, **kwargs)
         self._lines: list[str] = []
         self._md_theme: object = None
+        self._user_messages: list[tuple[int, str]] = []  # (index, text) for user messages
 
     def _render_markdown(self, text: str) -> object:
         """Get a markdown renderer with gruvbox theme."""
         from rich.markdown import Markdown
         return Markdown(text)
 
+    def _on_click(self, event: "events.Click") -> None:
+        """Handle click to show message actions for user messages."""
+
+        # Get click position
+        if event.y is None:
+            return
+
+        # Find which user message was clicked (by line index)
+        # Each message occupies roughly one "logical line" - we'll use offset to approximate
+        node = event.style.meta if event.style and event.style.meta else None
+        if node:
+            msg_index = node.get("msg_index")
+            if msg_index is not None and msg_index < len(self._user_messages):
+                _, text = self._user_messages[msg_index]
+                self.app.push_screen(
+                    MessageActionScreen(text, msg_index),
+                    self._handle_message_action,
+                )
+
+    def _handle_message_action(self, result):
+        """Handle result from MessageActionScreen."""
+        if result:
+            action, text, index = result
+            if action == "copy":
+                import pyperclip
+                pyperclip.copy(text)
+                self.app.notify("Copied to clipboard", severity="info")
+            elif action == "fork":
+                # Signal to main app to fork this message
+                self.app.post_message(NanoCodeApp.ForkMessage(index, text))
+            elif action == "revert":
+                # Signal to main app to revert to this message
+                self.app.post_message(NanoCodeApp.RevertMessage(index))
+
     def add_line(self, text: str, style: str = ""):
         """Add a line to output with Rich markdown rendering."""
         import re
-        from rich.text import Text
+
         from rich.markdown import Markdown
 
         style_map = {
@@ -292,6 +404,10 @@ class OutputArea(RichLog):
         }
 
         base_color = style_map.get(style, "")
+
+        # Track user messages for click actions
+        if style == "user":
+            self._user_messages.append((len(self._user_messages), text))
 
         # Handle custom styles before markdown rendering
         if "[thought]" in text:
@@ -346,6 +462,7 @@ class OutputArea(RichLog):
     def _write_formatted(self, text: str, base_color: str):
         """Write formatted text with basic markdown highlighting."""
         import re
+
         from rich.text import Text
 
         if not base_color:
@@ -550,6 +667,7 @@ Footer {
         Binding("ctrl+c", "interrupt", "Interrupt", show=False),
         Binding("f1", "show_command_palette", "Commands", show=True),
         Binding("ctrl+b", "toggle_sidebar", "Sidebar", show=True),
+        Binding("ctrl+m", "message_actions", "Actions", show=True),
     ]
 
     def on_key(self, event) -> None:
@@ -647,8 +765,9 @@ Footer {
     def _fetch_model_info(self):
         """Fetch model info from models.dev registry."""
         try:
-            from nanocode.llm.registry import get_registry
             import asyncio
+
+            from nanocode.llm.registry import get_registry
 
             async def fetch():
                 registry = get_registry()
@@ -1037,15 +1156,14 @@ Footer {
     
     def action_show_cli_commands(self):
         """Show command palette."""
-        import sys
-        sys.stderr.write(f"DEBUG: action_show_cli_commands called\n")
+        sys.stderr.write("DEBUG: action_show_cli_commands called\n")
         sys.stderr.write(f"CLI_COMMANDS = {self.CLI_COMMANDS}\n")
         sys.stderr.flush()
         output = self.query_one("#output-area")
-        output.add_line(f"\n=== Available Commands ===")
+        output.add_line("\n=== Available Commands ===")
         for cmd, desc in self.CLI_COMMANDS:
             output.add_line(f"  {cmd:<20} {desc}")
-        output.add_line(f"\nPress Ctrl+P to show this menu")
+        output.add_line("\nPress Ctrl+P to show this menu")
     
     @work()
     async def action_show_command_palette(self):
@@ -1056,6 +1174,32 @@ Footer {
             input_widget = self.query_one("#input", Input)
             input_widget.value = result
             input_widget.focus()
+
+    async def action_message_actions(self):
+        """Show message actions for the last user message."""
+        output = self.query_one("#output-area", OutputArea)
+        if output._user_messages:
+            # Get the last user message
+            index, text = output._user_messages[-1]
+            result = await self.push_screen_wait(MessageActionScreen(text, index))
+            if result:
+                action, msg_text, msg_index = result
+                if action == "copy":
+                    import pyperclip
+                    pyperclip.copy(msg_text)
+                    self.notify("Copied to clipboard", severity="info")
+                elif action == "fork":
+                    self._input_history.append(msg_text)
+                    input_widget = self.query_one("#input", Input)
+                    input_widget.value = msg_text
+                    input_widget.focus()
+                elif action == "revert":
+                    # Revert to this message index
+                    if msg_index < len(self._input_history):
+                        self._input_history = self._input_history[:msg_index + 1]
+                        self._history_index = len(self._input_history)
+        else:
+            self.notify("No user messages yet", severity="info")
     
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle input changes."""
@@ -1134,10 +1278,10 @@ Footer {
                 
                 # Use process_input - let agent handle tool execution normally
                 # Suppress stdout/stderr print output to TUI but write to log file
-                import io
-                import sys
-                import logging
                 import datetime
+                import io
+                import logging
+                import sys
                 import traceback
                 
                 # Save original stdout/stderr
@@ -1269,12 +1413,12 @@ Footer {
             print()
             from rich.console import Console
             c = Console()
-            c.print(f"[cyan]░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ [/cyan]")
-            c.print(f"[cyan]██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗[/cyan]")
-            c.print(f"[cyan]██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║[/cyan]")
-            c.print(f"[cyan]██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║[/cyan]")
-            c.print(f"[cyan]╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║[/cyan]")
-            c.print(f"[cyan] ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/cyan]")
+            c.print("[cyan]░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ [/cyan]")
+            c.print("[cyan]██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗[/cyan]")
+            c.print("[cyan]██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║[/cyan]")
+            c.print("[cyan]██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║[/cyan]")
+            c.print("[cyan]╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║[/cyan]")
+            c.print("[cyan] ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/cyan]")
             print()
             print(f"Session: {session_id}")
             return
