@@ -98,6 +98,8 @@ class EnvKeyringManager(KeyringManager):
 
     def get_credential(self, key: str) -> Optional[str]:
         """Get credential, first checking keyring, then environment."""
+        if key in self._env_cache:
+            return self._env_cache[key]
         value = super().get_credential(key)
         if value:
             return value

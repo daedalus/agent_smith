@@ -51,6 +51,24 @@ class TestKeyringManager:
 class TestEnvKeyringManager:
     """Test EnvKeyringManager with environment fallback."""
 
+    @pytest.fixture(autouse=True)
+    def setup_keyring_cleanup(self):
+        """Clean up keyring before each test."""
+        import keyring
+        try:
+            keyring.delete_password("nanocode", "test_key")
+        except Exception:
+            pass
+        try:
+            keyring.delete_password("nanocode", "priority_key")
+        except Exception:
+            pass
+        yield
+        try:
+            keyring.delete_password("nanocode", "test_key")
+        except Exception:
+            pass
+
     def test_env_fallback(self, monkeypatch):
         """Test environment variable fallback."""
         monkeypatch.setenv("NANOCODE_TEST_KEY", "env_secret")
