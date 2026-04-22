@@ -369,10 +369,6 @@ class OutputArea(RichLog):
                 import pyperclip
                 pyperclip.copy(text)
                 self.app.notify("Copied to clipboard", severity="info")
-            elif action == "fork":
-                self.app.post_message(NanoCodeApp.ForkMessage(index, text))
-            elif action == "revert":
-                self.app.post_message(NanoCodeApp.RevertMessage(index))
 
     def add_line(self, text: str, style: str = ""):
         """Add a line to output with Rich markdown rendering."""
@@ -1166,6 +1162,7 @@ Footer {
             input_widget.value = result
             input_widget.focus()
 
+    @work()
     async def action_message_actions(self):
         """Show message actions for the last user message."""
         output = self.query_one("#output-area", OutputArea)
