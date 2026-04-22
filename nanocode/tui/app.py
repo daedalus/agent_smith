@@ -353,22 +353,13 @@ class OutputArea(RichLog):
 
     def _on_click(self, event: "events.Click") -> None:
         """Handle click to show message actions for user messages."""
-
-        # Get click position
-        if event.y is None:
-            return
-
-        # Find which user message was clicked (by line index)
-        # Each message occupies roughly one "logical line" - we'll use offset to approximate
-        node = event.style.meta if event.style and event.style.meta else None
-        if node:
-            msg_index = node.get("msg_index")
-            if msg_index is not None and msg_index < len(self._user_messages):
-                _, text = self._user_messages[msg_index]
-                self.app.push_screen(
-                    MessageActionScreen(text, msg_index),
-                    self._handle_message_action,
-                )
+        # RichLog doesn't support click spans, so show actions for last user message
+        if self._user_messages:
+            index, text = self._user_messages[-1]
+            self.app.push_screen(
+                MessageActionScreen(text, index),
+                self._handle_message_action,
+            )
 
     def _handle_message_action(self, result):
         """Handle result from MessageActionScreen."""
@@ -379,10 +370,8 @@ class OutputArea(RichLog):
                 pyperclip.copy(text)
                 self.app.notify("Copied to clipboard", severity="info")
             elif action == "fork":
-                # Signal to main app to fork this message
                 self.app.post_message(NanoCodeApp.ForkMessage(index, text))
             elif action == "revert":
-                # Signal to main app to revert to this message
                 self.app.post_message(NanoCodeApp.RevertMessage(index))
 
     def add_line(self, text: str, style: str = ""):
@@ -405,8 +394,10 @@ class OutputArea(RichLog):
 
         base_color = style_map.get(style, "")
 
-        # Track user messages for click actions
-        if style == "user":
+        # Track user messages for click actions (check both "user" and color value)
+        user_color = self.GRUVBOX["green"]
+        is_user = style == "user" or style == user_color
+        if is_user:
             self._user_messages.append((len(self._user_messages), text))
 
         # Handle custom styles before markdown rendering
