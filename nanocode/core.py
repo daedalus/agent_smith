@@ -251,10 +251,11 @@ def get_current_session_id() -> str | None:
 class AutonomousAgent:
     """Main autonomous agent class."""
 
-    def __init__(self, config: dict | None = None, session_id: str = None, verbose: bool = False):
+    def __init__(self, config: dict | None = None, session_id: str = None, verbose: bool = False, yolo: bool = False):
         self.config = config or get_config()
         self.state = AgentStateData()
         self.debug = verbose
+        self.yolo = yolo
         self._session_id = session_id
         self._session_logger = None
 
@@ -759,12 +760,16 @@ class AutonomousAgent:
                         continue
 
             if self.current_agent:
-                action = self.permission_handler.check_permission(
-                    self.current_agent, tool_name, args
-                )
-                logger.debug(
-                    f"[{agent_name}] Permission check for '{tool_name}': {action.value}"
-                )
+                if self.yolo:
+                    action = PermissionAction.ALLOW
+                    logger.debug(f"[YOLO] Auto-allowing '{tool_name}'")
+                else:
+                    action = self.permission_handler.check_permission(
+                        self.current_agent, tool_name, args
+                    )
+                    logger.debug(
+                        f"[{agent_name}] Permission check for '{tool_name}': {action.value}"
+                    )
 
                 if action == PermissionAction.DENY:
                     logger.warning(

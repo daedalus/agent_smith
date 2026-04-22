@@ -80,6 +80,12 @@ def parse_args():
         help="Start ACP (Agent Client Protocol) server",
     )
     parser.add_argument(
+        "--yolo",
+        "-y",
+        action="store_true",
+        help="YOLO mode: auto-approve all tool permissions without asking",
+    )
+    parser.add_argument(
         "--serve",
         action="store_true",
         help="Start HTTP server for remote operation",
@@ -302,7 +308,7 @@ async def main():
             else:
                 auth_username = args.serve_auth
 
-        agent = AutonomousAgent(config, session_id=args.resume, verbose=args.verbose)
+        agent = AutonomousAgent(config, session_id=args.resume, verbose=args.verbose, yolo=args.yolo)
         await agent.init_async()
 
         if args.mdns:
@@ -334,7 +340,7 @@ async def main():
             config.set("proxy", args.proxy)
         if args.user_agent:
             config.set("user_agent", args.user_agent)
-        agent = AutonomousAgent(config, session_id=args.resume)
+        agent = AutonomousAgent(config, session_id=args.resume, yolo=args.yolo)
         await agent.init_async()
         await run_acp(agent)
         return
@@ -394,7 +400,7 @@ async def main():
             args.model,
         )
 
-    agent = AutonomousAgent(config, session_id=args.resume, verbose=args.verbose)
+    agent = AutonomousAgent(config, session_id=args.resume, verbose=args.verbose, yolo=args.yolo)
     await agent.init_async()
     atexit.register(lambda: _save_session_on_exit(agent))
 
