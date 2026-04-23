@@ -364,9 +364,16 @@ class ToolExecutor:
     def format_result(self, result: ToolResult) -> str:
         """Format tool result for LLM consumption."""
         if result.success:
-            # Preserve string output as-is to avoid JSON encoding artifacts
-            if isinstance(result.content, str):
-                return result.content
-            return json.dumps(result.content, default=str)
+            parts = []
+            if result.metadata:
+                meta_parts = []
+                for key, value in result.metadata.items():
+                    if key not in ("cached",):
+                        meta_parts.append(f"{key}={value}")
+                if meta_parts:
+                    parts.append(f"[metadata: {', '.join(meta_parts)}]")
+            if result.content:
+                parts.append(result.content)
+            return "\n\n".join(parts) if parts else "OK"
         else:
             return f"Error: {result.error}"

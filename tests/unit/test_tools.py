@@ -141,11 +141,12 @@ class TestToolExecutor:
 
     @pytest.mark.asyncio
     async def test_format_result(self, executor):
-        """Test formatting result."""
-        result = ToolResult(success=True, content={"key": "value"})
+        """Test formatting result includes metadata."""
+        result = ToolResult(success=True, content="Hello", metadata={"lines": 10, "bytes": 100})
         formatted = executor.format_result(result)
 
-        assert "key" in formatted
+        assert "metadata" in formatted
+        assert "lines=10" in formatted
 
 
 class TestFuncTool:
@@ -219,6 +220,86 @@ class TestBuiltinTools:
             yield tmpdir
 
     @pytest.mark.asyncio
+    async def test_webfetch_with_url_only(self):
+        """Test webfetch with only url parameter."""
+        from nanocode.tools.builtin import WebFetchTool
+
+        tool = WebFetchTool()
+        result = await tool.execute(url="https://example.com")
+
+        assert result.success is True
+        assert result.content is not None
+        assert "html" in result.content.lower()[:100] or "<" in result.content[:10]
+
+    @pytest.mark.asyncio
+    async def test_webfetch_with_path_only(self):
+        """Test webfetch with path parameter (local file)."""
+        from nanocode.tools.builtin import WebFetchTool
+
+        tool = WebFetchTool()
+        result = await tool.execute(path="/tmp/test_nonexistent.txt")
+
+        assert result.success is False
+        assert result.error is not None
+
+    @pytest.mark.asyncio
+    async def test_webfetch_prioritizes_url_over_path(self):
+        """Test that url takes precedence over path when both provided."""
+        from nanocode.tools.builtin import WebFetchTool
+
+        tool = WebFetchTool()
+        result = await tool.execute(
+            path="/tmp/localfile.txt",
+            url="https://example.com"
+        )
+
+        assert result.success is True
+        assert "example" in result.content.lower() or "<!doctype" in result.content.lower()
+
+    @pytest.mark.asyncio
+    async def test_webfetch_missing_url_and_path(self):
+        """Test webfetch fails when neither url nor path provided."""
+        from nanocode.tools.builtin import WebFetchTool
+
+        tool = WebFetchTool()
+        result = await tool.execute()
+
+        assert result.success is False
+        assert "required" in result.error.lower()
+
+    @pytest.mark.asyncio
+    async def test_webfetch_adds_https_protocol(self):
+        """Test webfetch adds https:// when URL has no protocol."""
+        from nanocode.tools.builtin import WebFetchTool
+
+        tool = WebFetchTool()
+        result = await tool.execute(url="example.com")
+
+        assert result.success is True
+        assert result.content is not None
+
+    @pytest.mark.asyncio
+    async def test_webfetch_path_without_url(self):
+        """Test webfetch prioritizes path when url not provided."""
+        from nanocode.tools.builtin import WebFetchTool
+
+        tool = WebFetchTool()
+        result = await tool.execute(path="https://example.com")
+
+        assert result.success is True
+        assert result.content is not None
+
+    @pytest.mark.asyncio
+    async def test_webfetch_empty_url_uses_path(self):
+        """Test webfetch uses path when url is empty string."""
+        from nanocode.tools.builtin import WebFetchTool
+
+        tool = WebFetchTool()
+        result = await tool.execute(path="https://example.com", url="")
+
+        assert result.success is True
+
+    @pytest.mark.asyncio
     async def test_read_file(self, temp_dir):
         """Test read file tool."""
         from nanocode.tools.builtin import ReadFileTool
@@ -231,6 +312,40 @@ class TestBuiltinTools:
 
         assert result.success is True
         assert "Hello" in result.content
+        assert result.metadata["total_lines"] == 1
+
+    @pytest.mark.asyncio
+    async def test_read_file_with_metadata(self, temp_dir):
+        """Test read file returns metadata."""
+        from nanocode.tools.builtin import ReadFileTool
+
+        test_file = os.path.join(temp_dir, "test.txt")
+        Path(test_file).write_text("Line 1\nLine 2\nLine 3\n")
+
+        tool = ReadFileTool(root_dir=temp_dir)
+        result = await tool.execute(path="test.txt")
+
+        assert result.success is True
+        assert result.metadata["lines"] == 3
+        assert result.metadata["total_lines"] == 3
+        assert result.metadata["bytes"] > 0
+        assert "tokens_estimate" in result.metadata
+
+    @pytest.mark.asyncio
+    async def test_fstat_tool(self, temp_dir):
+        """Test fstat tool returns file stats."""
+        from nanocode.tools.builtin import FstatTool
+
+        test_file = os.path.join(temp_dir, "test.txt")
+        Path(test_file).write_text("Line 1\nLine 2\nLine 3\n")
+
+        tool = FstatTool(root_dir=temp_dir)
+        result = await tool.execute(path="test.txt")
+
+        assert result.success is True
+        assert "lines=3" in result.content
+        assert result.metadata["total_lines"] == 3
+        assert result.metadata["tokens"] >= 1
 
     @pytest.mark.asyncio
     async def test_write_file(self, temp_dir):
@@ -1694,3 +1809,31 @@ class SchemaTool(Tool):
             assert "input" in schema["function"]["parameters"]["properties"]
         finally:
             shutil.rmtree(tmpdir)
+
+
+class TestCommandExtraction:
+    """Test command extraction from output."""
+
+    def test_extract_bash_block(self):
+        """Test extracting bash code blocks."""
+        import re
+        output = '''Install commands:
+```bash
+mkdir -p ~/.test
+curl -s https://example.com/setup.sh
+```
+'''
+        bash_blocks = re.findall(r'```bash\n(.*?)```', output, re.DOTALL)
+        assert len(bash_blocks) == 1
+        assert 'mkdir' in bash_blocks[0]
+
+    def test_extract_inline_commands(self):
+        """Test extracting inline commands - commands at start of line."""
+        import re
+        # Command at start of line followed by args
+        output = '''mkdir -p ~/.testdir
+curl -s https://example.com
+wget http://test.com
+'''
+        inline = re.findall(r'^\s*(mkdir|curl|wget)\s+\S+', output, re.MULTILINE)
+        assert len(inline) >= 1

@@ -639,7 +639,7 @@ class ReadFileTool(Tool):
     def __init__(self, root_dir: str = None, file_tracker=None):
         super().__init__(
             name="read",
-            description="Read contents of a file. Use force_refresh=true to bypass cache.",
+            description="Read contents of a file. Returns metadata (lines, bytes, tokens) to help decide if full read is needed. Use offset/limit to read in chunks.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -691,19 +691,25 @@ class ReadFileTool(Tool):
                     self.file_tracker.set(full_path, content)
 
             lines = content.splitlines()
+            total_lines = len(lines)
             if offset:
                 lines = lines[offset - 1 :]
             if limit:
                 lines = lines[:limit]
 
+            text = "\n".join(lines)
+            bytes_val = len(text.encode("utf-8"))
+            tokens_est = max(1, bytes_val // 4)
+
             return ToolResult(
                 success=True,
-                content="\n".join(lines),
+                content=text,
                 metadata={
                     "path": str(file_path),
                     "lines": len(lines),
-                    "total_lines": len(content.splitlines()),
-                    "bytes": len(content.encode("utf-8")),
+                    "total_lines": total_lines,
+                    "bytes": bytes_val,
+                    "tokens_estimate": tokens_est,
                     "cached": was_cached,
                 },
             )
@@ -711,42 +717,25 @@ class ReadFileTool(Tool):
             return ToolResult(success=False, content=None, error=str(e))
 
 
-class StatFileCountTokensTool(Tool):
-    """Count tokens in a file without reading full content."""
+class FstatTool(Tool):
+    """Get file statistics before reading - must be called first."""
 
     def __init__(self, root_dir: str = None):
         super().__init__(
-            name="stat_file_count_tokens",
-            description="Get token count of a file to understand its size before reading. "
-            "Returns estimated tokens, lines, and byte size. Use offset/limit to count a range.",
+            name="fstat",
+            description="Get file stats (lines, bytes, tokens) BEFORE reading. MUST call this first to decide reading strategy.",
             parameters={
                 "type": "object",
                 "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "The path to the file to analyze",
-                    },
-                    "limit": {
-                        "type": "integer",
-                        "description": "Maximum number of lines to analyze (for partial)",
-                    },
-                    "offset": {
-                        "type": "integer",
-                        "description": "Line number to start from (1-indexed, for partial)",
-                    },
+                    "path": {"type": "string", "description": "The path to the file"},
                 },
                 "required": ["path"],
             },
         )
         self.root_dir = Path(root_dir) if root_dir else Path.cwd()
 
-    async def execute(
-        self,
-        path: str,
-        limit: int = None,
-        offset: int = None,
-    ) -> ToolResult:
-        """Count tokens in a file."""
+    async def execute(self, path: str) -> ToolResult:
+        """Get file stats."""
         try:
             file_path = self.root_dir / path
             if not file_path.exists():
@@ -754,51 +743,17 @@ class StatFileCountTokensTool(Tool):
 
             content = file_path.read_text(errors="ignore")
             lines = content.splitlines()
-
             total_lines = len(lines)
-            total_tokens = TokenCounter.count_tokens(content)
             total_bytes = len(content.encode("utf-8"))
-
-            if offset or limit:
-                target_lines = lines
-                if offset:
-                    target_lines = target_lines[offset - 1 :]
-                if limit:
-                    target_lines = target_lines[:limit]
-
-                partial_content = "\n".join(target_lines)
-                partial_tokens = TokenCounter.count_tokens(partial_content)
-                partial_lines_count = len(target_lines)
-
-                return ToolResult(
-                    success=True,
-                    content=f"File: {path}\n"
-                    f"Lines: {partial_lines_count} (of {total_lines})\n"
-                    f"Estimated tokens: {partial_tokens} (of ~{total_tokens})\n"
-                    f"Bytes: ~{total_bytes}",
-                    metadata={
-                        "path": str(file_path),
-                        "lines": partial_lines_count,
-                        "total_lines": total_lines,
-                        "tokens": partial_tokens,
-                        "total_tokens": total_tokens,
-                        "bytes": total_bytes,
-                        "partial": True,
-                    },
-                )
+            total_tokens = max(1, total_bytes // 4)
 
             return ToolResult(
                 success=True,
-                content=f"File: {path}\n"
-                f"Lines: {total_lines}\n"
-                f"Estimated tokens: ~{total_tokens}\n"
-                f"Bytes: ~{total_bytes}",
+                content=f"lines={total_lines}, bytes={total_bytes}, tokens~{total_tokens}",
                 metadata={
-                    "path": str(file_path),
-                    "lines": total_lines,
-                    "tokens": total_tokens,
+                    "total_lines": total_lines,
                     "bytes": total_bytes,
-                    "partial": False,
+                    "tokens": total_tokens,
                 },
             )
         except Exception as e:
@@ -1920,7 +1875,7 @@ def create_builtin_tools(
         WriteFileTool(file_tracker=file_tracker),
         EditFileTool(),
         ListDirTool(),
-        StatFileCountTokensTool(),
+        FstatTool(),
         WebFetchTool(),
         WebSearchTool(),
         # Paid Exa tools (requires API key)

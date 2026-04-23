@@ -154,8 +154,9 @@ class OpenAILLM(LLMBase):
             error_msg = data.get("error", {}).get("message", str(data))
             print(f"[DEBUG] OpenAI Error: {error_msg}")
             logger.error(f"[OpenAI] API Error: {error_msg}")
-            # Handle specific error types
-            if "tool id" in error_msg.lower() or "tool_call_id" in error_msg.lower():
+            # Handle specific error types - include provider wrapped errors
+            raw_error = data.get("error", {}).get("metadata", {}).get("raw", "")
+            if "tool id" in error_msg.lower() or "tool_call_id" in error_msg.lower() or ("tool" in raw_error.lower() and "not found" in raw_error.lower()):
                 raise RuntimeError(f"Tool call error: {error_msg}. Try starting a new session.")
             if response.status_code == 400:
                 raise RuntimeError(f"Bad request: {error_msg}")
