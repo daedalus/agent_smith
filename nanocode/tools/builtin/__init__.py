@@ -924,13 +924,17 @@ class WebFetchTool(Tool):
             description="Fetch content from a URL",
         )
 
-    async def execute(self, url: str, format: str = "text") -> ToolResult:
+    async def execute(self, path: str = None, url: str = None, format: str = "text") -> ToolResult:
         """Fetch URL content."""
+        target_url = path or url
+        if not target_url:
+            return ToolResult(success=False, content=None, error="URL is required")
+        
         try:
             import httpx
 
             async with httpx.AsyncClient() as client:
-                response = await client.get(url, timeout=30.0)
+                response = await client.get(target_url, timeout=30.0)
                 response.raise_for_status()
 
                 if format == "text":
@@ -943,7 +947,7 @@ class WebFetchTool(Tool):
                 return ToolResult(
                     success=True,
                     content=content,
-                    metadata={"url": url, "status": response.status_code},
+                    metadata={"url": target_url, "status": response.status_code},
                 )
         except Exception as e:
             return ToolResult(success=False, content=None, error=str(e))
