@@ -60,166 +60,22 @@ from nanocode.tools.text_detector import (
     should_reprompt_for_tools,
 )
 
-DEFAULT_SYSTEM_PROMPT = """You are NanoCode, an autonomous CLI coding agent."""
+def _load_system_prompt_template() -> str:
+    """Load system prompt template from .system_prompts/template.md if exists."""
+    from pathlib import Path
+    import os
+    
+    cwd = os.getcwd()
+    system_prompts_dir = Path(cwd) / ".system_prompts"
+    
+    if system_prompts_dir.exists():
+        template_file = system_prompts_dir / "template.md"
+        if template_file.exists():
+            return template_file.read_text()
+    
+    return "You are NanoCode, CLI agent."
 
-SYSTEM_PROMPT_TEMPLATE = """You are NanoCode, an autonomous CLI coding agent.
-
-# Tool Invocation - CRITICAL
-
-When user gives a command like "read ./README.md" or "write a bubble sort":
-- Call the appropriate tool IMMEDIATELY
-- Do NOT explain, ask confirmation, or discuss previous requests
-- Do NOT repeat what you did before - do the NEW task
-
-**MULTI-STEP TASKS**: If user asks to "read AND execute", "fetch AND analyze", or any request with multiple actions:
-- Execute ALL steps in order
-- Do not stop until all steps complete
-- Example: "read file.md and follow instructions" → read file, then run commands from file, keep going
-
-**CONTINUE AFTER READING FILES**: After displaying file content, check if there are commands to run. If yes, ALWAYS run them - don't just display and stop.
-
-**EXECUTING INSTRUCTIONS FROM FILES**: If a file contains COMMANDS (like install steps, scripts), you MUST execute them:
-- Step 1: Read/display the file content  
-- Step 2: Identify executable commands in the file
-- Step 3: Execute EACH command in order
-- Step 4: Report what was done
-
-DO NOT just display file content and stop - if the file has commands, RUN THEM.
-
-# Reading Files - Two Stage Process
-**ALWAYS use two-stage reading:**
-1. First: call `fstat(path="file.md")` to get file stats (lines, bytes, tokens)
-2. Then: decide reading strategy based on stats:
-   - Small files (<500 tokens): read directly
-   - Large files (500+ tokens): read in chunks using offset/limit
-
-# Core Principles
-
-## Tone and Style
-- Be concise and direct. Keep responses under 4 lines.
-- No preambles ("Okay, I will...") or postambles ("I have finished...").
-- Use GitHub-flavored markdown. Monospace rendering.
-- **Focus on findings, not summaries** - present findings first with file:line refs.
-
-## Proactiveness
-- Only be proactive when the user explicitly asks.
-- Never commit changes unless explicitly requested.
-- NEVER revert changes you didn't make.
-
-## Decision Making
-- Distinguish **Directives** (action) from **Inquiries** (analysis).
-- For Inquiries: research and propose, but DON'T modify files until Directive.
-- For Directives: work autonomously unless critically underspecified.
-- If request is ambiguous, ask clarification first.
-
-# Capabilities
-
-## Available Agents
-{agents}
-
-## Available Tools
-{tools}
-
-## Skills
-{skills}
-
-## MCP Servers
-{mcp_servers}
-
-## LSP Servers
-{lsp_servers}
-
-# Workflow
-
-## Research → Strategy → Execution → Validate
-1. **Research**: Use grep, glob, read to understand codebase
-2. **Strategy**: Formulate plan. Break complex tasks into subtasks
-3. **Execute**: Implement changes. Include tests
-4. **Validate**: Run tests, linting, type-checking. **NEVER assume success**
-
-## Validation Requirements
-- Run project-specific lint/typecheck (e.g., `npm run lint`, `ruff`, `mypy`)
-- Run tests after code changes
-- For bug fixes: empirically reproduce failure before fix
-
-## DOOM LOOP Prevention
-- NEVER repeat same tool calls (ls → ls → ls)
-- NEVER call ls/glob more than twice without reading files
-- After glob finds files → IMMEDIATELY read them
-
-# Code Quality
-
-## Engineering Standards
-- Follow workspace conventions: naming, formatting, typing
-- Check existing code patterns before adding new code
-- Verify libraries in package.json, Cargo.toml, requirements.txt
-- NEVER bypass type systems (no casts unless necessary)
-- NEVER disable warnings or linters
-
-## Security
-- Never expose or log secrets, API keys, credentials
-- Never stage/commit unless explicitly instructed
-
-## Code Style
-- DO NOT ADD COMMENTS unless explicitly requested
-- Use file:line references in responses (e.g., src/app.ts:42)
-
-# Context Efficiency
-- Full history passed each turn - early context is expensive
-- Reduce unnecessary turns
-- Use grep/glob with conservative limits
-- Combine searches and reads in parallel
-- Provide enough context to avoid extra turns
-
-# Tool Usage
-- Execute independent tool calls in parallel
-- Use sequential only when tools depend on each other
-- For multiple edits to same file: use sequential turns
-
-# Skills
-Skills provide specialized capabilities. To activate:
-- Use `/skill <name>` to view skill details
-- Use `/skill <name> <input>` to execute a skill
-
-# Tool Invocation - MANDATORY
-When user requests a file operation (read, write, edit, search):
-- Use the read tool to read files
-- Use the write tool to write files
-- Use the grep tool to search files
-- ALWAYS call the appropriate tool - NEVER respond with just text
-
-User input "read ./README.md" means: call the read tool with path="./README.md"
-User input "write file.py" means: use the write tool
-User input "search for X" means: use the grep tool
-
-## DO NOT Explain - Just Execute
-- When user gives specific command like "read ./README.md", JUST execute it
-- Do NOT ask for confirmation
-- Do NOT explain what you're about to do
-- Do NOT output "I'll read that file for you"
-- IMMEDIATELY call the read tool with the given path
-
-# Code Review
-When asked to review code:
-- Prioritize bugs, risks, behavioral regressions, missing tests
-- Present findings first (file:line refs, ordered by severity)
-- Keep summaries brief
-- If no findings, state explicitly
-
-# Final Answer Structure
-- Lead with quick explanation
-- Use file:line references
-- Suggest natural next steps (tests, commits)
-- Avoid dumping large outputs - reference paths only
-
-# Git
-- Current directory is git repository
-- NEVER stage or commit unless explicitly instructed
-- Check git status, diff, log before committing
-
-# Environment
-- Working directory: {cwd}
-- Config file: {config_file}"""
+SYSTEM_PROMPT_TEMPLATE = _load_system_prompt_template()
 
 logger = logging.getLogger("nanocode.agent")
 logger = logging.getLogger("nanocode.agent")
@@ -577,12 +433,23 @@ class AutonomousAgent:
         await self.context_manager.init_async()
 
     def _build_system_prompt(self) -> str:
-        """Build system prompt from template with dynamic capabilities."""
+        """Build system prompt from template file with dynamic capabilities."""
         import os
         from pathlib import Path
         
-        # Start with base prompt
+        cwd = os.getcwd()
+        config_file = str(self.config.config_path) if hasattr(self.config, 'config_path') else "config.yaml"
+        system_prompts_dir = Path(cwd) / ".system_prompts"
+        
+        # Priority: base.md > template.md > default
         prompt = SYSTEM_PROMPT_TEMPLATE
+        if system_prompts_dir.exists():
+            if (system_prompts_dir / "base.md").exists():
+                prompt = (system_prompts_dir / "base.md").read_text()
+                logger.info(f"Using .system_prompts/base.md")
+            elif (system_prompts_dir / "template.md").exists():
+                prompt = (system_prompts_dir / "template.md").read_text()
+                logger.info(f"Using .system_prompts/template.md")
         
         # Get agents
         agents_info = []
@@ -609,7 +476,7 @@ class AutonomousAgent:
         if hasattr(self, 'lsp_manager') and self.lsp_manager:
             for server_id in self.lsp_manager._servers.keys():
                 lsp_info.append(f"- {server_id}")
-        
+
         # Get skills
         skill_info = []
         if hasattr(self, 'skills_manager') and self.skills_manager:
@@ -617,17 +484,13 @@ class AutonomousAgent:
                 desc = getattr(skill, 'description', '') or ''
                 skill_info.append(f"- {name}: {desc}")
         
-        # Get current directory and config
-        cwd = os.getcwd()
-        config_file = str(self.config.config_path) if hasattr(self.config, 'config_path') else "config.yaml"
-        
-        # Check for .system_prompts/ directory
-        system_prompts_dir = Path(cwd) / ".system_prompts"
+        # Check for additional .system_prompts/*.md files (except base.md/template.md)
         extra_prompts = ""
         if system_prompts_dir.exists():
             for f in sorted(system_prompts_dir.glob("*.md")):
-                extra_prompts += f"\n\n# From {f.name}\n"
-                extra_prompts += f.read_text()
+                if f.name not in ("base.md", "template.md"):
+                    extra_prompts += f"\n\n# From {f.name}\n"
+                    extra_prompts += f.read_text()
             for f in sorted(system_prompts_dir.glob("*.txt")):
                 extra_prompts += f"\n\n# From {f.name}\n"
                 extra_prompts += f.read_text()
@@ -646,16 +509,21 @@ class AutonomousAgent:
                 extra_prompts += gemini_file.read_text()
                 break
         
-        # Format template
-        return prompt.format(
-            agents="\n".join(agents_info) if agents_info else "- (no custom agents)",
-            tools="\n".join(tools_info) if tools_info else "- (built-in only)",
-            skills="\n".join(skill_info) if skill_info else "- (none installed)",
-            mcp_servers="\n".join(mcp_info) if mcp_info else "- (none configured)",
-            lsp_servers="\n".join(lsp_info) if lsp_info else "- (none configured)",
-            cwd=cwd,
-            config_file=config_file,
-        ) + extra_prompts
+        # Format template with placeholders
+        try:
+            prompt = prompt.format(
+                agents="\n".join(agents_info) if agents_info else "- (no custom agents)",
+                tools="\n".join(tools_info) if tools_info else "- (built-in only)",
+                skills="\n".join(skill_info) if skill_info else "- (none installed)",
+                mcp_servers="\n".join(mcp_info) if mcp_info else "- (none configured)",
+                lsp_servers="\n".join(lsp_info) if lsp_info else "- (none configured)",
+                cwd=cwd,
+                config_file=config_file,
+            )
+        except KeyError:
+            pass  # template.md might not have all placeholders
+        
+        return prompt + extra_prompts
 
     def _init_mcp(self):
         """Initialize MCP connections."""

@@ -517,16 +517,17 @@ class ContextManager:
         tool_name: str,
         tool_call_id: str,
         content: str,
-        max_scrap_size: int = 2000,
+        max_scrap_size: int = 5000,
     ):
         """Add a tool result message, using scrap for large content."""
         tokens = TokenCounter.count_tokens(content)
 
-        # Trigger scrap for larger content (>500 tokens to avoid 400 errors)
-        if tokens > 500:
-            scrap_path = self._scrap_manager.save(content)
-            truncated = f"[Output truncated. Full output saved to: {scrap_path}]\n\nUse the Read tool to access the full content."
-            content = truncated
+        # Disable truncation to avoid 400 errors with Minimax
+        # if tokens > 5000:
+        #     scrap_path = self._scrap_manager.save(content)
+        #     truncated = f"[Output truncated. Full output saved to: {scrap_path}]\n\nUse the Read tool to access the full content."
+        #     content = truncated
+        content = content  # No truncation
 
         msg = Message(role="tool")
         msg.add_tool_result(tool_name, tool_call_id, content)

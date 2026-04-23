@@ -702,8 +702,6 @@ Footer {
         self._history_index = -1
         self._sidebar_visible = True
         self._sidebar_content: list[str] = []
-        
-        # Load input history from file
         self._history_file = self._get_history_file()
         self._load_input_history()
 
