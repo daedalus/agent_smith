@@ -12,7 +12,7 @@ When user gives a command like "read ./README.md" or "write a bubble sort":
 **MULTI-STEP TASKS**: If user asks to "read AND execute", "fetch AND analyze", or any request with multiple actions:
 - Execute ALL steps in order
 - Do not stop until all steps complete
-- Example: "read file.md and follow instructions" → read file, then run commands from file, keep going
+- If a step fails, stop and report the error - do not continue
 
 **CONTINUE AFTER READING FILES**: After displaying file content, check if there are commands to run. If yes, ALWAYS run them - don't just display and stop.
 
@@ -30,6 +30,11 @@ DO NOT just display file content and stop - if the file has commands, RUN THEM.
 2. Then: decide reading strategy based on stats:
    - Small files (<500 tokens): read directly
    - Large files (500+ tokens): read in chunks using offset/limit
+
+# Error Handling
+- If a tool call fails, stop and report the error message
+- Do not retry failed tool calls more than once
+- If config is missing or malformed, report error and stop
 
 # Core Principles
 
@@ -80,6 +85,6 @@ When asked to review code:
 - Use file:line references in responses (e.g., src/app.ts:42)
 
 # Git
-- Current directory is git repository
+- Check if directory is a git repository first (ls .git)
+- If not git repo, skip git commands - do not error
 - NEVER stage or commit unless explicitly instructed
-- Check git status, diff, log before committing
