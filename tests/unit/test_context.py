@@ -324,3 +324,104 @@ class TestModelLimits:
         defaults = ModelLimits.DEFAULT_LIMITS
         assert "gpt-4o" in defaults
         assert "default" in defaults
+
+
+class TestContextOverflowDetection:
+    """Test context overflow detection methods."""
+
+    def test_token_counting_for_overflow(self):
+        """Test token counting for overflow detection."""
+        manager = ContextManager(max_tokens=1000)
+        manager.set_system_prompt("System prompt " * 100)
+
+        for i in range(5):
+            manager.add_message("user", f"User message {i} " * 50)
+            manager.add_message("assistant", f"Response {i} " * 50)
+            manager.add_tool_result("bash", f"call_{i}", f"Result {i} " * 100)
+
+        usage = manager.get_token_usage()
+        assert usage["current_tokens"] > 0
+        assert usage["context_limit"] == 128000  # default for gpt-4o
+
+    def test_usable_context_calculation(self):
+        """Test usable context is context minus reserved."""
+        manager = ContextManager(max_tokens=8000)
+        usage = manager.get_token_usage()
+
+        assert usage["usable_context"] == usage["context_limit"] - usage["reserved_tokens"]
+
+    def test_overflow_detection_threshold(self):
+        """Test overflow is detected when tokens approach limit."""
+        manager = ContextManager(max_tokens=1000)
+        manager.set_system_prompt("x" * 1000)
+
+        usage = manager.get_token_usage()
+        # With a small max_tokens, adding a long message should exceed it
+        manager.add_message("user", "y" * 10000)
+
+        usage2 = manager.get_token_usage()
+        # Token count should have increased significantly
+        assert usage2["current_tokens"] > usage["current_tokens"]
+
+
+class TestSlidingWindowStrategy:
+    """Test sliding window strategy."""
+
+    def test_sliding_window_preserves_recent(self):
+        """Test sliding window preserves recent messages."""
+        manager = ContextManager(
+            max_tokens=500,
+            strategy=ContextStrategy.SLIDING_WINDOW,
+            preserve_last_n=2
+        )
+        manager.set_system_prompt("System")
+
+        for i in range(10):
+            manager.add_message("user", f"User {i}")
+            manager.add_message("assistant", f"Assistant {i}")
+
+        messages = manager.prepare_messages()
+        # Should have system + recent messages
+        roles = [m.get("role") for m in messages]
+        assert "system" in roles
+        # Recent messages should be present
+        assert "assistant" in roles
+
+    def test_sliding_window_with_tool_results(self):
+        """Test sliding window handles tool results correctly."""
+        manager = ContextManager(
+            max_tokens=1000,
+            strategy=ContextStrategy.SLIDING_WINDOW,
+            preserve_last_n=3
+        )
+        manager.set_system_prompt("System")
+
+        for i in range(5):
+            manager.add_message("user", f"User {i}")
+            manager.add_message("assistant", None, tool_calls=[{"id": f"tc_{i}", "name": "test"}])
+            manager.add_tool_result("test", f"tc_{i}", f"Result {i}")
+
+        messages = manager.prepare_messages()
+        # Tool results should be included for recent assistant messages
+        tool_msgs = [m for m in messages if m.get("role") == "tool"]
+        assert len(tool_msgs) > 0
+
+
+class TestCompactionStrategy:
+    """Test compaction strategy."""
+
+    def test_compaction_strategy_available(self):
+        """Test compaction strategy is available."""
+        manager = ContextManager(
+            max_tokens=1000,
+            strategy=ContextStrategy.COMPACTION
+        )
+        assert manager.strategy == ContextStrategy.COMPACTION
+
+    def test_topic_id_strategy_available(self):
+        """Test topic ID strategy is available."""
+        manager = ContextManager(
+            max_tokens=1000,
+            strategy=ContextStrategy.TOPIC_ID
+        )
+        assert manager.strategy == ContextStrategy.TOPIC_ID

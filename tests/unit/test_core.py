@@ -4,6 +4,156 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+class TestLongHorizonConstants:
+    """Test long horizon task constants."""
+
+    def test_max_steps_message_defined(self):
+        """Test MAX_STEPS_MESSAGE is defined."""
+        from nanocode.core import MAX_STEPS_MESSAGE
+        assert MAX_STEPS_MESSAGE is not None
+        assert len(MAX_STEPS_MESSAGE) > 0
+
+    def test_max_steps_message_contains_critical(self):
+        """Test MAX_STEPS_MESSAGE contains CRITICAL."""
+        from nanocode.core import MAX_STEPS_MESSAGE
+        assert "CRITICAL" in MAX_STEPS_MESSAGE
+        assert "MAXIMUM STEPS REACHED" in MAX_STEPS_MESSAGE
+
+    def test_max_steps_message_forbids_tools(self):
+        """Test MAX_STEPS_MESSAGE forbids tool calls."""
+        from nanocode.core import MAX_STEPS_MESSAGE
+        assert "Do NOT make any tool calls" in MAX_STEPS_MESSAGE
+
+    def test_max_steps_message_requires_summary(self):
+        """Test MAX_STEPS_MESSAGE requires summary."""
+        from nanocode.core import MAX_STEPS_MESSAGE
+        assert "summarizing work done so far" in MAX_STEPS_MESSAGE
+
+    def test_auto_continue_message_defined(self):
+        """Test AUTO_CONTINUE_MESSAGE is defined."""
+        from nanocode.core import AUTO_CONTINUE_MESSAGE
+        assert AUTO_CONTINUE_MESSAGE is not None
+        assert len(AUTO_CONTINUE_MESSAGE) > 0
+
+    def test_auto_continue_message_contains_continue(self):
+        """Test AUTO_CONTINUE_MESSAGE contains continue instruction."""
+        from nanocode.core import AUTO_CONTINUE_MESSAGE
+        assert "Continue" in AUTO_CONTINUE_MESSAGE
+        assert "next steps" in AUTO_CONTINUE_MESSAGE
+
+    def test_overflow_continue_message_defined(self):
+        """Test OVERFLOW_CONTINUE_MESSAGE is defined."""
+        from nanocode.core import OVERFLOW_CONTINUE_MESSAGE
+        assert OVERFLOW_CONTINUE_MESSAGE is not None
+        assert "exceeded" in OVERFLOW_CONTINUE_MESSAGE
+
+
+class TestRetryConstants:
+    """Test retry constants."""
+
+    def test_retry_initial_delay_defined(self):
+        """Test RETRY_INITIAL_DELAY is defined."""
+        from nanocode.core import RETRY_INITIAL_DELAY
+        assert RETRY_INITIAL_DELAY == 2.0
+
+    def test_retry_backoff_factor_defined(self):
+        """Test RETRY_BACKOFF_FACTOR is defined."""
+        from nanocode.core import RETRY_BACKOFF_FACTOR
+        assert RETRY_BACKOFF_FACTOR == 2
+
+    def test_retry_max_delay_defined(self):
+        """Test RETRY_MAX_DELAY is defined."""
+        from nanocode.core import RETRY_MAX_DELAY
+        assert RETRY_MAX_DELAY == 30.0
+
+
+class TestCalculateRetryDelay:
+    """Test retry delay calculation."""
+
+    def test_first_attempt_delay(self):
+        """Test first attempt delay equals initial delay."""
+        from nanocode.core import calculate_retry_delay, RETRY_INITIAL_DELAY
+        delay = calculate_retry_delay(1)
+        assert delay == RETRY_INITIAL_DELAY
+
+    def test_exponential_backoff(self):
+        """Test exponential backoff between attempts."""
+        from nanocode.core import calculate_retry_delay
+        delay1 = calculate_retry_delay(1)
+        delay2 = calculate_retry_delay(2)
+        delay3 = calculate_retry_delay(3)
+        assert delay2 > delay1
+        assert delay3 > delay2
+
+    def test_respects_max_delay(self):
+        """Test delay caps at max delay."""
+        from nanocode.core import calculate_retry_delay, RETRY_MAX_DELAY
+        delay = calculate_retry_delay(100)  # Very high attempt
+        assert delay == RETRY_MAX_DELAY
+
+    def test_respects_retry_after_header_ms(self):
+        """Test respects retry-after-ms header."""
+        from nanocode.core import calculate_retry_delay
+        delay = calculate_retry_delay(1, "retry-after-ms: 5000")
+        assert delay == 5.0
+
+    def test_respects_retry_after_header_seconds(self):
+        """Test respects retry-after header in seconds."""
+        from nanocode.core import calculate_retry_delay
+        delay = calculate_retry_delay(1, "retry-after: 10")
+        assert delay == 10.0
+
+
+class TestIsRetryableError:
+    """Test retryable error detection."""
+
+    def test_context_overflow_not_retryable(self):
+        """Test context overflow is not retryable."""
+        from nanocode.core import is_retryable_error
+        err = Exception("context overflow error")
+        retryable, reason = is_retryable_error(err)
+        assert retryable is False
+        assert reason is None
+
+    def test_5xx_error_retryable(self):
+        """Test 5xx errors are retryable."""
+        from nanocode.core import is_retryable_error
+        err = Exception("status_code: 503 Service Unavailable")
+        retryable, reason = is_retryable_error(err)
+        assert retryable is True
+        assert "Server error" in reason
+
+    def test_rate_limit_retryable(self):
+        """Test rate limit errors are retryable."""
+        from nanocode.core import is_retryable_error
+        err = Exception("rate limit exceeded")
+        retryable, reason = is_retryable_error(err)
+        assert retryable is True
+        assert "Rate limited" in reason
+
+    def test_too_many_requests_retryable(self):
+        """Test too many requests is retryable."""
+        from nanocode.core import is_retryable_error
+        err = Exception("Too many requests, please wait")
+        retryable, reason = is_retryable_error(err)
+        assert retryable is True
+
+    def test_overloaded_retryable(self):
+        """Test overloaded error is retryable."""
+        from nanocode.core import is_retryable_error
+        err = Exception("Provider is overloaded")
+        retryable, reason = is_retryable_error(err)
+        assert retryable is True
+        assert "overloaded" in reason.lower()
+
+    def test_transient_error_retryable(self):
+        """Test generic transient errors are retryable."""
+        from nanocode.core import is_retryable_error
+        err = Exception("temporary failure")
+        retryable, reason = is_retryable_error(err)
+        assert retryable is True
+
+
 class TestRichColorCore:
     """Test RichColor enum in core.py."""
 

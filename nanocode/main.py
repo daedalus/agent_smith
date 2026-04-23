@@ -179,9 +179,11 @@ def parse_args():
         help="Show messages exchanged with the LLM",
     )
     parser.add_argument(
-        "--debug-logging",
-        action="store_true",
-        help="Enable debug logging",
+        "--debug",
+        "-d",
+        type=str,
+        default=None,
+        help="Enable debug logging: agent, tools, cache, context, llm, tui, all (comma-separated)",
     )
     parser.add_argument(
         "--log-file",
@@ -427,18 +429,48 @@ async def main():
     gui_show_thinking = True if gui_mode == "textual" else show_thinking
 
     import logging
-    
+
     log_file = getattr(args, "log_file", None)
-    
-    # Always configure file logging (to capture debug output for TUI)
-    # Only add StreamHandler when --debug-logging is explicitly passed
-    if log_file or getattr(args, "debug_logging", False) or gui_mode == "textual":
+    debug_arg = getattr(args, "debug", None)
+
+    def _configure_debug_logging(concerns: list[str]):
+        """Configure logging for specified concerns."""
+        valid_concerns = {"agent", "tools", "cache", "context", "llm", "tui", "all"}
+        if "all" in concerns:
+            level = logging.DEBUG
+        else:
+            level = logging.DEBUG
+
         handlers = [logging.FileHandler(log_file) if log_file else logging.FileHandler("/tmp/nanocode.log")]
-        
-        # Only add StreamHandler if --debug-logging is explicitly passed
-        if getattr(args, "debug_logging", False):
-            handlers.append(logging.StreamHandler())
-        
+
+        # Only add StreamHandler when --debug is used
+        handlers.append(logging.StreamHandler())
+
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+            handlers=handlers,
+        )
+
+        if "all" not in concerns:
+            for name in logging.Logger.manager.loggerDict:
+                logger = logging.getLogger(name)
+                if not any(c in name for c in concerns):
+                    logger.setLevel(logging.WARNING)
+
+    # Configure logging based on --debug and --log-file
+    should_debug = debug_arg or log_file or gui_mode == "textual"
+    if debug_arg:
+        concerns = [c.strip().lower() for c in debug_arg.split(",")]
+        invalid = set(concerns) - {"agent", "tools", "cache", "context", "llm", "tui", "all"}
+        if invalid:
+            print(f"Warning: Unknown debug concerns: {invalid}. Valid options: agent, tools, cache, context, llm, tui, all")
+            concerns = [c for c in concerns if c in {"agent", "tools", "cache", "context", "llm", "tui", "all"}]
+            if not concerns:
+                concerns = ["all"]
+        _configure_debug_logging(concerns)
+    elif log_file or gui_mode == "textual":
+        handlers = [logging.FileHandler(log_file) if log_file else logging.FileHandler("/tmp/nanocode.log")]
         logging.basicConfig(
             level=logging.DEBUG,
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",

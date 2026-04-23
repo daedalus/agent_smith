@@ -2,7 +2,6 @@
 
 import json
 import os
-import sys
 import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -520,15 +519,6 @@ class ContextManager:
         max_scrap_size: int = 5000,
     ):
         """Add a tool result message, using scrap for large content."""
-        tokens = TokenCounter.count_tokens(content)
-
-        # Disable truncation to avoid 400 errors with Minimax
-        # if tokens > 5000:
-        #     scrap_path = self._scrap_manager.save(content)
-        #     truncated = f"[Output truncated. Full output saved to: {scrap_path}]\n\nUse the Read tool to access the full content."
-        #     content = truncated
-        content = content  # No truncation
-
         msg = Message(role="tool")
         msg.add_tool_result(tool_name, tool_call_id, content)
         self._messages.append(msg)
@@ -622,11 +612,6 @@ class ContextManager:
         """Get messages in format for LLM API."""
         result = []
 
-        # DEBUG: Print internal messages
-        print(f"DEBUG _get_messages: internals has {len(self._messages)} messages:")
-        for i, m in enumerate(self._messages):
-            print(f"  [{i}] {m.role}: {str(m.get_text_content())[:50]}...")
-        
         if self._system_parts and self.preserve_system:
             result.append(
                 {
@@ -635,14 +620,11 @@ class ContextManager:
                 }
             )
 
-        # Find the LAST assistant message with tool_calls in the filtered result
-        # Only include tool results for that specific assistant message
         result_msgs = []
         last_tool_call_ids = set()
-        
+
         for msg in self._messages:
             msg_dict = msg.to_dict()
-            # Track tool_call_ids from assistant messages
             if msg_dict.get("role") == "assistant" and msg_dict.get("tool_calls"):
                 last_tool_call_ids = set()
                 for tc in msg_dict.get("tool_calls", []):
@@ -651,21 +633,12 @@ class ContextManager:
                         last_tool_call_ids.add(tid)
             result_msgs.append((msg_dict, last_tool_call_ids))
 
-        # Now filter: only include tool results if they match the most recent assistant's tool_calls
         for msg_dict, valid_tc_ids in result_msgs:
             if msg_dict.get("role") == "tool":
                 tid = msg_dict.get("tool_call_id")
                 if tid and valid_tc_ids and tid not in valid_tc_ids:
                     continue
             result.append(msg_dict)
-
-        # DEBUG: log tool call IDs being sent
-        for msg in result:
-            if msg.get("role") == "assistant" and msg.get("tool_calls"):
-                tcs = [tc.get("id") if isinstance(tc, dict) else tc.id for tc in msg.get("tool_calls", [])]
-                print(f"DEBUG: Sending assistant with tool_calls: {tcs}")
-            if msg.get("role") == "tool":
-                print(f"DEBUG: Sending tool result with tool_call_id: {msg.get('tool_call_id')}")
 
         return result
 
@@ -745,54 +718,26 @@ class ContextManager:
 
     def _sliding_window(self) -> list[dict]:
         """Apply sliding window strategy."""
-        if self._system_parts and self.preserve_system:
-            system_tokens = sum(p.tokens for p in self._system_parts)
-        else:
-            system_tokens = 0
-
         recent_messages = (
             self._messages[-self.preserve_last_n:] if self._messages else []
         )
 
-        result_messages = []
-        current_tokens = 0
-
-        if self._system_parts and self.preserve_system:
-            system_tokens = sum(p.tokens for p in self._system_parts)
-        else:
-            system_tokens = 0
-
-        recent_messages = (
-            self._messages[-self.preserve_last_n:] if self._messages else []
-        )
-
-        result_messages = []
-        current_tokens = 0  # Don't count system tokens for recent messages
-
-        for msg in reversed(recent_messages):
-            result_messages.insert(0, msg)
-            current_tokens += msg.tokens
+        result_messages = list(recent_messages)
+        current_tokens = sum(msg.tokens for msg in recent_messages)
 
         older = (
             [m for m in self._messages[:-self.preserve_last_n]]
             if self.preserve_last_n > 0
             else self._messages
         )
-        
-        # Only apply token limit to older messages
+
         token_limit = self.max_tokens - self._token_buffer
+        system_offset = 1 if self._system_parts and self.preserve_system else 0
 
         for msg in reversed(older):
             if current_tokens + msg.tokens > token_limit:
                 continue
-            result_messages.insert(
-                (
-                    len([m for m in result_messages if m.role == "system"]) + 1
-                    if self._system_parts and self.preserve_system
-                    else 1
-                ),
-                msg,
-            )
+            result_messages.insert(system_offset, msg)
             current_tokens += msg.tokens
 
         return self._messages_to_dict(result_messages)
@@ -800,67 +745,30 @@ class ContextManager:
     def _messages_to_dict(self, messages: list[Message]) -> list[dict]:
         """Convert messages to dict format."""
         result = []
-        
+
         if self._system_parts and self.preserve_system:
             result.append({
                 "role": "system",
                 "content": " ".join(p.content for p in self._system_parts),
             })
-        
-        for msg in messages:
-            msg_dict = msg.to_dict()
-            # Only include tool results if they match the most recent assistant's tool_calls
-            if msg_dict.get("role") == "tool":
-                tid = msg_dict.get("tool_call_id")
-                if tid:
-                    result.append(msg_dict)
-            else:
-                result.append(msg_dict)
-        
-        return result
 
-    def _get_messages_for_llm(self) -> list[dict]:
-        """Get messages in format for LLM API."""
-        result = []
-
-        if self._system_parts and self.preserve_system:
-            result.append(
-                {
-                    "role": "system",
-                    "content": " ".join(p.content for p in self._system_parts),
-                }
-            )
-
-        # Track tool_call_ids as we iterate - only include tool results for the most recent assistant message
-        result_msgs = []
         last_tool_call_ids = set()
 
         for msg in messages:
             msg_dict = msg.to_dict()
-            # Track tool_call_ids from assistant messages - reset when we see new assistant with tool_calls
             if msg_dict.get("role") == "assistant" and msg_dict.get("tool_calls"):
                 last_tool_call_ids = set()
                 for tc in msg_dict.get("tool_calls", []):
                     tid = tc.get("id") if isinstance(tc, dict) else tc.id
                     if tid:
                         last_tool_call_ids.add(tid)
-            result_msgs.append((msg_dict, last_tool_call_ids))
-
-        # Filter: only include tool results if they match the most recent assistant's tool_calls
-        for msg_dict, valid_tc_ids in result_msgs:
-            if msg_dict.get("role") == "tool":
+                result.append(msg_dict)
+            elif msg_dict.get("role") == "tool":
                 tid = msg_dict.get("tool_call_id")
-                if tid and valid_tc_ids and tid not in valid_tc_ids:
-                    continue
-            result.append(msg_dict)
-
-        # DEBUG: log tool call IDs being sent
-        for msg in result:
-            if msg.get("role") == "assistant" and msg.get("tool_calls"):
-                tcs = [tc.get("id") if isinstance(tc, dict) else tc.id for tc in msg.get("tool_calls", [])]
-                print(f"DEBUG: Sending assistant with tool_calls: {tcs}")
-            if msg.get("role") == "tool":
-                print(f"DEBUG: Sending tool result with tool_call_id: {msg.get('tool_call_id')}")
+                if not tid or tid in last_tool_call_ids:
+                    result.append(msg_dict)
+            else:
+                result.append(msg_dict)
 
         return result
 

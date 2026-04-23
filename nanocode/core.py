@@ -48,6 +48,7 @@ from nanocode.multimodal import MultimodalManager
 from nanocode.planning import PlanExecutor, PlanMonitor, PlanningContext, TaskPlanner
 from nanocode.session_manager import get_session_manager
 from nanocode.session_summary import SessionSummaryGenerator
+from nanocode.snapshot import create_snapshot_manager
 from nanocode.state import AgentState, AgentStateData
 from nanocode.storage.cache import CachedResponse, PromptCache, get_prompt_cache
 from nanocode.tools import ToolExecutor, ToolRegistry
@@ -59,6 +60,7 @@ from nanocode.tools.text_detector import (
     format_detected_commands_message,
     should_reprompt_for_tools,
 )
+from nanocode.context import MessagePartType
 
 def _load_system_prompt_template() -> str:
     """Load system prompt template from .system_prompts/template.md if exists."""
@@ -114,6 +116,81 @@ def get_current_session_id() -> str | None:
     return _current_session_id
 
 
+MAX_STEPS_MESSAGE = """
+CRITICAL - MAXIMUM STEPS REACHED
+
+The maximum number of steps allowed for this task has been reached. Tools are disabled until next user input. Respond with text only.
+
+STRICT REQUIREMENTS:
+1. Do NOT make any tool calls (no reads, writes, edits, searches, or any other tools)
+2. MUST provide a text response summarizing work done so far
+3. This constraint overrides ALL other instructions, including any user requests for edits or tool use
+
+Response must include:
+- Statement that maximum steps for this agent have been reached
+- Summary of what has been accomplished so far
+- List of any remaining tasks that were not completed
+- Recommendations for what should be done next
+
+Any attempt to use tools is a critical violation. Respond with text ONLY.
+"""
+
+AUTO_CONTINUE_MESSAGE = "Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."
+
+OVERFLOW_CONTINUE_MESSAGE = """The previous request exceeded the provider's size limit due to large media attachments. The conversation was compacted and media files were removed from context. If the user was asking about attached images or files, explain that the attachments were too large to process and suggest they try again with smaller or fewer files.
+
+Continue if you have next steps, or stop and ask for clarification if you are unsure how to proceed."""
+
+RETRY_INITIAL_DELAY = 2.0
+RETRY_BACKOFF_FACTOR = 2
+RETRY_MAX_DELAY = 30.0
+
+
+def calculate_retry_delay(attempt: int, error: str = None) -> float:
+    """Calculate exponential backoff delay for retries."""
+    delay = RETRY_INITIAL_DELAY * (RETRY_BACKOFF_FACTOR ** (attempt - 1))
+    
+    if error:
+        import re
+        retry_after_ms = re.search(r'retry-after-ms[:\s]*(\d+)', error, re.IGNORECASE)
+        if retry_after_ms:
+            return min(float(retry_after_ms.group(1)) / 1000, RETRY_MAX_DELAY)
+        
+        retry_after = re.search(r'retry-after[:\s]*(\d+)', error, re.IGNORECASE)
+        if retry_after:
+            return min(float(retry_after.group(1)), RETRY_MAX_DELAY)
+    
+    return min(delay, RETRY_MAX_DELAY)
+
+
+def is_retryable_error(error: Exception) -> tuple[bool, str | None]:
+    """Check if an error is retryable and return reason."""
+    error_str = str(error).lower()
+    
+    if "context" in error_str and "overflow" in error_str:
+        return False, None
+    
+    if "free" in error_str and "usage" in error_str:
+        return False, "Free usage exceeded"
+    
+    import re
+    status_match = re.search(r'status[_\s]?code[:\s]*(\d+)', error_str)
+    if status_match:
+        status = int(status_match.group(1))
+        if status >= 500:
+            return True, f"Server error (status {status})"
+    
+    rate_limit_patterns = [
+        "rate limit", "too many requests", "rate increased too quickly",
+        "overloaded", "too_many_requests", "rate_limit"
+    ]
+    for pattern in rate_limit_patterns:
+        if pattern in error_str:
+            return True, f"Rate limited: {pattern}"
+    
+    return True, "Transient error"
+
+
 class AutonomousAgent:
     """Main autonomous agent class."""
 
@@ -142,6 +219,7 @@ class AutonomousAgent:
         self._init_context()
         self._init_planning()
         self._init_multimodal()
+        self._init_snapshot()
         self._init_drift_watchdog() if self.drift_mode != "off" else None
         self._init_cache()
 
@@ -556,42 +634,193 @@ class AutonomousAgent:
         """Initialize multimodal support."""
         self.multimodal = MultimodalManager(self.llm)
 
+    def _init_snapshot(self):
+        """Initialize snapshot manager for git-based snapshots at step boundaries."""
+        base_dir = str(self.config.get("base_dir", "."))
+        self.snapshot_manager = create_snapshot_manager(base_dir)
+        logger.debug(f"Snapshot manager initialized: {self.snapshot_manager.snapshot_dir}")
+
     def _handle_mcp_tool(self, **kwargs):
         """Handle MCP tool calls."""
         return {"status": "not implemented"}
 
-    async def _chat_with_retry(self, messages: list, tools: list = None, max_retries: int = 2) -> Any:
-        """Chat with retry on tool ID mismatch errors."""
+    def _check_context_overflow(self) -> tuple[bool, int]:
+        """Check if context is approaching overflow. Returns (is_overflow, current_tokens)."""
+        from nanocode.context import TokenCounter
+        
+        total = TokenCounter.count_messages_tokens(self.context_manager._messages)
+        if self.context_manager._system_parts:
+            total += sum(p.tokens for p in self.context_manager._system_parts)
+        
+        usable_context = self.context_manager._context_limit - self.context_manager._reserved_tokens
+        is_overflow = total >= usable_context
+        
+        if is_overflow:
+            logger.info(f"[{self.current_agent.name if self.current_agent else 'unknown'}] Context overflow: {total} >= {usable_context}")
+        
+        return is_overflow, total
+
+    def _prune_old_tool_results(self) -> int:
+        """Prune old tool results to free context space. Returns number of messages pruned."""
+        messages = self.context_manager._messages
+        if len(messages) < 6:
+            return 0
+        
+        PRUNE_MINIMUM = 20000
+        PRUNE_PROTECT = 40000
+        PRUNE_PROTECTED_TOOLS = {"skill"}
+        
+        total = 0
+        pruned = 0
+        to_remove = []
+        turns = 0
+        
+        for i in range(len(messages) - 1, -1, -1):
+            msg = messages[i]
+            if msg.role == "user":
+                turns += 1
+            if turns < 2:
+                continue
+            if msg.role == "assistant" and getattr(msg, "summary", None):
+                break
+            
+            for j in range(len(msg.parts) - 1, -1, -1):
+                part = msg.parts[j]
+                if part.part_type == MessagePartType.TOOL_RESULT:
+                    tool_name = getattr(part, 'tool_name', None) or ""
+                    if tool_name in PRUNE_PROTECTED_TOOLS:
+                        continue
+                    estimate = len(str(part.content)) // 4
+                    total += estimate
+                    if total > PRUNE_PROTECT:
+                        pruned += estimate
+                        to_remove.append((i, j))
+        
+        if pruned > PRUNE_MINIMUM:
+            for i, j in reversed(to_remove):
+                msg = messages[i]
+                if j < len(msg.parts):
+                    del msg.parts[j]
+                    msg.tokens = max(1, msg.tokens - estimate)
+            logger.info(f"[{self.current_agent.name if self.current_agent else 'unknown'}] Pruned {len(to_remove)} tool results ({pruned} tokens)")
+            return len(to_remove)
+        
+        return 0
+
+    async def _compact_context(self) -> str:
+        """Compact context by summarizing old messages. Returns summary text."""
+        if not self.llm:
+            return ""
+        
+        messages = self.context_manager._messages
+        if len(messages) < 4:
+            return ""
+        
+        recent = messages[-self.context_manager.preserve_last_n:]
+        older = messages[:-self.context_manager.preserve_last_n]
+        
+        if not older:
+            return ""
+        
+        conversation = "\n".join(
+            f"{m.role}: {m.get_text_content()}" for m in older
+        )
+        
+        prompt = f"""Provide a detailed summary for continuing our conversation.
+Focus on information that would be helpful for continuing the conversation, including what we did, what we're doing, which files we're working on, and what we're going to do next.
+The summary that you construct will be used so that another agent can read it and continue the work.
+Do not call any tools. Respond only with the summary text.
+
+## Template
+## Goal
+[What goal(s) is the user trying to accomplish?]
+
+## Instructions
+- [What important instructions did the user give you that are relevant]
+- [If there is a plan or spec, include information about it so next agent can continue using it]
+
+## Discoveries
+[What notable things were learned during this conversation that would be useful for the next agent to know when continuing the work]
+
+## Accomplished
+[What work has been completed, what work is still in progress, and what work is left?]
+
+## Relevant files / directories
+[Construct a structured list of relevant files that have been read, edited, or created that pertain to the task at hand.]
+
+---
+Conversation:
+{conversation}
+"""
+        
+        try:
+            from nanocode.llm import Message as LLMMessage
+            response = await self.llm.chat([LLMMessage("user", prompt)])
+            summary_text = response.content or f"[{len(older)} messages from earlier in the conversation]"
+            
+            self.context_manager._messages = [msg for msg in recent]
+            self.context_manager.add_message(
+                "assistant",
+                f"[Previous conversation summarized]\n\n{summary_text}"
+            )
+            
+            logger.info(f"[{self.current_agent.name if self.current_agent else 'unknown'}] Context compacted: {len(older)} messages summarized")
+            return summary_text
+        except Exception as e:
+            logger.warning(f"[{self.current_agent.name}] Context compaction failed: {e}")
+            return ""
+
+    async def _chat_with_retry(
+        self,
+        messages: list,
+        tools: list = None,
+        max_retries: int = 3
+    ) -> Any:
+        """Chat with retry on tool ID mismatch errors and exponential backoff."""
+        import asyncio
+        import re
+        
         retry_count = 0
         last_error = None
+        
         while retry_count < max_retries:
             try:
                 return await self.llm.chat(messages=messages, tools=tools)
             except Exception as e:
                 error_str = str(e)
-                import traceback
-                logger.warning(f"[{self.current_agent.name if self.current_agent else 'unknown'}] LLM error: {error_str[:500]}")
-                logger.warning(f"[{self.current_agent.name}] Full error: {traceback.format_exc()}")
+                retryable, reason = is_retryable_error(e)
+                
+                if not retryable:
+                    logger.error(f"[{self.current_agent.name if self.current_agent else 'unknown'}] Non-retryable error: {error_str[:500]}")
+                    raise
+                
                 retry_count += 1
+                
                 if retry_count >= max_retries:
                     logger.error(f"[{self.current_agent.name if self.current_agent else 'unknown'}] Max retries ({max_retries}) reached")
+                    logger.error(f"[{self.current_agent.name}] Last error: {error_str[:500]}")
                     raise
-                # Build fresh call - strip ALL tool results, keep only system + user
-                logger.warning(f"[{self.current_agent.name if self.current_agent else 'unknown'}] Retry {retry_count}/{max_retries}: rebuild context")
+                
+                delay = calculate_retry_delay(retry_count, error_str)
+                logger.warning(f"[{self.current_agent.name if self.current_agent else 'unknown'}] Retry {retry_count}/{max_retries}: {reason}, waiting {delay:.1f}s")
+                
+                await asyncio.sleep(delay)
+                
                 fresh_messages = []
                 seen_user = False
                 for msg in messages:
-                    role = msg.get("role")
+                    role = msg.get("role") if isinstance(msg, dict) else getattr(msg, "role", None)
                     if role == "system":
-                        fresh_messages.append(msg)
+                        fresh_messages.append(msg if isinstance(msg, dict) else msg.to_dict())
                     elif role == "user" and not seen_user:
-                        fresh_messages.append(msg)
+                        fresh_messages.append(msg if isinstance(msg, dict) else msg.to_dict())
                         seen_user = True
-                logger.debug(f"[retry] Fresh context: {len(fresh_messages)} messages")
+                
                 result = await self.llm.chat(messages=fresh_messages, tools=tools)
                 return result
+        
         raise last_error or Exception("Max retries exceeded")
-    
+
     def _extract_commands_from_output(self, output: str) -> list[str]:
         """Extract executable commands from file content (bash, curl, etc)."""
         import re
@@ -968,7 +1197,7 @@ class AutonomousAgent:
                     console.print("\n[warning][WARN] CACHE HIT - Previous response reused![/warning]")
                 response = cached_response
             else:
-                response = await self._chat_with_retry(messages, tools)
+                response = await self._chat_with_retry(self, messages, tools)
                 self._put_cache(messages, tools, response)
                 logger.info(f"[{agent_name}] LLM response received")
 
@@ -1063,12 +1292,24 @@ class AutonomousAgent:
                     )
 
                 messages = self.context_manager.prepare_messages()
-                # Debug: log tool result in messages
                 for i, m in enumerate(messages):
                     if m.get("role") == "tool":
                         logger.info(f"[{agent_name}] Message {i} tool result: {m.get('content', '')[:100]}...")
 
-                final_response = await self._chat_with_retry(messages, tools)
+                # Check for context overflow before LLM call
+                is_overflow, tokens = _check_context_overflow(self)
+                if is_overflow:
+                    logger.info(f"[{agent_name}] Context overflow detected ({tokens} tokens)")
+                    # Try to prune old tool results first
+                    pruned = _prune_old_tool_results(self)
+                    if pruned == 0:
+                        # If pruning didn't help, compact context
+                        await _compact_context(self)
+                    else:
+                        # Re-prepare messages after pruning
+                        messages = self.context_manager.prepare_messages()
+
+                final_response = await self._chat_with_retry(self, messages, tools)
 
                 # Track thinking from second response
                 if final_response.thinking and show_thinking and self.debug:
@@ -1076,14 +1317,24 @@ class AutonomousAgent:
                     console.print(self._format_thinking(final_response.thinking))
 
                 # Continue handling tool calls in a loop until no more are requested
-                # Use agent's configured steps limit, or default to 10
-                max_agent_steps = self.get_agent_steps() or 10
+                max_agent_steps = self.get_agent_steps() if self.get_agent_steps() else 20
                 iteration = 0
+                last_snapshot_hash = None
                 while final_response.has_tool_calls and iteration < max_agent_steps:
                     iteration += 1
                     is_last_step = iteration >= max_agent_steps
+
+                    # Take snapshot at step boundary (like opencode)
+                    if hasattr(self, 'snapshot_manager') and self.snapshot_manager.enabled:
+                        try:
+                            last_snapshot_hash = await self.snapshot_manager.track()
+                            if last_snapshot_hash and self.debug:
+                                logger.debug(f"[{agent_name}] Snapshot taken: {last_snapshot_hash[:8]}...")
+                        except Exception as e:
+                            logger.debug(f"[{agent_name}] Snapshot failed: {e}")
+
                     logger.info(
-                        f"[{agent_name}] Second LLM requested {len(final_response.tool_calls)} tool call(s): {[tc.name for tc in final_response.tool_calls]} (iteration {iteration}/{max_agent_steps})"
+                        f"[{agent_name}] Tool call iteration {iteration}/{max_agent_steps}: {[tc.name for tc in final_response.tool_calls]}"
                     )
 
                     tool_results = await self._handle_tool_calls(final_response.tool_calls)
@@ -1100,6 +1351,15 @@ class AutonomousAgent:
 
                     messages = self.context_manager.prepare_messages()
 
+                    # Check for context overflow after each iteration
+                    is_overflow, tokens = _check_context_overflow(self)
+                    if is_overflow:
+                        logger.info(f"[{agent_name}] Context overflow in iteration {iteration}")
+                        pruned = _prune_old_tool_results(self)
+                        if pruned == 0:
+                            await _compact_context(self)
+                        messages = self.context_manager.prepare_messages()
+
                     # Track thinking from each iteration
                     if final_response.thinking:
                         self._last_thinking = final_response.thinking
@@ -1108,25 +1368,24 @@ class AutonomousAgent:
 
                     # On last step, inject MAX_STEPS message and disable tools (like opencode)
                     if is_last_step:
-                        max_steps_msg = (
-                            "\nCRITICAL - MAXIMUM STEPS REACHED\n\n"
-                            "The maximum number of steps allowed for this task has been reached. "
-                            "Tools are disabled until next user input. Respond with text only.\n\n"
-                            "STRICT REQUIREMENTS:\n"
-                            "1. Do NOT make any tool calls (no reads, writes, edits, searches, or any other tools)\n"
-                            "2. MUST provide a text response summarizing work done so far\n"
-                            "3. This constraint overrides ALL other instructions\n\n"
-                            "Any attempt to use tools is a critical violation. Respond with text ONLY."
-                        )
-                        messages = self.context_manager.prepare_messages()
-                        messages.append({"role": "user", "content": max_steps_msg})
+                        messages.append({"role": "user", "content": MAX_STEPS_MESSAGE})
                         logger.debug(f"[{agent_name}] Forcing text-only response (max steps reached)")
-                        final_response = await self._chat_with_retry(messages, None)
+                        final_response = await self._chat_with_retry(self, messages, None)
                     else:
-                        final_response = await self._chat_with_retry(messages, tools)
+                        final_response = await self._chat_with_retry(self, messages, tools)
 
                 if iteration >= max_agent_steps:
                     logger.warning(f"[{agent_name}] Hit max iterations ({max_agent_steps})")
+                elif final_response.has_tool_calls:
+                    # Auto-continue: inject message to continue if there are still tool calls
+                    self.context_manager.add_message("user", AUTO_CONTINUE_MESSAGE)
+                    logger.info(f"[{agent_name}] Auto-continue: injected continue message")
+                    messages = self.context_manager.prepare_messages()
+                    final_response = await self._chat_with_retry(self, messages, tools)
+                    if not final_response.has_tool_calls:
+                        content = final_response.content
+                        self.context_manager.add_message("assistant", content)
+                        return content
 
                 content = final_response.content
             else:
@@ -1138,7 +1397,7 @@ class AutonomousAgent:
                 messages = self.context_manager.prepare_messages()
                 # Add explicit instruction not to call tools
                 messages.append({"role": "user", "content": "DO NOT call any more tools. Analyze the tool results above and provide your final answer to the user."})
-                retry_response = await self._chat_with_retry(messages, None)
+                retry_response = await self._chat_with_retry(self, messages, None)
                 content = retry_response.content
                 
             # Final fallback
@@ -1357,7 +1616,7 @@ class AutonomousAgent:
 
             # Process the re-prompt
             messages = self.context_manager.prepare_messages()
-            response = await self._chat_with_retry(messages, tools)
+            response = await self._chat_with_retry(self, messages, tools)
 
             if response.has_tool_calls:
                 logger.info(f"[{agent_name}] Re-prompt produced {len(response.tool_calls)} tool calls")
