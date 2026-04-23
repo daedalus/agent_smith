@@ -441,13 +441,10 @@ class AutonomousAgent:
         config_file = str(self.config.config_path) if hasattr(self.config, 'config_path') else "config.yaml"
         system_prompts_dir = Path(cwd) / ".system_prompts"
         
-        # Priority: base.md > template.md > default
+        # Priority: template.md > default
         prompt = SYSTEM_PROMPT_TEMPLATE
         if system_prompts_dir.exists():
-            if (system_prompts_dir / "base.md").exists():
-                prompt = (system_prompts_dir / "base.md").read_text()
-                logger.info(f"Using .system_prompts/base.md")
-            elif (system_prompts_dir / "template.md").exists():
+            if (system_prompts_dir / "template.md").exists():
                 prompt = (system_prompts_dir / "template.md").read_text()
                 logger.info(f"Using .system_prompts/template.md")
         
@@ -484,11 +481,11 @@ class AutonomousAgent:
                 desc = getattr(skill, 'description', '') or ''
                 skill_info.append(f"- {name}: {desc}")
         
-        # Check for additional .system_prompts/*.md files (except base.md/template.md)
+        # Check for additional .system_prompts/*.md files (except template.md)
         extra_prompts = ""
         if system_prompts_dir.exists():
             for f in sorted(system_prompts_dir.glob("*.md")):
-                if f.name not in ("base.md", "template.md"):
+                if f.name not in ("template.md",):
                     extra_prompts += f"\n\n# From {f.name}\n"
                     extra_prompts += f.read_text()
             for f in sorted(system_prompts_dir.glob("*.txt")):
