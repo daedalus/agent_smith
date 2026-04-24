@@ -91,7 +91,7 @@ class OpenAILLM(LLMBase):
             payload["tools"] = tools
 
         def on_retry(error: Exception, attempt: int):
-            print(f"\n{CLI_COLORS.get('yellow', '')}Rate limited, retrying (attempt {attempt})...{CLI_COLORS.get('reset', '')}")
+            print(f"\nRate limited, retrying (attempt {attempt})...")
 
         # DEBUG: Log full request payload only in verbose mode
         if self.debug:
