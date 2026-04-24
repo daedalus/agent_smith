@@ -1185,7 +1185,7 @@ Footer {
     background: #282828;
 }
 #sidebar {
-    width: 20%;
+    width: 25%;
     min-width: 30;
     max-width: 50;
     background: #3c3836;
@@ -1474,35 +1474,38 @@ Footer {
                 if session_id:
                     todos = todo_tool.todo_service.get_todos(session_id)
                     if todos:
-                        lines.append("[#d79921]─ Todos ─[/#d79921]")
+                        from rich.text import Text
+                        lines.append(Text.from_markup("[#d79921]─ Todos ─[/#d79921]"))
                         for t in todos:
                             if t.status == "completed":
-                                icon = "[#98971f]✓[/#98971f]"
+                                icon = Text.from_markup("[#98971f]✓[/#98971f]")
                             elif t.status == "in_progress":
-                                icon = "[#83a598]◐[/#83a598]"
+                                icon = Text.from_markup("[#83a598]◐[/#83a598]")
                             elif t.status == "cancelled":
-                                icon = "[#fb4934]✗[/#fb4934]"
+                                icon = Text.from_markup("[#fb4934]✗[/#fb4934]")
                             else:
-                                icon = "[#928374]○[/#928374]"
+                                icon = Text.from_markup("[#928374]○[/#928374]")
                             content = (
                                 t.content[:30] + "..."
                                 if len(t.content) > 30
                                 else t.content
                             )
-                            lines.append(f"  {icon} {content}")
+                            lines.append(Text(f"  ") + icon + Text(f" {content}"))
             elif todo_tool and hasattr(todo_tool, "tasks"):
                 todo_items = todo_tool.tasks
                 if todo_items:
-                    lines.append("[#d79921]─ Todos ─[/#d79921]")
+                    from rich.text import Text
+                    from rich.text import Text
+                    lines.append(Text.from_markup("[#d79921]─ Todos ─[/#d79921]"))
                     for tid, t in todo_items.items():
                         if t.get("status") == "completed":
-                            icon = "[#98971f]✓[/#98971f]"
+                            icon = Text.from_markup("[#98971f]✓[/#98971f]")
                         elif t.get("status") == "in_progress":
-                            icon = "[#83a598]◐[/#83a598]"
+                            icon = Text.from_markup("[#83a598]◐[/#83a598]")
                         else:
-                            icon = "[#928374]○[/#928374]"
+                            icon = Text.from_markup("[#928374]○[/#928374]")
                         content = t.get("content", "")[:30]
-                        lines.append(f"  {icon} {content}")
+                        lines.append(Text(f"  ") + icon + Text(f" {content}"))
 
         if self.agent:
             if hasattr(self.agent, "_mcp_available"):
