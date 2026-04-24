@@ -2,6 +2,93 @@ admin:
   enabled: true
   host: 127.0.0.1
   port: 7890
+agents:
+  build:
+    - action: allow
+      pattern: '*'
+      permission: '*'
+    - action: ask
+    pattern: '*'
+    permission: doom_loop
+  - action: ask
+    pattern: '*'
+    permission: external_directory
+  - action: allow
+    pattern: ${HOME}/*
+    permission: external_directory
+  - action: deny
+    pattern: '*'
+    permission: question
+  - action: deny
+    pattern: '*'
+    permission: plan_enter
+  - action: deny
+    pattern: '*'
+    permission: plan_exit
+  - action: ask
+    pattern: '*.env'
+    permission: read
+  - action: ask
+    pattern: '*.env.*'
+    permission: read
+  - action: allow
+    pattern: '*.env.example'
+    permission: read
+  - action: allow
+    pattern: '*'
+    permission: task
+  - action: allow
+    pattern: '*'
+    permission: todo
+  plan:
+  - action: allow
+    pattern: '*'
+    permission: '*'
+  - action: ask
+    pattern: '*'
+    permission: doom_loop
+  - action: allow
+    pattern: ${HOME}/.opencode/plans/*
+    permission: external_directory
+  - action: allow
+    pattern: '*'
+    permission: question
+  - action: deny
+    pattern: '*'
+    permission: plan_enter
+  - action: allow
+    pattern: '*'
+    permission: plan_exit
+  - action: deny
+    pattern: '*'
+    permission: edit
+  - action: deny
+    pattern: '*'
+    permission: write
+  - action: deny
+    pattern: '*'
+    permission: patch
+  - action: deny
+    pattern: '*'
+    permission: apply_patch
+  - action: deny
+    pattern: '*'
+    permission: multiedit
+  - action: ask
+    pattern: '*.env'
+    permission: read
+  - action: ask
+    pattern: '*.env.*'
+    permission: read
+  - action: allow
+    pattern: '*.env.example'
+    permission: read
+  - action: allow
+    pattern: '*'
+    permission: todo
+  - action: allow
+    pattern: '*'
+    permission: task
 context:
   max_tokens: 8000
   preserve_last_n: 6
@@ -88,98 +175,11 @@ messaging:
       phone_number_id: ${WHATSAPP_PHONE_NUMBER_ID}
       verify_token: ${WHATSAPP_VERIFY_TOKEN}
       webhook_port: 8080
+permissions: null
 planning:
   checkpoint_enabled: true
   max_retries: 3
   max_steps: 20
-permissions: null
-agents:
-  build:
-  - permission: '*'
-    pattern: '*'
-    action: allow
-  - permission: doom_loop
-    pattern: '*'
-    action: ask
-  - permission: external_directory
-    pattern: '*'
-    action: ask
-  - permission: external_directory
-    pattern: ${HOME}/*
-    action: allow
-  - permission: question
-    pattern: '*'
-    action: deny
-  - permission: plan_enter
-    pattern: '*'
-    action: deny
-  - permission: plan_exit
-    pattern: '*'
-    action: deny
-  - permission: read
-    pattern: '*.env'
-    action: ask
-  - permission: read
-    pattern: '*.env.*'
-    action: ask
-  - permission: read
-    pattern: '*.env.example'
-    action: allow
-  - permission: task
-    pattern: '*'
-    action: allow
-  - permission: todo
-    pattern: '*'
-    action: allow
-  plan:
-  - permission: '*'
-    pattern: '*'
-    action: allow
-  - permission: doom_loop
-    pattern: '*'
-    action: ask
-  - permission: external_directory
-    pattern: ${HOME}/.opencode/plans/*
-    action: allow
-  - permission: question
-    pattern: '*'
-    action: allow
-  - permission: plan_enter
-    pattern: '*'
-    action: deny
-  - permission: plan_exit
-    pattern: '*'
-    action: allow
-  - permission: edit
-    pattern: '*'
-    action: deny
-  - permission: write
-    pattern: '*'
-    action: deny
-  - permission: patch
-    pattern: '*'
-    action: deny
-  - permission: apply_patch
-    pattern: '*'
-    action: deny
-  - permission: multiedit
-    pattern: '*'
-    action: deny
-  - permission: read
-    pattern: '*.env'
-    action: ask
-  - permission: read
-    pattern: '*.env.*'
-    action: ask
-  - permission: read
-    pattern: '*.env.example'
-    action: allow
-  - permission: todo
-    pattern: '*'
-    action: allow
-  - permission: task
-    pattern: '*'
-    action: allow
 snapshot:
   enabled: true
   prune_days: 7

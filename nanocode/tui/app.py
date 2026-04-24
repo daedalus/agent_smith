@@ -1853,7 +1853,7 @@ Footer {
                 else:
                     config = {}
                 
-                # Set default provider
+                # Set default provider (extracted from full_id)
                 if "llm" not in config:
                     config["llm"] = {}
                 config["llm"]["default_provider"] = provider
