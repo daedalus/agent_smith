@@ -10,17 +10,17 @@ class SkillTool(Tool):
     def __init__(self, skills_manager: SkillsManager):
         super().__init__(
             name="skill",
-            description="Execute a custom skill/command defined in .nanocode/skills/",
+            description="Read or execute a custom skill. Pass name=<skill-name> to load skill content, then FOLLOW its instructions. Pass input=<user-request> to pass user input to the skill.",
             parameters={
                 "type": "object",
                 "properties": {
                     "name": {
                         "type": "string",
-                        "description": "Name of the skill to execute",
+                        "description": "Name of the skill to execute (e.g., mcp-builder, skill-creator)",
                     },
                     "input": {
                         "type": "string",
-                        "description": "Input to pass to the skill",
+                        "description": "User's request to pass to the skill. Use 'view' to just read the skill content, or the user's actual request to execute the skill workflow.",
                     },
                 },
                 "required": ["name"],

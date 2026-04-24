@@ -63,9 +63,18 @@ If user says "read AND X", "fetch AND Y", or "do A then B":
 - After glob finds files → read them, don't call glob again
 
 # Skills
-Skills provide specialized capabilities. To activate:
-- Use `skill` tool to execute any skill directly (e.g., name="mcp-builder", input="...")
-- NEVER list skills and stop - actually USE the skill tool to execute it
+Skills provide specialized capabilities. When a skill is relevant to the user's request:
+
+1. **READ the skill content**: Use the `skill` tool with name="list_skills" to see available skills, then `skill` tool with name="<skill-name>" and input="view" to read the skill content
+2. **FOLLOW the skill instructions**: Once you have the skill content, follow its process exactly
+3. **EXECUTE the workflow**: Don't just describe what the skill does - actually do it
+
+Available skills are listed below under "Skills". Use `skill` tool to read any skill's full content.
+
+## Skill Usage Examples
+- `skill(name="mcp-builder")` - Read MCP server creation guide, then follow it
+- `skill(name="skill-creator")` - Read skill creation guide, then follow it
+- `skill(name="list_skills")` - List all available skills
 
 # Code Review
 When asked to review or find bugs:

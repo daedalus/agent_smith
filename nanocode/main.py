@@ -502,7 +502,7 @@ async def main():
     log_file = getattr(args, "log_file", None)
     debug_arg = getattr(args, "debug", None)
 
-    def _configure_debug_logging(concerns: list[str]):
+    def _configure_debug_logging(concerns: list[str], gui_mode: str = None):
         """Configure logging for specified concerns."""
         valid_concerns = {"agent", "tools", "cache", "context", "llm", "tui", "all"}
         if "all" in concerns:
@@ -516,8 +516,10 @@ async def main():
             else logging.FileHandler("/tmp/nanocode.log")
         ]
 
-        # Only add StreamHandler when --debug is used
-        handlers.append(logging.StreamHandler())
+        # Only add StreamHandler when --debug is used AND NOT in TUI mode
+        # StreamHandler writes to stderr which causes TUI flicker
+        if debug_arg and gui_mode != "textual":
+            handlers.append(logging.StreamHandler())
 
         logging.basicConfig(
             level=logging.DEBUG,
@@ -555,8 +557,9 @@ async def main():
             ]
             if not concerns:
                 concerns = ["all"]
-        _configure_debug_logging(concerns)
+        _configure_debug_logging(concerns, gui_mode)
     elif log_file or gui_mode == "textual":
+        # In TUI mode, only use file handler to avoid stderr spam
         handlers = [
             logging.FileHandler(log_file)
             if log_file
