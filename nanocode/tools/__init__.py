@@ -374,7 +374,14 @@ class ToolExecutor:
                 if meta_parts:
                     parts.append(f"[metadata: {', '.join(meta_parts)}]")
             if result.content:
-                parts.append(result.content)
+                # Handle dict content (e.g., from skill tool)
+                if isinstance(result.content, dict):
+                    content_parts = []
+                    for key, value in result.content.items():
+                        content_parts.append(f"{key}: {value}")
+                    parts.append("\n".join(content_parts))
+                else:
+                    parts.append(result.content)
             return "\n\n".join(parts) if parts else "OK"
         else:
             return f"Error: {result.error}"

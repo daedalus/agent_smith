@@ -1390,8 +1390,14 @@ Footer {
 
                     def on_tool_complete(tool_name, result):
                         """Called when a tool completes."""
+                        # Handle both string and dict results
+                        if isinstance(result, dict):
+                            # Convert dict to string preview
+                            result_str = str(result) if result else ""
+                        else:
+                            result_str = str(result) if result else ""
                         # Show a summary (first 200 chars)
-                        preview = result[:200] + "..." if len(result) > 200 else result
+                        preview = result_str[:200] + "..." if len(result_str) > 200 else result_str
                         self._print_line(f"✓ {tool_name}: {preview}", Style.TOOL_MESSAGE)
 
                     result = await self.agent.process_input(
