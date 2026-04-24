@@ -202,6 +202,17 @@ class ModelExplorerScreen(ModalScreen):
 
     def on_mount(self):
         self._load_registry()
+        # Focus the DataTable by default so Enter works
+        self.query_one("#model-list", DataTable).focus()
+
+    def on_key(self, event):
+        """Catch keys when Input or DataTable has focus."""
+        if event.key == "enter":
+            self.action_select()
+            event.prevent_default()
+        elif event.key == "escape":
+            self.action_cancel()
+            event.prevent_default()
 
     def _load_registry(self, force: bool = False):
         async def load_models():
