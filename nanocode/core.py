@@ -1481,7 +1481,9 @@ Conversation:
 
             self.context_manager.add_message("assistant", content)
 
-            await self._generate_summary(tool_results_history)
+            # Only generate summary if tools were used
+            if tool_results_history:
+                await self._generate_summary(tool_results_history)
 
             # Build augmented content with thinking and tool use info
             augmented = content
