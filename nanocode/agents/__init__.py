@@ -99,6 +99,32 @@ class AgentRegistry:
 
     def apply_config(self, config: dict):
         """Apply permission overrides from config."""
+        # Handle new format: permissions.agents or direct agents dict with lists
+        perms_config = config.get("permissions") or {}
+        agents_perms = perms_config.get("agents", {}) if perms_config else {}
+        
+        # Also check direct agents format: agents = {"build": [...], "plan": [...]}
+        if not agents_perms:
+            for name, rules in config.get("agents", {}).items():
+                if isinstance(rules, list):
+                    agents_perms[name] = rules
+        
+        for name, rules in agents_perms.items():
+            if isinstance(rules, list):
+                # New format: list of rule dicts
+                ag = self._agents.get(name)
+                if ag and hasattr(ag, 'permission'):
+                    new_rule_list = []
+                    for rule_dict in rules:
+                        if isinstance(rule_dict, dict):
+                            new_rule_list.append(PermissionRule(
+                                permission=rule_dict.get("permission", "*"),
+                                pattern=rule_dict.get("pattern", "*"),
+                                action=PermissionAction(rule_dict.get("action", "ask"))
+                            ))
+                    ag.permission = new_rule_list
+        
+        # Handle old format: agents.permissions = {"agent_name": "allow"}
         agents_config = config.get("agents", {})
         perm_overrides = agents_config.get("permissions", {})
         for name, perm in perm_overrides.items():

@@ -9,14 +9,16 @@ from enum import Enum
 
 class RichColor(Enum):
     """Gruvbox-inspired color palette for rich text."""
-    FG = "#ebdbb2"           # Light gray - main text
-    YELLOW = "#d79921"       # Yellow - highlights/titles
-    GREEN = "#98971a"        # Green - success/user
-    RED = "#cc241d"          # Red - danger/error
-    BLUE = "#458588"         # Blue - info
-    PURPLE = "#b16286"       # Purple - assistant
-    AQUA = "#83a598"         # Aqua - tool
-    GRAY = "#928374"         # Gray - dim/system
+
+    FG = "#ebdbb2"  # Light gray - main text
+    YELLOW = "#d79921"  # Yellow - highlights/titles
+    GREEN = "#98971a"  # Green - success/user
+    RED = "#cc241d"  # Red - danger/error
+    BLUE = "#458588"  # Blue - info
+    PURPLE = "#b16286"  # Purple - assistant
+    AQUA = "#83a598"  # Aqua - tool
+    GRAY = "#928374"  # Gray - dim/system
+
 
 from rich.style import Style
 from rich.text import Text
@@ -51,8 +53,10 @@ GRUVBOX = {
     "orange": "#d65d0e",
 }
 
+
 class Style:
     """Rich text style names for output area."""
+
     TEXT_HIGHLIGHT = "cyan"
     TEXT_HIGHLIGHT_BOLD = "cyan bold"
     TEXT_DIM = "dim"
@@ -80,8 +84,15 @@ class Style:
 
 
 class PermissionScreen(ModalScreen):
-    """Modal screen for permission requests."""
-    
+    """Modal screen for permission requests with y/N/a options."""
+
+    BINDINGS = [
+        Binding("y", "allow_once", "Yes"),
+        Binding("n", "deny", "No"),
+        Binding("a", "allow_always", "Always"),
+        Binding("escape", "cancel", "Cancel"),
+    ]
+
     CSS = """
     PermissionScreen {
         align: center middle;
@@ -128,8 +139,93 @@ class PermissionScreen(ModalScreen):
         self.request = request
         self._result = None
 
+    def compose(self) -> ComposeResult:
+        from nanocode.agents.permission import PermissionReply, PermissionReplyType
 
-class ModelExplorerScreen(ModalScreen):
+        tool_name = self.request.tool_name
+        agent_name = self.request.agent_name
+        args_str = str(self.request.arguments)[:200] if self.request.arguments else ""
+
+        yield Vertical(
+            Static(f"Permission Request", id="dialog-title"),
+            Static(f"[{agent_name}] wants to run: {tool_name}", id="dialog-info"),
+            Static(f"Args: {args_str}", id="dialog-args"),
+            Horizontal(
+                Button("[y]es", id="btn-yes", variant="primary"),
+                Button("[N]o", id="btn-no", variant="default"),
+                Button("[a]lways", id="btn-always", variant="default"),
+                Button("[C]ancel", id="btn-cancel", variant="default"),
+                id="dialog-buttons",
+            ),
+            id="dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        from nanocode.agents.permission import PermissionReply, PermissionReplyType
+
+        action = event.button.id
+        if action == "btn-yes":
+            self._result = PermissionReply(
+                request_id=self.request.id,
+                reply=PermissionReplyType.ONCE,
+            )
+        elif action == "btn-no":
+            self._result = PermissionReply(
+                request_id=self.request.id,
+                reply=PermissionReplyType.REJECT,
+                message="Permission denied by user",
+            )
+        elif action == "btn-always":
+            self._result = PermissionReply(
+                request_id=self.request.id,
+                reply=PermissionReplyType.ALWAYS,
+            )
+        else:
+            # Cancel
+            self._result = PermissionReply(
+                request_id=self.request.id,
+                reply=PermissionReplyType.REJECT,
+                message="Cancelled",
+            )
+        self.dismiss(self._result)
+
+    def action_allow_once(self):
+        from nanocode.agents.permission import PermissionReply, PermissionReplyType
+
+        self._result = PermissionReply(
+            request_id=self.request.id,
+            reply=PermissionReplyType.ONCE,
+        )
+        self.dismiss(self._result)
+
+    def action_deny(self):
+        from nanocode.agents.permission import PermissionReply, PermissionReplyType
+
+        self._result = PermissionReply(
+            request_id=self.request.id,
+            reply=PermissionReplyType.REJECT,
+            message="Permission denied by user",
+        )
+        self.dismiss(self._result)
+
+    def action_allow_always(self):
+        from nanocode.agents.permission import PermissionReply, PermissionReplyType
+
+        self._result = PermissionReply(
+            request_id=self.request.id,
+            reply=PermissionReplyType.ALWAYS,
+        )
+        self.dismiss(self._result)
+
+    def action_cancel(self):
+        from nanocode.agents.permission import PermissionReply, PermissionReplyType
+
+        self._result = PermissionReply(
+            request_id=self.request.id,
+            reply=PermissionReplyType.REJECT,
+            message="Cancelled",
+        )
+        self.dismiss(self._result)
     """Modal screen for exploring available models from models.dev."""
 
     CSS = """
@@ -185,7 +281,9 @@ class ModelExplorerScreen(ModalScreen):
     def __init__(self, on_select=None, **kwargs):
         super().__init__(**kwargs)
         self._on_select = on_select
-        self._models: list[tuple[str, str, int]] = []  # (provider/model, provider, context_limit)
+        self._models: list[
+            tuple[str, str, int]
+        ] = []  # (provider/model, provider, context_limit)
         self._filtered: list[tuple[str, str, int]] = []
         self._loading = True
         self._refresh_time = None
@@ -197,7 +295,10 @@ class ModelExplorerScreen(ModalScreen):
             Static("Loading...", id="model-subtitle"),
             Input(placeholder="Search models...", id="search-input"),
             DataTable(id="model-list"),
-            Static("↑↓: navigate | Enter: select | Ctrl+R: refresh | Escape: cancel", id="help-text"),
+            Static(
+                "↑↓: navigate | Enter: select | Ctrl+R: refresh | Escape: cancel",
+                id="help-text",
+            ),
         )
 
     def on_mount(self):
@@ -216,8 +317,8 @@ class ModelExplorerScreen(ModalScreen):
 
     def _load_registry(self, force: bool = False):
         async def load_models():
-            from nanocode.llm.registry import get_registry
-            from nanocode.llm.registry import CACHE_TTL_SECONDS
+            from nanocode.llm.registry import CACHE_TTL_SECONDS, get_registry
+
             registry = get_registry()
             await registry.load(force_refresh=force)
             age = registry._cache_age_seconds() if not force else 0
@@ -228,10 +329,14 @@ class ModelExplorerScreen(ModalScreen):
             registry, age, remaining = result
             subtitle = self.query_one("#model-subtitle", Static)
             if age < 60:
-                subtitle.update(f"Cache: just refreshed ({len(registry._providers)} providers)")
+                subtitle.update(
+                    f"Cache: just refreshed ({len(registry._providers)} providers)"
+                )
             else:
                 mins = int(remaining / 60)
-                subtitle.update(f"Cache: {mins}m remaining ({len(registry._providers)} providers)")
+                subtitle.update(
+                    f"Cache: {mins}m remaining ({len(registry._providers)} providers)"
+                )
 
             models = []
             for pid, provider in registry._providers.items():
@@ -267,7 +372,8 @@ class ModelExplorerScreen(ModalScreen):
         query = event.value.lower()
         if query:
             self._filtered = [
-                (m, p, c) for m, p, c in self._models
+                (m, p, c)
+                for m, p, c in self._models
                 if query in m.lower() or query in p.lower()
             ][:50]
         else:
@@ -304,7 +410,9 @@ class ModelExplorerScreen(ModalScreen):
     def action_move_down(self):
         """Move selection down."""
         if self._filtered:
-            self._selected_index = min(len(self._filtered) - 1, self._selected_index + 1)
+            self._selected_index = min(
+                len(self._filtered) - 1, self._selected_index + 1
+            )
             table = self.query_one("#model-list", DataTable)
             table.cursor_position = self._selected_index
 
@@ -370,26 +478,44 @@ class AgentPermissionsScreen(ModalScreen):
             Static("Manage agent tool permissions (permission, pattern, action)", id="agent-subtitle"),
             Input(placeholder="Search agents...", id="search-input"),
             DataTable(id="agent-list"),
-            Static("↑↓: navigate | Enter: toggle rule | Escape: cancel", id="help-text"),
+            Static("↑↓: navigate | Enter/Double-click: view rules | Escape: cancel", id="help-text"),
         )
 
     def on_mount(self):
         self._load_agents()
+        self.query_one("#agent-list", DataTable).focus()
 
     def _load_agents(self):
-        from nanocode.agents import get_agent_registry, AgentMode
         from pathlib import Path
+
         import yaml
+
+        from nanocode.agents import get_agent_registry, PermissionAction
+
         registry = get_agent_registry()
-        
+
         # Load permission overrides from config
         config_path = "config.yaml"
         perm_overrides = {}
         if Path(config_path).exists():
             with open(config_path) as f:
                 config = yaml.safe_load(f) or {}
+            
+            # Get permissions from agents.config section or permissions.agents section
             agents_config = config.get("agents", {})
-            perm_overrides = agents_config.get("permissions", {})
+            
+            # Handle list format: agents = {"build": [...], "plan": [...]}
+            for name, rules in agents_config.items():
+                if isinstance(rules, list):
+                    perm_overrides[name] = rules
+            
+            # Also check permissions.agents section
+            if not perm_overrides:
+                perms_config = config.get("permissions") or {}
+                for name, rules in perms_config.get("agents", {}).items():
+                    if isinstance(rules, list):
+                        perm_overrides[name] = rules
+            
             # Apply config to registry
             registry.apply_config(config)
 
@@ -399,25 +525,33 @@ class AgentPermissionsScreen(ModalScreen):
         for agent in registry.list_all():
             if agent.hidden:
                 continue
-            
+
             # Get permission rules
-            rules = agent.permission if hasattr(agent, 'permission') else []
-            
+            rules = agent.permission if hasattr(agent, "permission") else []
+
             # Get base permission from config overrides or default rule
-            base_perm = 'ask'
-            if agent.name in perm_overrides:
-                base_perm = perm_overrides[agent.name]
+            base_perm = "ask"
+            if agent.name in perm_overrides and isinstance(perm_overrides[agent.name], list):
+                # It's a list of rules - find the default rule (*/*)
+                for rule_dict in perm_overrides[agent.name]:
+                    if isinstance(rule_dict, dict):
+                        if rule_dict.get("permission") == "*" and rule_dict.get("pattern") == "*":
+                            base_perm = rule_dict.get("action", "ask")
+                            break
             elif rules:
+                # Fallback to rules from registry
                 for rule in rules:
-                    if rule.permission == '*' and rule.pattern == '*':
+                    if rule.permission == "*" and rule.pattern == "*":
                         base_perm = rule.action.value
                         break
 
-            agents.append({
-                'name': agent.name,
-                'rules': rules,
-                'base_permission': base_perm,
-            })
+            agents.append(
+                {
+                    "name": agent.name,
+                    "rules": rules,
+                    "base_permission": base_perm,
+                }
+            )
 
         self._agents = agents
         self._filtered = agents
@@ -428,20 +562,18 @@ class AgentPermissionsScreen(ModalScreen):
         table.clear()
         table.add_columns("Agent", "Base Permission", "Rules Count", "Description")
         for agent in self._filtered:
-            desc = agent.get('description', '')[:30]
+            desc = agent.get("description", "")[:30]
             table.add_row(
-                agent['name'],
-                agent['base_permission'],
-                str(len(agent['rules'])),
-                desc
+                agent["name"], agent["base_permission"], str(len(agent["rules"])), desc
             )
 
     def on_input_changed(self, event: Input.Changed):
         query = event.value.lower()
         if query:
             self._filtered = [
-                a for a in self._agents
-                if query in a['name'].lower() or query in a['base_permission'].lower()
+                a
+                for a in self._agents
+                if query in a["name"].lower() or query in a["base_permission"].lower()
             ]
         else:
             self._filtered = self._agents
@@ -449,7 +581,14 @@ class AgentPermissionsScreen(ModalScreen):
         self._update_list()
 
     def on_input_submitted(self, event: Input.Submitted):
+        """Handle Enter key in search - toggle selected agent."""
         self.action_toggle()
+
+    def on_key(self, event):
+        """Catch Enter key when DataTable has focus."""
+        if event.key == "enter":
+            self.action_toggle()
+            event.prevent_default()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected):
         row_index = event.cursor_row
@@ -468,6 +607,7 @@ class AgentPermissionsScreen(ModalScreen):
     def _show_rules(self):
         """Show a screen to manage rules for the selected agent."""
         from nanocode.tui.app import AgentRulesScreen
+
         screen = AgentRulesScreen(self._filtered[self._selected_index])
         result = self.app.push_screen(screen)
         if result:
@@ -518,12 +658,13 @@ class AgentRulesScreen(ModalScreen):
         Binding("up", "move_up", "Up"),
         Binding("down", "move_down", "Down"),
         Binding("delete", "delete_rule", "Delete"),
+        Binding("s", "save", "Save"),
     ]
 
     def __init__(self, agent_data, **kwargs):
         super().__init__(**kwargs)
-        self.agent_name = agent_data['name']
-        self.rules = list(agent_data['rules'])  # Copy to avoid modifying original
+        self.agent_name = agent_data["name"]
+        self.rules = list(agent_data["rules"])  # Copy to avoid modifying original
         self._selected_index = 0
 
     def compose(self) -> ComposeResult:
@@ -531,11 +672,15 @@ class AgentRulesScreen(ModalScreen):
             Static(f"Rules for '{self.agent_name}'", id="rules-title"),
             Input(placeholder="Filter rules...", id="filter-input"),
             DataTable(id="rules-list"),
-            Static("↑↓: navigate | Enter: edit | Delete: remove | Escape: close | A: add | S: save", id="rule-help"),
+            Static(
+                "↑↓: navigate | Enter: edit | Delete: remove | Escape: close | A: add | S: save",
+                id="rule-help",
+            ),
         )
 
     def on_mount(self):
         self._update_table()
+        self.query_one("#rules-list", DataTable).focus()
 
     def _update_table(self):
         table = self.query_one("#rules-list", DataTable)
@@ -546,19 +691,50 @@ class AgentRulesScreen(ModalScreen):
                 rule.permission,
                 rule.pattern,
                 rule.action.value,
-                f"{rule.permission}@{rule.pattern}"
+                f"{rule.permission}@{rule.pattern}",
             )
         if 0 <= self._selected_index < len(self.rules):
             table.cursor_position = self._selected_index
+
+    def on_key(self, event):
+        """Catch keys when DataTable has focus."""
+        if event.key == "enter":
+            self.action_toggle_rule()
+            event.prevent_default()
+        elif event.key == "delete":
+            self.action_delete_rule()
+            event.prevent_default()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected):
+        """Handle row selection - toggle the rule's action."""
+        row_index = event.cursor_row
+        if 0 <= row_index < len(self.rules):
+            self._selected_index = row_index
+            self.action_toggle_rule()
+
+    def action_toggle_rule(self):
+        """Toggle the action for the selected rule."""
+        from nanocode.agents import PermissionAction
+        if 0 <= self._selected_index < len(self.rules):
+            rule = self.rules[self._selected_index]
+            # Cycle: ask -> allow -> deny -> ask
+            if rule.action.value == "ask":
+                rule.action = PermissionAction.ALLOW
+            elif rule.action.value == "allow":
+                rule.action = PermissionAction.DENY
+            else:
+                rule.action = PermissionAction.ASK
+            self._update_table()
 
     def on_input_changed(self, event: Input.Changed):
         query = event.value.lower()
         if query:
             filtered = [
-                r for r in self.rules
-                if query in r.permission.lower() or 
-                   query in r.pattern.lower() or
-                   query in r.action.value.lower()
+                r
+                for r in self.rules
+                if query in r.permission.lower()
+                or query in r.pattern.lower()
+                or query in r.action.value.lower()
             ]
         else:
             filtered = self.rules
@@ -566,13 +742,10 @@ class AgentRulesScreen(ModalScreen):
 
     def action_add_rule(self):
         """Add a new permission rule."""
-        from nanocode.agents import PermissionRule, PermissionAction
+        from nanocode.agents import PermissionAction, PermissionRule
+
         self.rules.append(
-            PermissionRule(
-                permission="*",
-                pattern="*",
-                action=PermissionAction.ASK
-            )
+            PermissionRule(permission="*", pattern="*", action=PermissionAction.ASK)
         )
         self._selected_index = len(self.rules) - 1
         self._update_table()
@@ -591,32 +764,31 @@ class AgentRulesScreen(ModalScreen):
     def action_save(self):
         """Save rules and update config."""
         from pathlib import Path
+
         import yaml
-        
+
         # Update config.yaml with the new rules
         config_path = Path("config.yaml")
         if config_path.exists():
             with open(config_path) as f:
                 config = yaml.safe_load(f) or {}
-            
+
             if "agents" not in config:
                 config["agents"] = {}
-            if "permissions" not in config["agents"]:
-                config["agents"]["permissions"] = {}
-            
-            # Store as list of rules for granular control
-            config["agents"]["permissions"][self.agent_name] = [
+
+            # Store as list of rules - save directly under agent name
+            config["agents"][self.agent_name] = [
                 {
                     "permission": rule.permission,
                     "pattern": rule.pattern,
-                    "action": rule.action.value
+                    "action": rule.action.value,
                 }
                 for rule in self.rules
             ]
-            
+
             with open(config_path, "w") as f:
                 yaml.dump(config, f, default_flow_style=False, sort_keys=False)
-        
+
         self.dismiss(self.rules)
 
 
@@ -667,7 +839,11 @@ class MessageActionScreen(ModalScreen):
         self._result = None
 
     def compose(self) -> ComposeResult:
-        preview = self._message_text[:200] + "..." if len(self._message_text) > 200 else self._message_text
+        preview = (
+            self._message_text[:200] + "..."
+            if len(self._message_text) > 200
+            else self._message_text
+        )
         yield Vertical(
             Static("Message Actions", id="msg-dialog-title"),
             Static(preview, id="msg-dialog-preview"),
@@ -696,11 +872,11 @@ class MessageActionScreen(ModalScreen):
 
 class CommandPaletteScreen(ModalScreen):
     """Modal screen for command palette."""
-    
+
     BINDINGS = [
         Binding("escape", "cancel", "Cancel"),
     ]
-    
+
     CSS = """
     CommandPaletteScreen {
         align: center middle;
@@ -737,12 +913,12 @@ class CommandPaletteScreen(ModalScreen):
         height: 100%;
     }
     """
-    
+
     def __init__(self, commands, **kwargs):
         super().__init__(**kwargs)
         self._commands = commands
         self._filtered = commands
-    
+
     def compose(self) -> ComposeResult:
         yield Vertical(
             Static("Command Palette", id="title"),
@@ -751,7 +927,7 @@ class CommandPaletteScreen(ModalScreen):
             Static("↑↓ navigate  ⏎ select  esc cancel", id="help-text"),
             id="container",
         )
-    
+
     def on_mount(self) -> None:
         table = self.query_one("#commands", DataTable)
         table.add_columns("Command", "Description")
@@ -759,24 +935,25 @@ class CommandPaletteScreen(ModalScreen):
             table.add_row(cmd, desc)
         table.cursor_type = "row"
         self.query_one("#search", Input).focus()
-    
+
     def on_input_changed(self, event: Input.Changed) -> None:
         query = event.value.lower()
         table = self.query_one("#commands", DataTable)
         table.clear()
         self._filtered = [
-            (cmd, desc) for cmd, desc in self._commands
+            (cmd, desc)
+            for cmd, desc in self._commands
             if query in cmd.lower() or query in desc.lower()
         ]
         for cmd, desc in self._filtered:
             table.add_row(cmd, desc)
-    
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         row_index = event.cursor_row
         if 0 <= row_index < len(self._filtered):
             cmd, _ = self._filtered[row_index]
             self.dismiss(cmd)
-    
+
     def action_cancel(self):
         """Close the palette without selecting."""
         self.dismiss(None)
@@ -808,11 +985,14 @@ class OutputArea(RichLog):
         super().__init__(*args, **kwargs)
         self._lines: list[str] = []
         self._md_theme: object = None
-        self._user_messages: list[tuple[int, str]] = []  # (index, text) for user messages
+        self._user_messages: list[
+            tuple[int, str]
+        ] = []  # (index, text) for user messages
 
     def _render_markdown(self, text: str) -> object:
         """Get a markdown renderer with gruvbox theme."""
         from rich.markdown import Markdown
+
         return Markdown(text)
 
     def _on_click(self, event: "events.Click") -> None:
@@ -831,6 +1011,7 @@ class OutputArea(RichLog):
             action, text, index = result
             if action == "copy":
                 import pyperclip
+
                 pyperclip.copy(text)
                 self.app.notify("Copied to clipboard", severity="info")
 
@@ -863,6 +1044,7 @@ class OutputArea(RichLog):
         # Handle custom styles before markdown rendering
         if "[thought]" in text:
             from rich.text import Text as RichText
+
             rich_text = RichText()
             parts = text.split("[thought]")
             if parts[0]:
@@ -880,12 +1062,12 @@ class OutputArea(RichLog):
             return
 
         # Use markdown rendering for non-code-block text
-        if '```' in text:
-            code_block_pattern = re.compile(r'```(\w*)\n(.*?)```', re.DOTALL)
+        if "```" in text:
+            code_block_pattern = re.compile(r"```(\w*)\n(.*?)```", re.DOTALL)
             last_end = 0
             for match in code_block_pattern.finditer(text):
                 if match.start() > last_end:
-                    text_part = text[last_end:match.start()]
+                    text_part = text[last_end : match.start()]
                     if text_part.strip():
                         md = Markdown(text_part)
                         self.write(md)
@@ -894,6 +1076,7 @@ class OutputArea(RichLog):
                 lang = match.group(1) or "python"
                 code = match.group(2).rstrip()
                 from rich.syntax import Syntax
+
                 syntax = Syntax(code, lang, theme="gruvbox-dark", line_numbers=False)
                 self.write(syntax)
                 last_end = match.end()
@@ -920,13 +1103,13 @@ class OutputArea(RichLog):
             self.write(text)
             return
 
-        bold_pattern = re.compile(r'\*\*([^*]+)\*\*')
-        code_pattern = re.compile(r'`([^`]+)`')
+        bold_pattern = re.compile(r"\*\*([^*]+)\*\*")
+        code_pattern = re.compile(r"`([^`]+)`")
 
         last_end = 0
         for match in bold_pattern.finditer(text):
             if match.start() > last_end:
-                self.write(text[last_end:match.start()])
+                self.write(text[last_end : match.start()])
             self.write(Text(match.group(1), style=base_color + " bold"))
             last_end = match.end()
 
@@ -934,12 +1117,12 @@ class OutputArea(RichLog):
             self.write(text[last_end:])
 
         self._lines.append(text)
-    
+
     def add_empty_line(self):
         """Add an empty line."""
         self.write("")
         self._lines.append("")
-    
+
     def clear_lines(self):
         """Clear all lines."""
         self._lines.clear()
@@ -948,6 +1131,7 @@ class OutputArea(RichLog):
 
 class ToolState(Enum):
     """Tool execution state."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -957,6 +1141,7 @@ class ToolState(Enum):
 @dataclass
 class ToolCall:
     """Represents a tool call."""
+
     tool: str
     title: str
     description: str = ""
@@ -967,7 +1152,7 @@ class ToolCall:
 
 class NanoCodeTUI(App):
     """Main TUI application for NanoCode matching Gruvbox dark theme."""
-    
+
     CSS = """
 /* Gruvbox Dark Theme */
 Screen {
@@ -1188,15 +1373,15 @@ Footer {
                 yield Static("╰─────────╯", id="sidebar-footer")
         yield Static("", id="status-bar")
         yield Footer()
-    
+
     def on_mount(self) -> None:
         """Initialize on mount."""
         self.query_one("#input", Input).focus()
         self._show_welcome()
-        
+
         if self.agent:
             self._setup_permission_callback()
-        
+
         self._status_timer = self.set_interval(1.0, self._update_status_bar)
         self._sidebar_timer = self.set_interval(2.0, self._update_sidebar)
         self._update_sidebar()
@@ -1285,7 +1470,7 @@ Footer {
 
             todo_tool = self.agent.tool_registry.get("todo")
             if todo_tool and hasattr(todo_tool, "todo_service"):
-                session_id = getattr(self.agent, '_session_id', None)
+                session_id = getattr(self.agent, "_session_id", None)
                 if session_id:
                     todos = todo_tool.todo_service.get_todos(session_id)
                     if todos:
@@ -1299,7 +1484,11 @@ Footer {
                                 icon = "[#fb4934]✗[/#fb4934]"
                             else:
                                 icon = "[#928374]○[/#928374]"
-                            content = t.content[:30] + "..." if len(t.content) > 30 else t.content
+                            content = (
+                                t.content[:30] + "..."
+                                if len(t.content) > 30
+                                else t.content
+                            )
                             lines.append(f"  {icon} {content}")
             elif todo_tool and hasattr(todo_tool, "tasks"):
                 todo_items = todo_tool.tasks
@@ -1316,16 +1505,24 @@ Footer {
                         lines.append(f"  {icon} {content}")
 
         if self.agent:
-            if hasattr(self.agent, '_mcp_available'):
+            if hasattr(self.agent, "_mcp_available"):
                 mcp_available = self.agent._mcp_available
                 if mcp_available:
                     lines.append(Text("─ MCP ─", style="#d79921"))
                     for name, enabled in list(mcp_available.items())[:15]:
-                        dot = Text("●", style="#98971f") if enabled else Text("○", style="#928374")
+                        dot = (
+                            Text("●", style="#98971f")
+                            if enabled
+                            else Text("○", style="#928374")
+                        )
                         lines.append(Text("  ") + dot + Text(f" {name}"))
 
-            if hasattr(self.agent, 'lsp_manager') and self.agent.lsp_manager:
-                lsp_servers = list(self.agent.lsp_manager._servers.keys()) if hasattr(self.agent.lsp_manager, '_servers') else []
+            if hasattr(self.agent, "lsp_manager") and self.agent.lsp_manager:
+                lsp_servers = (
+                    list(self.agent.lsp_manager._servers.keys())
+                    if hasattr(self.agent.lsp_manager, "_servers")
+                    else []
+                )
                 if lsp_servers:
                     lines.append(Text("─ LSP ─", style="#d79921"))
                     for server_id in lsp_servers[:10]:
@@ -1333,22 +1530,34 @@ Footer {
                     if len(lsp_servers) > 10:
                         lines.append(f"  ... and {len(lsp_servers) - 10} more")
 
-            if hasattr(self.agent, 'modified_files') and self.agent.modified_files:
+            if hasattr(self.agent, "modified_files") and self.agent.modified_files:
                 try:
                     self.agent.modified_files.refresh_from_git()
                     modified = self.agent.modified_files.get_modified_files()
                     if modified:
                         lines.append(Text("─ Modified ─", style="#d79921"))
                         for f in modified[:15]:
-                            adds = Text(f"+{f.additions}", style="#98971f") if f.additions > 0 else Text("")
-                            dels = Text(f"-{f.deletions}", style="#fb4934") if f.deletions > 0 else Text("")
+                            adds = (
+                                Text(f"+{f.additions}", style="#98971f")
+                                if f.additions > 0
+                                else Text("")
+                            )
+                            dels = (
+                                Text(f"-{f.deletions}", style="#fb4934")
+                                if f.deletions > 0
+                                else Text("")
+                            )
                             parts = []
                             if adds:
                                 parts.append(adds)
                             if dels:
                                 parts.append(dels)
                             stats = Text(" ") + adds + dels if parts else Text("")
-                            lines.append(Text("  ") + Text(f.relative_path, style="#83a598") + stats)
+                            lines.append(
+                                Text("  ")
+                                + Text(f.relative_path, style="#83a598")
+                                + stats
+                            )
                         if len(modified) > 15:
                             lines.append(f"  ... and {len(modified) - 15} more")
                 except Exception:
@@ -1380,15 +1589,15 @@ Footer {
 
     def _update_stream_display(self) -> None:
         """Flush accumulated stream tokens to display."""
-        if not hasattr(self, '_stream_buffer') or not self._stream_buffer:
+        if not hasattr(self, "_stream_buffer") or not self._stream_buffer:
             return
-        
+
         output_area = self.query_one("#output-area", RichLog)
         # Remove the timer so it can be rescheduled
-        if hasattr(self, '_stream_timer') and self._stream_timer:
+        if hasattr(self, "_stream_timer") and self._stream_timer:
             self._stream_timer.stop()
             self._stream_timer = None
-        
+
         # Write the accumulated tokens
         if self._stream_buffer:
             output_area.write(self._stream_buffer)
@@ -1397,10 +1606,10 @@ Footer {
     def _update_spinner(self) -> None:
         """Update spinner animation."""
         if not self._processing:
-            if hasattr(self, '_spinner_timer') and self._spinner_timer:
+            if hasattr(self, "_spinner_timer") and self._spinner_timer:
                 self._spinner_timer.stop()
             return
-        
+
         self._spinner_index = (self._spinner_index + 1) % len(self._spinner_chars)
         spinner = self.query_one("#spinner", Static)
         spinner.update(self._spinner_chars[self._spinner_index])
@@ -1411,40 +1620,49 @@ Footer {
         self._print_empty()
         self._print_line("Type your task or 'help' for commands", Style.TEXT_DIM)
         self._print_empty()
-    
+
     def _get_history_file(self):
         """Get history file path."""
         import os
         from pathlib import Path
-        xdg_data = os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local" / "share"))
+
+        xdg_data = os.environ.get(
+            "XDG_DATA_HOME", str(Path.home() / ".local" / "share")
+        )
         return Path(xdg_data) / "nanocode" / "storage" / "tui_history.json"
-    
+
     def _load_input_history(self):
         """Load input history from file."""
         history_file = self._history_file
         if history_file.exists():
             import json
+
             try:
                 data = json.loads(history_file.read_text())
                 self._input_history = data.get("history", [])
-                self._history_index = len(self._input_history) - 1 if self._input_history else -1
+                self._history_index = (
+                    len(self._input_history) - 1 if self._input_history else -1
+                )
             except Exception:
                 pass
-    
+
     def _save_input_history(self):
         """Save input history to file."""
         import json
+
         self._history_file.parent.mkdir(parents=True, exist_ok=True)
-        self._history_file.write_text(json.dumps({"history": self._input_history}, indent=2))
-    
+        self._history_file.write_text(
+            json.dumps({"history": self._input_history}, indent=2)
+        )
+
     def _print_logo(self):
         """Print simple banner."""
         self._print_line("NanoCode", Style.TEXT_INFO_BOLD)
-    
+
     def _print_line(self, text: str, style: str = ""):
         """Print a line with optional style."""
         output = self.query_one("#output-area")
-        
+
         # Convert ANSI style to simple Rich style name
         if style == Style.THINKING:
             # Split: "Thinking:" gets yellow italic, rest gets normal
@@ -1454,8 +1672,9 @@ Footer {
                 parts = text.split("| Thinking:", 1)
                 prefix = parts[0] + "| Thinking:"
                 rest = parts[1] if len(parts) > 1 else ""
-            
+
             from rich.text import Text as RichText
+
             if prefix and rest:
                 full_text = RichText()
                 full_text.append(prefix + " ", style=f"{RichColor.YELLOW.value} italic")
@@ -1464,55 +1683,64 @@ Footer {
                 full_text = RichText(prefix, style=f"{RichColor.YELLOW.value} italic")
             else:
                 full_text = RichText.from_markup(text)
-            
+
             output.write(full_text)
             output._lines.append(text)
             return
-        
+
         output.add_line(text, style)
-    
+
     def _print_empty(self):
         """Print an empty line."""
         output = self.query_one("#output-area")
         output.add_empty_line()
-    
+
     def _print_info(self, text: str, bold: bool = False):
         """Print info text."""
         style = Style.TEXT_INFO_BOLD if bold else Style.TEXT_INFO
         self._print_line(text, style)
-    
+
     def _print_warning(self, text: str, bold: bool = False):
         """Print warning text."""
         style = Style.TEXT_WARNING_BOLD if bold else Style.TEXT_WARNING
         self._print_line(text, style)
-    
+
     def _print_error(self, text: str, bold: bool = False):
         """Print error text."""
         style = Style.TEXT_DANGER_BOLD if bold else Style.TEXT_DANGER
         self._print_line(text, style)
-    
+
     def _print_success(self, text: str, bold: bool = False):
         """Print success text."""
         style = Style.TEXT_SUCCESS_BOLD if bold else Style.TEXT_SUCCESS
         self._print_line(text, style)
-    
+
     def _print_dim(self, text: str):
         """Print dimmed text."""
         self._print_line(text, Style.TEXT_DIM)
-    
+
     def _setup_permission_callback(self):
         """Set up permission callback for the agent."""
-        # Disable permission callback in TUI for now - auto-allow all
-        # This can be re-enabled once the screen dismiss flow works properly
-        pass
-    
+        if not self.agent or not hasattr(self.agent, 'permission_handler'):
+            return
+
+        async def permission_callback(request):
+            """Show permission dialog and return user's choice."""
+            return await self._show_permission_dialog(request)
+
+        self.agent.permission_handler.set_callback(permission_callback)
+
     async def _show_permission_dialog(self, request) -> "PermissionReply":
-        """Show permission request dialog as a modal screen and wait for result."""
-        screen = PermissionScreen(request)
-        # push_screen returns the value passed to dismiss() when screen is dismissed
-        result = await self.push_screen(screen)
+        """Show permission request dialog with y/N/a options."""
+        from nanocode.agents.permission import PermissionReply
+
+        # Push as modal - returns result when dismissed
+        result = await self.push_screen(PermissionScreen(request))
         return result
-    
+
+    def _print_tool(self, tool_call: ToolCall):
+        return result
+
     def _print_tool(self, tool_call: ToolCall):
         """Print a tool call matching opencode style."""
         icon = tool_call.icon
@@ -1536,7 +1764,7 @@ Footer {
 
         if tool_call.state == ToolState.ERROR:
             self._print_error(tool_call.output if tool_call.output else "Tool failed")
-    
+
     def _format_tool_call(self, tool_name: str, arguments: dict) -> ToolCall:
         """Format a tool call based on its type, matching opencode's tool handlers."""
 
@@ -1564,10 +1792,19 @@ Footer {
 
         if tool_name == "read":
             filepath = normalize_path(arguments.get("path", ""))
-            extra_args = {k: v for k, v in arguments.items()
-                         if k != "filePath" and isinstance(v, (str, int, bool))}
-            desc = f"[{', '.join(f'{k}={v}' for k, v in extra_args.items())}]" if extra_args else ""
-            return ToolCall(tool=tool_name, title=f"Read {filepath}", description=desc, icon="→")
+            extra_args = {
+                k: v
+                for k, v in arguments.items()
+                if k != "filePath" and isinstance(v, (str, int, bool))
+            }
+            desc = (
+                f"[{', '.join(f'{k}={v}' for k, v in extra_args.items())}]"
+                if extra_args
+                else ""
+            )
+            return ToolCall(
+                tool=tool_name, title=f"Read {filepath}", description=desc, icon="→"
+            )
 
         if tool_name == "write":
             filepath = normalize_path(arguments.get("path", ""))
@@ -1583,7 +1820,9 @@ Footer {
 
         if tool_name == "codesearch":
             query = arguments.get("query", "")
-            return ToolCall(tool=tool_name, title=f'Exa Code Search "{query}"', icon="◇")
+            return ToolCall(
+                tool=tool_name, title=f'Exa Code Search "{query}"', icon="◇"
+            )
 
         if tool_name == "websearch":
             query = arguments.get("query", "")
@@ -1595,7 +1834,9 @@ Footer {
             agent_name = subagent if subagent else "unknown"
             icon = "•"
             name = desc if desc else f"{agent_name} Task"
-            return ToolCall(tool=tool_name, title=name, description=f"{agent_name} Agent", icon=icon)
+            return ToolCall(
+                tool=tool_name, title=name, description=f"{agent_name} Agent", icon=icon
+            )
 
         if tool_name == "skill":
             name = arguments.get("name", "")
@@ -1613,26 +1854,37 @@ Footer {
             else:
                 title = f"# {command}"
             return ToolCall(tool=tool_name, title=title, icon="$")
-        
+
         if tool_name == "todowrite":
             return ToolCall(tool=tool_name, title="Todos", icon="#")
-        
+
         # Fallback for unknown tools
         title = str(arguments) if arguments else "Unknown"
         return ToolCall(tool=tool_name, title=f"{tool_name} {title}", icon="⚙")
-    
+
     def _get_tool_icon(self, tool_name: str) -> str:
         """Get icon for a tool name."""
         icons = {
-            "glob": "✱", "grep": "✱", "read": "→", "write": "←",
-            "edit": "←", "webfetch": "%", "codesearch": "◇",
-            "websearch": "◈", "task": "•", "skill": "→",
-            "bash": "$", "todowrite": "#", "mcp-parigp": "∑",
-            "mcp-number-theory": "∫", "mcp-numpy": "∎",
-            "mcp-sympy": "∂", "mcp-qiskit": "⚛",
+            "glob": "✱",
+            "grep": "✱",
+            "read": "→",
+            "write": "←",
+            "edit": "←",
+            "webfetch": "%",
+            "codesearch": "◇",
+            "websearch": "◈",
+            "task": "•",
+            "skill": "→",
+            "bash": "$",
+            "todowrite": "#",
+            "mcp-parigp": "∑",
+            "mcp-number-theory": "∫",
+            "mcp-numpy": "∎",
+            "mcp-sympy": "∂",
+            "mcp-qiskit": "⚛",
         }
         return icons.get(tool_name, "⚙")
-    
+
     def action_submit(self):
         """Handle send action."""
         input_widget = self.query_one("#input", Input)
@@ -1640,20 +1892,20 @@ Footer {
         if text:
             input_widget.value = ""
             self._process_input(text)
-    
+
     def action_interrupt(self):
         """Handle interrupt (Ctrl+C)."""
         if self._processing:
             self._print_warning("!", True)
             self._print_line("Interrupted")
             self._processing = False
-    
+
     def action_clear_output(self):
         """Clear output."""
         output = self.query_one("#output-area")
         output.clear_lines()
         self._show_welcome()
-    
+
     def action_show_cli_commands(self):
         """Show command palette."""
         sys.stderr.write("DEBUG: action_show_cli_commands called\n")
@@ -1664,7 +1916,7 @@ Footer {
         for cmd, desc in self.CLI_COMMANDS:
             output.add_line(f"  {cmd:<20} {desc}")
         output.add_line("\nPress Ctrl+P to show this menu")
-    
+
     @work()
     async def action_show_command_palette(self):
         """Show the command palette popup."""
@@ -1685,14 +1937,17 @@ Footer {
             # Save to config.yaml
             try:
                 import yaml
+
                 config_path = "config.yaml"
-                with open(config_path, "r") as f:
+                with open(config_path) as f:
                     config = yaml.safe_load(f)
                 config["llm"]["default_provider"] = provider
                 # Extract model name from full_id (e.g., "tencent/hy3" -> "hy3")
                 model_name = full_id.split("/")[-1]
                 if provider:
-                    config["llm"]["providers"][provider] = config["llm"]["providers"].get(provider, {})
+                    config["llm"]["providers"][provider] = config["llm"][
+                        "providers"
+                    ].get(provider, {})
                     config["llm"]["providers"][provider]["model"] = model_name
                 with open(config_path, "w") as f:
                     yaml.dump(config, f, default_flow_style=False)
@@ -1720,6 +1975,7 @@ Footer {
                 action, msg_text, msg_index = result
                 if action == "copy":
                     import pyperclip
+
                     pyperclip.copy(msg_text)
                     self.notify("Copied to clipboard", severity="info")
                 elif action == "fork":
@@ -1740,7 +1996,9 @@ Footer {
                             if result.get("success"):
                                 # Update context
                                 ctx._messages = msg_mgr._messages
-                                self._input_history = self._input_history[:msg_index + 1]
+                                self._input_history = self._input_history[
+                                    : msg_index + 1
+                                ]
                                 self._history_index = len(self._input_history)
                                 # Clear output by clearing the RichLog directly
                                 try:
@@ -1751,20 +2009,28 @@ Footer {
                                 except Exception as e:
                                     print(f"Clear error: {e}")
                                 self._show_welcome()
-                                self.notify(f"Reverted to message {msg_index}", severity="success")
+                                self.notify(
+                                    f"Reverted to message {msg_index}",
+                                    severity="success",
+                                )
                             else:
-                                self.notify(f"Revert failed: {result.get('error')}", severity="error")
+                                self.notify(
+                                    f"Revert failed: {result.get('error')}",
+                                    severity="error",
+                                )
                         else:
-                            self.notify("Context manager not available", severity="error")
+                            self.notify(
+                                "Context manager not available", severity="error"
+                            )
                     else:
                         self.notify("No agent - cannot revert", severity="error")
         else:
             self.notify("No user messages yet", severity="info")
-    
+
     def on_input_changed(self, event: Input.Changed) -> None:
         """Handle input changes."""
         pass
-    
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle input submission."""
         text = event.value.strip()
@@ -1794,10 +2060,11 @@ Footer {
             self._history_index += 1
             input_widget.value = ""
             input_widget.cursor_position = 0
-    
+
     @work(exclusive=True)
     async def _process_input(self, text: str):
         import traceback
+
         self._print_line(f"> {text}", Style.USER_MESSAGE)
         self._print_empty()
 
@@ -1812,7 +2079,7 @@ Footer {
         spinner = self.query_one("#spinner", Static)
         spinner.update("◐")
         spinner.classes = "spinner-active"
-        
+
         # Start spinner animation
         self._spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self._spinner_index = 0
@@ -1825,7 +2092,10 @@ Footer {
             self._print_error("No agent configured - run via 'nanocode -g textual'")
             import sys
             import threading
-            sys.stderr.write(f"DEBUG: agent is None, thread={threading.current_thread().name}\n")
+
+            sys.stderr.write(
+                f"DEBUG: agent is None, thread={threading.current_thread().name}\n"
+            )
             self._processing = False
             input_widget.disabled = False
             input_widget.focus()
@@ -1836,7 +2106,7 @@ Footer {
                 # Enable debug mode to capture tool output
                 original_debug = self.agent.debug
                 self.agent.debug = False  # Don't print debug to stdout
-                
+
                 # Use process_input - let agent handle tool execution normally
                 # Suppress stdout/stderr print output to TUI but write to log file
                 import datetime
@@ -1844,29 +2114,29 @@ Footer {
                 import logging
                 import sys
                 import traceback
-                
+
                 # Save original stdout/stderr
                 self._saved_stdout = sys.stdout
                 self._saved_stderr = sys.stderr
-                
+
                 # Create capture buffers
                 stdout_capture = io.StringIO()
                 stderr_capture = io.StringIO()
                 sys.stdout = stdout_capture
                 sys.stderr = stderr_capture
-                
+
                 # Suppress all loggers to file only
                 root_logger = logging.getLogger()
                 old_level = root_logger.level
                 root_logger.setLevel(logging.DEBUG)
-                
+
                 # Disable all handlers and add file handler only
                 for h in root_logger.handlers[:]:
                     root_logger.removeHandler(h)
                 fh = logging.FileHandler("/tmp/nanocode.log")
                 fh.setLevel(logging.DEBUG)
                 root_logger.addHandler(fh)
-                
+
                 try:
                     # Streaming buffer for real-time display
                     self._stream_buffer = ""
@@ -1885,7 +2155,9 @@ Footer {
                     def on_tool_start(tool_name, args):
                         """Called when a tool starts execution."""
                         args_str = str(args)[:100]  # Truncate long args
-                        self._print_line(f"▶ {tool_name}({args_str})...", Style.TOOL_MESSAGE)
+                        self._print_line(
+                            f"▶ {tool_name}({args_str})...", Style.TOOL_MESSAGE
+                        )
 
                     def on_tool_complete(tool_name, result):
                         """Called when a tool completes."""
@@ -1896,8 +2168,14 @@ Footer {
                         else:
                             result_str = str(result) if result else ""
                         # Show a summary (first 200 chars)
-                        preview = result_str[:200] + "..." if len(result_str) > 200 else result_str
-                        self._print_line(f"✓ {tool_name}: {preview}", Style.TOOL_MESSAGE)
+                        preview = (
+                            result_str[:200] + "..."
+                            if len(result_str) > 200
+                            else result_str
+                        )
+                        self._print_line(
+                            f"✓ {tool_name}: {preview}", Style.TOOL_MESSAGE
+                        )
 
                     result = await self.agent.process_input(
                         text,
@@ -1913,16 +2191,16 @@ Footer {
                     for h in root_logger.handlers[:]:
                         root_logger.removeHandler(h)
                     root_logger.setLevel(old_level)
-                
+
                 # Restore stdout/stderr (but don't restore - keep them captured!)
                 # Actually, keep them captured permanently to prevent any print from showing
                 # sys.stdout = self._saved_stdout
                 # sys.stderr = self._saved_stderr
-                
+
                 # Write captured output to log
                 stdout_output = stdout_capture.getvalue()
                 stderr_output = stderr_capture.getvalue()
-                
+
                 if stdout_output or stderr_output:
                     logger = logging.getLogger("nanocode.tui")
                     log_output = f"\n=== TUI Debug Output {datetime.datetime.now().isoformat()} ===\n"
@@ -1935,37 +2213,40 @@ Footer {
                 self.agent.debug = original_debug
 
                 # Display tool calls using opencode's format
-                if hasattr(self.agent, '_last_tool_results'):
-                    tool_results = getattr(self.agent, '_last_tool_results', [])
+                if hasattr(self.agent, "_last_tool_results"):
+                    tool_results = getattr(self.agent, "_last_tool_results", [])
                     for tr in tool_results:
-                        tool_name = tr.get('tool_name', 'unknown')
-                        arguments = tr.get('arguments', {})
-                        success = tr.get('success', False)
+                        tool_name = tr.get("tool_name", "unknown")
+                        arguments = tr.get("arguments", {})
+                        success = tr.get("success", False)
 
                         # Format with full details using _format_tool_call
                         tool_call = self._format_tool_call(tool_name, arguments)
 
                         # Add result info from the tool call
-                        result = tr.get('result', '')
-                        if tool_name in ('grep', 'glob') and result:
+                        result = tr.get("result", "")
+                        if tool_name in ("grep", "glob") and result:
                             # Count results
-                            lines = result.strip().split('\n') if result else []
+                            lines = result.strip().split("\n") if result else []
                             count = len([l for l in lines if l.strip()])
                             suffix = f"({count} matches)"
                             tool_call.description = suffix
-                        elif tool_name == 'read' and result:
-                            lines = result.strip().split('\n')
+                        elif tool_name == "read" and result:
+                            lines = result.strip().split("\n")
                             count = len(lines)
                             suffix = f"[{count} lines]"
                             tool_call.description = suffix
 
                         status = "✓" if success else "✗"
-                        self._print_line(f"~ {tool_call.icon} {tool_call.title} {tool_call.description} {status}", Style.TOOL_MESSAGE)
+                        self._print_line(
+                            f"~ {tool_call.icon} {tool_call.title} {tool_call.description} {status}",
+                            Style.TOOL_MESSAGE,
+                        )
 
                 # Display thinking (with left border styling like opencode)
                 # Only show if not already in the result to avoid duplication
-                if self.show_thinking and hasattr(self.agent, '_last_thinking'):
-                    thinking = getattr(self.agent, '_last_thinking', None)
+                if self.show_thinking and hasattr(self.agent, "_last_thinking"):
+                    thinking = getattr(self.agent, "_last_thinking", None)
                     if thinking and thinking not in (result or ""):
                         self._print_line(f"| Thinking: {thinking}", Style.THINKING)
                         self._print_empty()
@@ -1983,23 +2264,24 @@ Footer {
                 self._print_error("No agent configured")
         except Exception as e:
             import traceback
+
             self._print_error(f"Error: {e}")
             traceback.print_exc()
         finally:
             # Stop spinner
-            if hasattr(self, '_spinner_timer') and self._spinner_timer:
+            if hasattr(self, "_spinner_timer") and self._spinner_timer:
                 self._spinner_timer.stop()
                 self._spinner_timer = None
             spinner = self.query_one("#spinner", Static)
             spinner.update("")  # Clear spinner
             spinner.classes = ""  # Remove active class
-            
+
             # Clean up streaming
-            if hasattr(self, '_stream_timer') and self._stream_timer:
+            if hasattr(self, "_stream_timer") and self._stream_timer:
                 self._stream_timer.stop()
                 self._stream_timer = None
             # Flush any remaining stream buffer
-            if hasattr(self, '_stream_buffer') and self._stream_buffer:
+            if hasattr(self, "_stream_buffer") and self._stream_buffer:
                 output_area = self.query_one("#output-area", RichLog)
                 output_area.write(self._stream_buffer)
                 self._stream_buffer = ""
@@ -2014,17 +2296,34 @@ Footer {
         parts = command.split()
 
         if cmd in ("/exit", "/quit", "/q"):
-            session_id = getattr(self.agent, '_session_id', 'unknown') if self.agent else 'unknown'
+            session_id = (
+                getattr(self.agent, "_session_id", "unknown")
+                if self.agent
+                else "unknown"
+            )
             self.exit()
             print()
             from rich.console import Console
+
             c = Console()
-            c.print("[cyan]░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ [/cyan]")
-            c.print("[cyan]██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗[/cyan]")
-            c.print("[cyan]██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║[/cyan]")
-            c.print("[cyan]██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║[/cyan]")
-            c.print("[cyan]╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║[/cyan]")
-            c.print("[cyan] ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/cyan]")
+            c.print(
+                "[cyan]░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ [/cyan]"
+            )
+            c.print(
+                "[cyan]██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗[/cyan]"
+            )
+            c.print(
+                "[cyan]██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║[/cyan]"
+            )
+            c.print(
+                "[cyan]██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║[/cyan]"
+            )
+            c.print(
+                "[cyan]╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║[/cyan]"
+            )
+            c.print(
+                "[cyan] ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/cyan]"
+            )
             print()
             print(f"Session: {session_id}")
             return
@@ -2078,8 +2377,16 @@ Footer {
                 skills = self.agent.skills_manager.list_skills()
                 self._print_line("Available skills:")
                 for s in skills:
-                    name = s.get("name", "unknown") if isinstance(s, dict) else getattr(s, "name", "unknown")
-                    desc = s.get("description", "") if isinstance(s, dict) else getattr(s, "description", "")
+                    name = (
+                        s.get("name", "unknown")
+                        if isinstance(s, dict)
+                        else getattr(s, "name", "unknown")
+                    )
+                    desc = (
+                        s.get("description", "")
+                        if isinstance(s, dict)
+                        else getattr(s, "description", "")
+                    )
                     self._print_line(f"  {name}: {desc}")
             else:
                 self._print_line("No skills found")
@@ -2140,7 +2447,9 @@ Footer {
                         self._print_line("Active subagent sessions:")
                         for sid, sess in sessions.items():
                             status = "completed" if sess.completed else "running"
-                            aname = sess.agent.name if hasattr(sess.agent, "name") else "?"
+                            aname = (
+                                sess.agent.name if hasattr(sess.agent, "name") else "?"
+                            )
                             self._print_line(f"  {sid[:8]}: {aname} [{status}]")
                     else:
                         self._print_line("No active subagent sessions")
@@ -2152,7 +2461,11 @@ Footer {
             task_id = parts[1] if len(parts) > 1 else None
             if task_id and self.agent and hasattr(self.agent, "tool_registry"):
                 task_tool = self.agent.tool_registry.get_tool("task")
-                if task_tool and hasattr(task_tool, "sessions") and task_id in task_tool.sessions:
+                if (
+                    task_tool
+                    and hasattr(task_tool, "sessions")
+                    and task_id in task_tool.sessions
+                ):
                     del task_tool.sessions[task_id]
                     self._print_line(f"Killed session: {task_id[:8]}")
                 else:
@@ -2168,7 +2481,9 @@ Footer {
             return
 
         # Unknown command
-        self._print_error(f"Unknown command: {command}. Type /help for available commands.")
+        self._print_error(
+            f"Unknown command: {command}. Type /help for available commands."
+        )
         return
 
 
@@ -2180,4 +2495,5 @@ async def run_tui(agent=None, show_thinking: bool = True):
 
 if __name__ == "__main__":
     import asyncio
+
     asyncio.run(run_tui())
