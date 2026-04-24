@@ -10,17 +10,17 @@ class SkillTool(Tool):
     def __init__(self, skills_manager: SkillsManager):
         super().__init__(
             name="skill",
-            description="Read or execute a custom skill. Pass name=<skill-name> to load skill content, then FOLLOW its instructions. Pass input=<user-request> to pass user input to the skill.",
+            description="Load a specialized skill that provides domain-specific instructions. When you recognize that a task matches one of the available skills listed below, use this tool to load the full skill instructions. The skill will inject detailed instructions and workflows into the conversation context. Use name=<skill-name> to load a skill, then FOLLOW its instructions.",
             parameters={
                 "type": "object",
                 "properties": {
                     "name": {
                         "type": "string",
-                        "description": "Name of the skill to execute (e.g., mcp-builder, skill-creator)",
+                        "description": "Name of the skill to execute (e.g., mcp-builder, skill-creator, python-project-scaffold)",
                     },
                     "input": {
                         "type": "string",
-                        "description": "User's request to pass to the skill. Use 'view' to just read the skill content, or the user's actual request to execute the skill workflow.",
+                        "description": "The user's actual request to pass to the skill (e.g., 'build an MCP server for my API').",
                     },
                 },
                 "required": ["name"],
@@ -60,7 +60,7 @@ class ListSkillsTool(Tool):
     def __init__(self, skills_manager: SkillsManager):
         super().__init__(
             name="list_skills",
-            description="List all available custom skills/commands",
+            description="[DEPRECATED] Use the 'skill' tool directly instead. When you want to use a skill, call skill(name='<skill-name>', input='<your-request>') directly without listing first.",
             parameters={
                 "type": "object",
                 "properties": {},
@@ -72,13 +72,12 @@ class ListSkillsTool(Tool):
         """List all available skills."""
         try:
             skills = self.skills_manager.list_skills()
-            if not skills:
-                return ToolResult(
-                    success=True,
-                    content="No skills found. Create .nanocode/skills/<skill-name>/skill.md to define a skill.",
-                )
-
-            lines = ["Available skills:"]
+            lines = [
+                "Use the 'skill' tool directly instead of listing. Example:",
+                "  skill(name='mcp-builder', input='build a server for my API')",
+                "",
+                "Available skills (use skill tool, don't call list_skills):",
+            ]
             for s in skills:
                 lines.append(f"  - {s['name']}: {s['description']}")
 
