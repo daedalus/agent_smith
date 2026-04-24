@@ -178,6 +178,8 @@ class ModelExplorerScreen(ModalScreen):
         Binding("escape", "cancel", "Cancel"),
         Binding("enter", "select", "Select"),
         Binding("ctrl+r", "refresh", "Refresh"),
+        Binding("up", "move_up", "Up"),
+        Binding("down", "move_down", "Down"),
     ]
 
     def __init__(self, on_select=None, **kwargs):
@@ -187,6 +189,7 @@ class ModelExplorerScreen(ModalScreen):
         self._filtered: list[tuple[str, str, int]] = []
         self._loading = True
         self._refresh_time = None
+        self._selected_index = 0
 
     def compose(self) -> ComposeResult:
         yield Vertical(
@@ -194,7 +197,7 @@ class ModelExplorerScreen(ModalScreen):
             Static("Loading...", id="model-subtitle"),
             Input(placeholder="Search models...", id="search-input"),
             DataTable(id="model-list"),
-            Static("Enter: select | Ctrl+R: refresh | Escape: cancel", id="help-text"),
+            Static("↑↓: navigate | Enter: select | Ctrl+R: refresh | Escape: cancel", id="help-text"),
         )
 
     def on_mount(self):
@@ -245,9 +248,13 @@ class ModelExplorerScreen(ModalScreen):
         table = self.query_one("#model-list", DataTable)
         table.clear()
         table.add_columns("Provider/Model", "Context", "Output")
-        for full_id, provider, ctx in self._filtered[:50]:
+        for i, (full_id, provider, ctx) in enumerate(self._filtered[:50]):
             output = min(ctx // 8, 16384)
+            # Highlight selected row
             table.add_row(full_id, f"{ctx:,}", f"{output:,}")
+        # Ensure selected row is visible
+        if 0 <= self._selected_index < len(self._filtered):
+            table.cursor_row = self._selected_index
 
     def on_input_changed(self, event: Input.Changed):
         query = event.value.lower()
@@ -258,6 +265,7 @@ class ModelExplorerScreen(ModalScreen):
             ][:50]
         else:
             self._filtered = self._models[:50]
+        self._selected_index = 0
         self._update_list()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected):
@@ -268,6 +276,28 @@ class ModelExplorerScreen(ModalScreen):
 
     def action_cancel(self):
         self.dismiss(None)
+
+    def action_select(self):
+        """Select current model and dismiss."""
+        if 0 <= self._selected_index < len(self._filtered):
+            full_id, provider, ctx = self._filtered[self._selected_index]
+            self.dismiss((full_id, provider))
+
+    def action_move_up(self):
+        """Move selection up."""
+        if self._filtered:
+            self._selected_index = max(0, self._selected_index - 1)
+            table = self.query_one("#model-list", DataTable)
+            table.cursor_row = self._selected_index
+            table.scroll_visible()
+
+    def action_move_down(self):
+        """Move selection down."""
+        if self._filtered:
+            self._selected_index = min(len(self._filtered) - 1, self._selected_index + 1)
+            table = self.query_one("#model-list", DataTable)
+            table.cursor_row = self._selected_index
+            table.scroll_visible()
 
 
 class MessageActionScreen(ModalScreen):
