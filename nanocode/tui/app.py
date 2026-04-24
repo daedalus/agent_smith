@@ -1872,6 +1872,10 @@ Footer {
                 with open(config_path, "w") as f:
                     yaml.dump(config, f, default_flow_style=False, sort_keys=False)
                 
+                # Also reload the LLM for the current session if agent exists
+                if self.agent and hasattr(self.agent, '_init_llm'):
+                    self.agent._init_llm()
+                
                 self.notify(f"Model set to {full_id}", severity="success")
             except Exception as e:
                 self.notify(f"Failed to save: {e}", severity="error")
