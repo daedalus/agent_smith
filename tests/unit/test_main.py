@@ -35,12 +35,14 @@ class TestRichConsole:
     def test_console_import(self):
         """Test console can be imported from main."""
         from rich.console import Console
+
         c = Console()
         assert c is not None
 
     def test_console_print(self):
         """Test console.print works."""
         from rich.console import Console
+
         c = Console()
         c.print("[yellow]test[/yellow]")
 
@@ -51,12 +53,14 @@ class TestFormatMarkdown:
     def test_format_markdown_simple(self):
         """Test _format_markdown formats bold text."""
         from nanocode.main import _format_markdown
+
         result = _format_markdown("Hello **world**")
         assert "[magenta bold]world[/magenta bold]" in result
 
     def test_format_markdown_no_bold(self):
         """Test _format_markdown passes text without bold."""
         from nanocode.main import _format_markdown
+
         result = _format_markdown("Hello world")
         assert "world" in result
         assert "[magenta" not in result
@@ -64,6 +68,7 @@ class TestFormatMarkdown:
     def test_format_markdown_multiple_bold(self):
         """Test _format_markdown handles multiple bold sections."""
         from nanocode.main import _format_markdown
+
         result = _format_markdown("**one** and **two**")
         assert result.count("[magenta bold]") == 2
 

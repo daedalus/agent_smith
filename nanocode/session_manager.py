@@ -21,7 +21,6 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger("nanocode.session_manager")
 
@@ -100,7 +99,9 @@ class Session:
             metadata=data.get("metadata", {}),
         )
 
-    def add_message(self, role: str, content: str, metadata: dict = None) -> SessionMessage:
+    def add_message(
+        self, role: str, content: str, metadata: dict = None
+    ) -> SessionMessage:
         """Add a message to the session."""
         msg = SessionMessage(role=role, content=content, metadata=metadata or {})
         self.messages.append(msg)
@@ -148,7 +149,7 @@ class SessionManager:
         try:
             with open(filepath) as f:
                 return Session.from_dict(json.load(f))
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.debug(f"Failed to load session {session_id}: {e}")
             return None
 
@@ -163,7 +164,9 @@ class SessionManager:
         """List all sessions, most recent first."""
         sessions = []
         for filepath in sorted(
-            self.storage_dir.glob("ses_*.json"), key=lambda p: p.stat().st_mtime, reverse=True
+            self.storage_dir.glob("ses_*.json"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
         ):
             if limit and len(sessions) >= limit:
                 break

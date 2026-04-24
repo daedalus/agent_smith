@@ -1,7 +1,5 @@
 """Adversarial tests for MCP sidebar functionality."""
 
-import pytest
-from unittest.mock import MagicMock
 
 
 class TestMCPAgentMCPInit:
@@ -256,5 +254,11 @@ class TestMCPSidebarSection:
                 dot = "●" if enabled else "○"
                 lines.append(f"  {dot} {name}")
 
-        expected = ["─ MCP ─", "  ● server1", "  ○ server2", "  ● server3", "  ○ server4"]
+        expected = [
+            "─ MCP ─",
+            "  ● server1",
+            "  ○ server2",
+            "  ● server3",
+            "  ○ server4",
+        ]
         assert lines == expected

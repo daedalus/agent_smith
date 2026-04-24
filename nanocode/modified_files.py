@@ -4,7 +4,6 @@ import logging
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger("nanocode.modified_files")
 
@@ -12,6 +11,7 @@ logger = logging.getLogger("nanocode.modified_files")
 @dataclass
 class FileModification:
     """Represents a file modification."""
+
     path: str
     relative_path: str
     additions: int = 0
@@ -23,7 +23,7 @@ class FileModification:
 class ModifiedFilesTracker:
     """Track files modified during the session using git diff."""
 
-    def __init__(self, cwd: Optional[str] = None):
+    def __init__(self, cwd: str | None = None):
         if cwd is None:
             cwd = str(Path.cwd())
         self.cwd = Path(cwd)
@@ -33,7 +33,7 @@ class ModifiedFilesTracker:
         """Get list of modified files."""
         return self._files.copy()
 
-    def refresh_from_git(self, from_commit: Optional[str] = None) -> None:
+    def refresh_from_git(self, from_commit: str | None = None) -> None:
         """Refresh modified files from git diff.
 
         Args:
@@ -69,14 +69,16 @@ class ModifiedFilesTracker:
 
                 relative_path = self._get_relative_path(file_path)
                 if relative_path:
-                    self._files.append(FileModification(
-                        path=str(self.cwd / file_path),
-                        relative_path=relative_path,
-                        additions=adds,
-                        deletions=dels,
-                        is_new=False,
-                        is_deleted=False,
-                    ))
+                    self._files.append(
+                        FileModification(
+                            path=str(self.cwd / file_path),
+                            relative_path=relative_path,
+                            additions=adds,
+                            deletions=dels,
+                            is_new=False,
+                            is_deleted=False,
+                        )
+                    )
 
             result = subprocess.run(
                 ["git", "diff", "--numstat", "--cached", from_commit, "--", "."],
@@ -98,24 +100,36 @@ class ModifiedFilesTracker:
                     adds = int(adds_str) if adds_str != "-" else 0
                     dels = int(dels_str) if dels_str != "-" else 0
 
-                    existing = next((f for f in self._files if f.relative_path == file_path), None)
+                    existing = next(
+                        (f for f in self._files if f.relative_path == file_path), None
+                    )
                     if existing:
                         existing.additions += adds
                         existing.deletions += dels
                     else:
                         relative_path = self._get_relative_path(file_path)
                         if relative_path:
-                            self._files.append(FileModification(
-                                path=str(self.cwd / file_path),
-                                relative_path=relative_path,
-                                additions=adds,
-                                deletions=dels,
-                                is_new=False,
-                                is_deleted=False,
-                            ))
+                            self._files.append(
+                                FileModification(
+                                    path=str(self.cwd / file_path),
+                                    relative_path=relative_path,
+                                    additions=adds,
+                                    deletions=dels,
+                                    is_new=False,
+                                    is_deleted=False,
+                                )
+                            )
 
             result = subprocess.run(
-                ["git", "diff", "--name-only", "--diff-filter=D", from_commit, "--", "."],
+                [
+                    "git",
+                    "diff",
+                    "--name-only",
+                    "--diff-filter=D",
+                    from_commit,
+                    "--",
+                    ".",
+                ],
                 cwd=self.cwd,
                 capture_output=True,
                 text=True,
@@ -126,21 +140,23 @@ class ModifiedFilesTracker:
                 for line in result.stdout.strip().split("\n"):
                     if not line:
                         continue
-                    self._files.append(FileModification(
-                        path=str(self.cwd / line),
-                        relative_path=self._get_relative_path(line) or line,
-                        additions=0,
-                        deletions=0,
-                        is_new=False,
-                        is_deleted=True,
-                    ))
+                    self._files.append(
+                        FileModification(
+                            path=str(self.cwd / line),
+                            relative_path=self._get_relative_path(line) or line,
+                            additions=0,
+                            deletions=0,
+                            is_new=False,
+                            is_deleted=True,
+                        )
+                    )
 
         except subprocess.TimeoutExpired:
             logger.warning("Git diff timed out")
         except Exception as e:
             logger.debug(f"Failed to refresh git diff: {e}")
 
-    def _get_relative_path(self, file_path: str) -> Optional[str]:
+    def _get_relative_path(self, file_path: str) -> str | None:
         """Get relative path from cwd."""
         try:
             abs_path = (self.cwd / file_path).resolve()
@@ -157,7 +173,9 @@ class ModifiedFilesTracker:
             "deletions": sum(f.deletions for f in self._files),
             "new": sum(1 for f in self._files if f.is_new),
             "deleted": sum(1 for f in self._files if f.is_deleted),
-            "modified": sum(1 for f in self._files if not f.is_new and not f.is_deleted),
+            "modified": sum(
+                1 for f in self._files if not f.is_new and not f.is_deleted
+            ),
         }
 
     def clear(self) -> None:
@@ -165,10 +183,10 @@ class ModifiedFilesTracker:
         self._files = []
 
 
-_global_tracker: Optional[ModifiedFilesTracker] = None
+_global_tracker: ModifiedFilesTracker | None = None
 
 
-def get_modified_files_tracker(cwd: Optional[str] = None) -> ModifiedFilesTracker:
+def get_modified_files_tracker(cwd: str | None = None) -> ModifiedFilesTracker:
     """Get the global modified files tracker."""
     global _global_tracker
     if _global_tracker is None or cwd is not None:

@@ -143,9 +143,7 @@ Respond with a JSON plan in this format:
 class PlanExecutor:
     """Executes plans with progress tracking and checkpointing."""
 
-    def __init__(
-        self, planner: TaskPlanner, executor, checkpoint_dir: str = None
-    ):
+    def __init__(self, planner: TaskPlanner, executor, checkpoint_dir: str = None):
         self.planner = planner
         self.executor = executor
         if checkpoint_dir is None:

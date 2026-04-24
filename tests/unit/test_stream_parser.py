@@ -1,10 +1,10 @@
 """Tests for streaming tool call parser."""
 
 import json
+
 import pytest
 
 from nanocode.llm.stream_parser import (
-    StreamChunk,
     is_complete_json,
     parse_sse_stream,
 )
@@ -80,18 +80,19 @@ class TestParseSSEStream:
     @pytest.mark.asyncio
     async def test_tool_call_single_chunk(self):
         chunk = {
-            "choices": [{
-                "delta": {
-                    "tool_calls": [{
-                        "index": 0,
-                        "id": "call_1",
-                        "function": {
-                            "name": "test",
-                            "arguments": "{}"
-                        }
-                    }]
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_1",
+                                "function": {"name": "test", "arguments": "{}"},
+                            }
+                        ]
+                    }
                 }
-            }]
+            ]
         }
         chunks = [
             f"data: {json.dumps(chunk)}\n",
@@ -112,18 +113,19 @@ class TestParseSSEStream:
     async def test_tool_call_with_arguments(self):
         args_json = json.dumps({"path": "/file.txt"})
         chunk = {
-            "choices": [{
-                "delta": {
-                    "tool_calls": [{
-                        "index": 0,
-                        "id": "call_1",
-                        "function": {
-                            "name": "read",
-                            "arguments": args_json
-                        }
-                    }]
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_1",
+                                "function": {"name": "read", "arguments": args_json},
+                            }
+                        ]
+                    }
                 }
-            }]
+            ]
         }
         chunks = [
             f"data: {json.dumps(chunk)}\n",
@@ -145,32 +147,34 @@ class TestParseSSEStream:
         tool2_args = json.dumps({"b": 2})
 
         chunk1 = {
-            "choices": [{
-                "delta": {
-                    "tool_calls": [{
-                        "index": 0,
-                        "id": "call_1",
-                        "function": {
-                            "name": "tool1",
-                            "arguments": tool1_args
-                        }
-                    }]
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_1",
+                                "function": {"name": "tool1", "arguments": tool1_args},
+                            }
+                        ]
+                    }
                 }
-            }]
+            ]
         }
         chunk2 = {
-            "choices": [{
-                "delta": {
-                    "tool_calls": [{
-                        "index": 1,
-                        "id": "call_2",
-                        "function": {
-                            "name": "tool2",
-                            "arguments": tool2_args
-                        }
-                    }]
+            "choices": [
+                {
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 1,
+                                "id": "call_2",
+                                "function": {"name": "tool2", "arguments": tool2_args},
+                            }
+                        ]
+                    }
                 }
-            }]
+            ]
         }
 
         chunks = [
@@ -204,7 +208,7 @@ class TestParseSSEStream:
     async def test_usage(self):
         chunk = {
             "choices": [{"delta": {}}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5}
+            "usage": {"prompt_tokens": 10, "completion_tokens": 5},
         }
         chunks = [
             f"data: {json.dumps(chunk)}\n",

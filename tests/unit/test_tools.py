@@ -142,7 +142,9 @@ class TestToolExecutor:
     @pytest.mark.asyncio
     async def test_format_result(self, executor):
         """Test formatting result includes metadata."""
-        result = ToolResult(success=True, content="Hello", metadata={"lines": 10, "bytes": 100})
+        result = ToolResult(
+            success=True, content="Hello", metadata={"lines": 10, "bytes": 100}
+        )
         formatted = executor.format_result(result)
 
         assert "metadata" in formatted
@@ -249,12 +251,13 @@ class TestBuiltinTools:
 
         tool = WebFetchTool()
         result = await tool.execute(
-            path="/tmp/localfile.txt",
-            url="https://example.com"
+            path="/tmp/localfile.txt", url="https://example.com"
         )
 
         assert result.success is True
-        assert "example" in result.content.lower() or "<!doctype" in result.content.lower()
+        assert (
+            "example" in result.content.lower() or "<!doctype" in result.content.lower()
+        )
 
     @pytest.mark.asyncio
     async def test_webfetch_missing_url_and_path(self):
@@ -1817,23 +1820,25 @@ class TestCommandExtraction:
     def test_extract_bash_block(self):
         """Test extracting bash code blocks."""
         import re
-        output = '''Install commands:
+
+        output = """Install commands:
 ```bash
 mkdir -p ~/.test
 curl -s https://example.com/setup.sh
 ```
-'''
-        bash_blocks = re.findall(r'```bash\n(.*?)```', output, re.DOTALL)
+"""
+        bash_blocks = re.findall(r"```bash\n(.*?)```", output, re.DOTALL)
         assert len(bash_blocks) == 1
-        assert 'mkdir' in bash_blocks[0]
+        assert "mkdir" in bash_blocks[0]
 
     def test_extract_inline_commands(self):
         """Test extracting inline commands - commands at start of line."""
         import re
+
         # Command at start of line followed by args
-        output = '''mkdir -p ~/.testdir
+        output = """mkdir -p ~/.testdir
 curl -s https://example.com
 wget http://test.com
-'''
-        inline = re.findall(r'^\s*(mkdir|curl|wget)\s+\S+', output, re.MULTILINE)
+"""
+        inline = re.findall(r"^\s*(mkdir|curl|wget)\s+\S+", output, re.MULTILINE)
         assert len(inline) >= 1

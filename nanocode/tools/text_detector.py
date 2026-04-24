@@ -9,12 +9,12 @@ This module handles cases where:
 import json
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class DetectedCommand:
     """A command detected in text."""
+
     command: str
     tool_name: str  # e.g., "bash", "edit", "read"
     confidence: float  # 0.0 to 1.0
@@ -51,7 +51,28 @@ COMMAND_PATTERNS = {
 }
 
 # Common shell commands that should be detected
-SHELL_COMMANDS = {"find", "grep", "ls", "cd", "python", "npm", "git", "pip", "uv", "pytest", "./", "mkdir", "rm", "cp", "mv", "cat", "head", "tail", "chmod", "chown"}
+SHELL_COMMANDS = {
+    "find",
+    "grep",
+    "ls",
+    "cd",
+    "python",
+    "npm",
+    "git",
+    "pip",
+    "uv",
+    "pytest",
+    "./",
+    "mkdir",
+    "rm",
+    "cp",
+    "mv",
+    "cat",
+    "head",
+    "tail",
+    "chmod",
+    "chown",
+}
 
 
 def detect_commands_in_text(text: str) -> list[DetectedCommand]:
@@ -75,14 +96,20 @@ def detect_commands_in_text(text: str) -> list[DetectedCommand]:
         content = match.group(1).strip()
         first_word = content.split()[0] if content.split() else ""
         # Check if it looks like a shell command
-        if first_word in SHELL_COMMANDS or first_word.startswith("./") or first_word.startswith("-"):
+        if (
+            first_word in SHELL_COMMANDS
+            or first_word.startswith("./")
+            or first_word.startswith("-")
+        ):
             if len(content) > 3 and not content.startswith("#"):
-                detected.append(DetectedCommand(
-                    command=content,
-                    tool_name="bash",
-                    confidence=0.9 if first_word in SHELL_COMMANDS else 0.7,
-                    explanation=f"Detected bash command in code block"
-                ))
+                detected.append(
+                    DetectedCommand(
+                        command=content,
+                        tool_name="bash",
+                        confidence=0.9 if first_word in SHELL_COMMANDS else 0.7,
+                        explanation="Detected bash command in code block",
+                    )
+                )
 
     # Check inline backticks (`command`)
     inline_pattern = r"`([^`]+)`"
@@ -93,32 +120,44 @@ def detect_commands_in_text(text: str) -> list[DetectedCommand]:
         first_word = content.split()[0] if content.split() else ""
         # Determine if it's a command or file path
         if first_word in SHELL_COMMANDS:
-            detected.append(DetectedCommand(
-                command=content,
-                tool_name="bash",
-                confidence=0.8,
-                explanation=f"Detected bash command in backticks"
-            ))
-        elif "." in content or "/" in content or first_word.endswith(".py") or first_word.endswith(".yaml") or first_word.endswith(".json"):
+            detected.append(
+                DetectedCommand(
+                    command=content,
+                    tool_name="bash",
+                    confidence=0.8,
+                    explanation="Detected bash command in backticks",
+                )
+            )
+        elif (
+            "." in content
+            or "/" in content
+            or first_word.endswith(".py")
+            or first_word.endswith(".yaml")
+            or first_word.endswith(".json")
+        ):
             # Looks like a file path
-            detected.append(DetectedCommand(
-                command=content,
-                tool_name="read",
-                confidence=0.7,
-                explanation=f"Detected file path in backticks"
-            ))
+            detected.append(
+                DetectedCommand(
+                    command=content,
+                    tool_name="read",
+                    confidence=0.7,
+                    explanation="Detected file path in backticks",
+                )
+            )
 
     # Check for read commands in text
     for pattern in COMMAND_PATTERNS["read"]:
         matches = re.finditer(pattern, text, re.IGNORECASE)
         for match in matches:
             filepath = match.group(1).strip()
-            detected.append(DetectedCommand(
-                command=filepath,
-                tool_name="read",
-                confidence=0.7,
-                explanation=f"Detected file path: {filepath}"
-            ))
+            detected.append(
+                DetectedCommand(
+                    command=filepath,
+                    tool_name="read",
+                    confidence=0.7,
+                    explanation=f"Detected file path: {filepath}",
+                )
+            )
 
     # Deduplicate results
     seen = set()
@@ -133,7 +172,7 @@ def detect_commands_in_text(text: str) -> list[DetectedCommand]:
     return detected
 
 
-def extract_json_from_text(text: str) -> Optional[dict]:
+def extract_json_from_text(text: str) -> dict | None:
     """Try to extract JSON from text that might contain it.
 
     Some models output JSON in code blocks or as raw text.
@@ -172,7 +211,9 @@ def format_detected_commands_message(commands: list[DetectedCommand]) -> str:
     return "\n".join(lines)
 
 
-def should_reprompt_for_tools(response_text: str | None, tools_were_expected: bool = True) -> tuple[bool, str]:
+def should_reprompt_for_tools(
+    response_text: str | None, tools_were_expected: bool = True
+) -> tuple[bool, str]:
     """Check if model should have used tools instead of describing them in text.
 
     Args:
@@ -199,19 +240,27 @@ def should_reprompt_for_tools(response_text: str | None, tools_were_expected: bo
         r"pytest\s+",  # pytest tests/
         r"git\s+(status|log|diff|branch)",  # git commands
     ]
-    
+
     has_shell_like = any(re.search(p, response_text) for p in shell_like_patterns)
-    
+
     if not has_shell_like:
         return False, ""
 
     # Indicators that response is complete without tools
     completion_indicators = [
-        "here is", "the answer", "summary:", "conclusion:",
-        "as follows:", "```", "done.", "finished.",
-        "i have", "based on", "according to",
+        "here is",
+        "the answer",
+        "summary:",
+        "conclusion:",
+        "as follows:",
+        "```",
+        "done.",
+        "finished.",
+        "i have",
+        "based on",
+        "according to",
     ]
-    
+
     has_completion = any(ind in response_text.lower() for ind in completion_indicators)
 
     if tools_were_expected and not has_completion:

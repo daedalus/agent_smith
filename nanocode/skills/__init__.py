@@ -153,9 +153,7 @@ class SkillsManager:
         except Exception:
             return None
 
-    async def discover_skills_from_urls(
-        self, urls: list[str] = None
-    ) -> list[Skill]:
+    async def discover_skills_from_urls(self, urls: list[str] = None) -> list[Skill]:
         """Discover skills from URLs (supports {skill} placeholder)."""
         urls = urls or self.config.get("skills.urls", [])
         if not urls:
@@ -205,6 +203,7 @@ class SkillsManager:
 
         if not name:
             import hashlib
+
             name = hashlib.md5(url.encode()).hexdigest()[:8]
 
         skill = Skill(
@@ -255,7 +254,9 @@ class SkillsManager:
                 for skill in url_skills:
                     if skill.name not in self.skills:
                         self.skills[skill.name] = skill
-                        logger.info(f"Remote skill loaded: {skill.name} ({skill.location})")
+                        logger.info(
+                            f"Remote skill loaded: {skill.name} ({skill.location})"
+                        )
         except Exception as e:
             logger.warning(f"Failed to load remote skills: {e}")
 
@@ -337,7 +338,9 @@ def create_skills_manager(base_dir: str = None, config: dict = None) -> SkillsMa
     return manager
 
 
-async def create_skills_manager_async(base_dir: str = None, config: dict = None) -> SkillsManager:
+async def create_skills_manager_async(
+    base_dir: str = None, config: dict = None
+) -> SkillsManager:
     """Create and initialize a skills manager with URL support."""
     manager = SkillsManager(base_dir, config)
     await manager.load_skills_async()

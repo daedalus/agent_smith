@@ -1,6 +1,5 @@
 """Tests for message actions."""
 
-import pytest
 
 from nanocode.message_actions import (
     MessageAction,
@@ -153,7 +152,9 @@ class TestMessageActionManager:
         import shutil
         from pathlib import Path
 
-        storage_dir = Path.home() / ".local" / "share" / "nanocode" / "storage" / "forks"
+        storage_dir = (
+            Path.home() / ".local" / "share" / "nanocode" / "storage" / "forks"
+        )
         if storage_dir.exists():
             shutil.rmtree(storage_dir)
 

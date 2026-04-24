@@ -248,13 +248,19 @@ class ToolRegistry:
         ToolClass = module.Tool
         for attr_name in dir(module):
             attr = getattr(module, attr_name)
-            if isinstance(attr, type) and issubclass(attr, ToolClass) and attr is not ToolClass:
+            if (
+                isinstance(attr, type)
+                and issubclass(attr, ToolClass)
+                and attr is not ToolClass
+            ):
                 try:
                     try:
                         instance = attr()
                     except TypeError:
                         instance = attr.__new__(attr)
-                        if hasattr(instance, "name") and hasattr(instance, "description"):
+                        if hasattr(instance, "name") and hasattr(
+                            instance, "description"
+                        ):
                             pass
                         else:
                             continue
@@ -284,7 +290,13 @@ class ToolExecutor:
         self.execution_history: list[dict] = []
         logger.debug("ToolExecutor initialized")
 
-    async def execute(self, tool_name: str, arguments: dict, session_id: str | None = None, agent_name: str | None = None) -> ToolResult:
+    async def execute(
+        self,
+        tool_name: str,
+        arguments: dict,
+        session_id: str | None = None,
+        agent_name: str | None = None,
+    ) -> ToolResult:
         """Execute a tool by name with arguments."""
         logger.debug(f"ToolExecutor.execute('{tool_name}', {arguments})")
 
@@ -294,7 +306,9 @@ class ToolExecutor:
                 tool_name, arguments, session_id, agent_name
             )
             if hook_result.action == HookAction.DENY:
-                logger.warning(f"Tool '{tool_name}' blocked by pre-hook: {hook_result.message}")
+                logger.warning(
+                    f"Tool '{tool_name}' blocked by pre-hook: {hook_result.message}"
+                )
                 return ToolResult(
                     success=False,
                     content=None,
@@ -369,7 +383,11 @@ class ToolExecutor:
                 meta_parts = []
                 for key, value in result.metadata.items():
                     if key not in ("cached",):
-                        val_str = str(value) if not isinstance(value, (list, dict)) else repr(value)
+                        val_str = (
+                            str(value)
+                            if not isinstance(value, (list, dict))
+                            else repr(value)
+                        )
                         meta_parts.append(f"{key}={val_str}")
                 if meta_parts:
                     parts.append(f"[metadata: {', '.join(meta_parts)}]")

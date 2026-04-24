@@ -302,6 +302,7 @@ class TestSpinner:
     def test_spinner_init(self):
         """Test spinner initialization."""
         from nanocode.cli import Spinner
+
         spinner = Spinner("Testing")
         assert spinner.message == "Testing"
         assert spinner.running is False
@@ -310,11 +311,13 @@ class TestSpinner:
     def test_spinner_default_message(self):
         """Test spinner with default message."""
         from nanocode.cli import Spinner
+
         spinner = Spinner()
         assert spinner.message == "Thinking"
 
     def test_spinner_frames(self):
         """Test spinner has frames."""
         from nanocode.cli import Spinner
+
         assert len(Spinner.frames) == 10
         assert "⠋" in Spinner.frames

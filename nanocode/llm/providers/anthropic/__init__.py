@@ -66,7 +66,11 @@ class AnthropicLLM(LLMBase):
         if tc_data := data.get("tool_calls", []):
             for tc in tc_data:
                 tool_calls.append(
-                    ToolCall(name=tc.get("name", ""), arguments=tc.get("input", {}), id=tc.get("id"))
+                    ToolCall(
+                        name=tc.get("name", ""),
+                        arguments=tc.get("input", {}),
+                        id=tc.get("id"),
+                    )
                 )
 
         content_parts = []
@@ -77,7 +81,9 @@ class AnthropicLLM(LLMBase):
             elif block.get("type") == "tool_use":
                 tool_calls.append(
                     ToolCall(
-                        name=block.get("name", ""), arguments=block.get("input", {}), id=block.get("id")
+                        name=block.get("name", ""),
+                        arguments=block.get("input", {}),
+                        id=block.get("id"),
                     )
                 )
             elif block.get("type") == "thinking":

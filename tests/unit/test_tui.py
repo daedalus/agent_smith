@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from nanocode.tui.app import OutputArea, NanoCodeTUI
+from nanocode.tui.app import NanoCodeTUI, OutputArea
 
 
 class TestOutputArea:
@@ -25,10 +25,22 @@ class TestOutputArea:
         """Test that Gruvbox colors are defined."""
         area = OutputArea()
         expected_colors = [
-            "fg", "gray", "red", "green", "yellow", "blue",
-            "purple", "aqua", "orange", "red_bright", "green_bright",
-            "yellow_bright", "blue_bright", "purple_bright",
-            "aqua_bright", "orange_bright"
+            "fg",
+            "gray",
+            "red",
+            "green",
+            "yellow",
+            "blue",
+            "purple",
+            "aqua",
+            "orange",
+            "red_bright",
+            "green_bright",
+            "yellow_bright",
+            "blue_bright",
+            "purple_bright",
+            "aqua_bright",
+            "orange_bright",
         ]
         for color in expected_colors:
             assert color in area.GRUVBOX, f"Missing color: {color}"
@@ -280,6 +292,7 @@ class TestRichColor:
     def test_rich_color_enum_values(self):
         """Test RichColor enum has correct values."""
         from nanocode.tui.app import RichColor
+
         assert RichColor.FG.value == "#ebdbb2"
         assert RichColor.YELLOW.value == "#d79921"
         assert RichColor.GREEN.value == "#98971a"
@@ -292,6 +305,7 @@ class TestRichColor:
     def test_rich_color_enum_count(self):
         """Test RichColor enum has expected number of colors."""
         from nanocode.tui.app import RichColor
+
         colors = list(RichColor)
         assert len(colors) == 8
 
@@ -301,38 +315,45 @@ class TestStyle:
 
     def test_style_thinking(self):
         """Test Style.THINKING uses yellow italic."""
-        from nanocode.tui.app import Style, RichColor
+        from nanocode.tui.app import RichColor, Style
+
         assert "italic" in Style.THINKING
         assert RichColor.YELLOW.value in Style.THINKING
 
     def test_style_user_message(self):
         """Test Style.USER_MESSAGE uses green."""
-        from nanocode.tui.app import Style, RichColor
+        from nanocode.tui.app import RichColor, Style
+
         assert RichColor.GREEN.value in Style.USER_MESSAGE
 
     def test_style_assistant_message(self):
         """Test Style.ASSISTANT_MESSAGE uses purple."""
-        from nanocode.tui.app import Style, RichColor
+        from nanocode.tui.app import RichColor, Style
+
         assert RichColor.PURPLE.value in Style.ASSISTANT_MESSAGE
 
     def test_style_tool_message(self):
         """Test Style.TOOL_MESSAGE uses aqua."""
-        from nanocode.tui.app import Style, RichColor
+        from nanocode.tui.app import RichColor, Style
+
         assert RichColor.AQUA.value in Style.TOOL_MESSAGE
 
     def test_style_warning(self):
         """Test Style.TEXT_WARNING uses yellow."""
-        from nanocode.tui.app import Style, RichColor
+        from nanocode.tui.app import RichColor, Style
+
         assert RichColor.YELLOW.value in Style.TEXT_WARNING
 
     def test_style_danger(self):
         """Test Style.TEXT_DANGER uses red."""
-        from nanocode.tui.app import Style, RichColor
+        from nanocode.tui.app import RichColor, Style
+
         assert RichColor.RED.value in Style.TEXT_DANGER
 
     def test_style_success(self):
         """Test Style.TEXT_SUCCESS uses green."""
-        from nanocode.tui.app import Style, RichColor
+        from nanocode.tui.app import RichColor, Style
+
         assert RichColor.GREEN.value in Style.TEXT_SUCCESS
 
 
@@ -354,7 +375,9 @@ class TestOutputAreaThinking:
     def test_add_line_multiple_thoughts(self):
         """Test add_line with multiple thought blocks."""
         area = OutputArea()
-        text = "First [thought]| Thinking:[/thought] then [thought]| Tool Use:[/thought]"
+        text = (
+            "First [thought]| Thinking:[/thought] then [thought]| Tool Use:[/thought]"
+        )
         area.add_line(text, "assistant")
 
 
@@ -364,4 +387,5 @@ class TestPrintLine:
     def test_print_line_basic(self):
         """Test _print_line basic functionality."""
         from nanocode.tui.app import Style
+
         assert Style.THINKING is not None

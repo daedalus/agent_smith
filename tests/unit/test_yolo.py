@@ -1,8 +1,6 @@
 """Tests for YOLO mode."""
 
-import pytest
 
-from nanocode.agents import AgentMode, PermissionAction
 from nanocode.core import AutonomousAgent
 
 
@@ -28,7 +26,7 @@ class TestYoloArg:
     def test_parse_yolo_flag(self):
         """Test --yolo flag is parsed."""
         import argparse
-        from nanocode.main import parse_args
+
 
         parser = argparse.ArgumentParser()
         parser.add_argument("-y", "--yolo", action="store_true")
@@ -39,7 +37,7 @@ class TestYoloArg:
     def test_parse_yolo_short_flag(self):
         """Test -y flag is parsed."""
         import argparse
-        from nanocode.main import parse_args
+
 
         parser = argparse.ArgumentParser()
         parser.add_argument("-y", "--yolo", action="store_true")

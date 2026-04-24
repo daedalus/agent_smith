@@ -1,6 +1,6 @@
 """Autonomous Agent - A fully autonomous AI agent with advanced tool use."""
 
-__version__ = "0.1.0.1"
+__version__ = "0.1.1"
 __all__ = [
     "config",
     "core",

@@ -229,9 +229,7 @@ class HookManager:
 
     def __init__(self, base_dir: str | None = None):
         self.base_dir = base_dir or os.getcwd()
-        self.hooks: dict[HookEvent, list[Hook]] = {
-            event: [] for event in HookEvent
-        }
+        self.hooks: dict[HookEvent, list[Hook]] = {event: [] for event in HookEvent}
         self._python_hooks: dict[str, HookCallable] = {}
 
     def discover_hooks(self) -> list[Hook]:
@@ -307,7 +305,11 @@ class HookManager:
 
                 for attr_name in dir(module):
                     attr = getattr(module, attr_name)
-                    if isinstance(attr, type) and issubclass(attr, Hook) and attr != Hook:
+                    if (
+                        isinstance(attr, type)
+                        and issubclass(attr, Hook)
+                        and attr != Hook
+                    ):
                         instance = attr()
                         if isinstance(instance, Hook):
                             hooks.append(instance)
@@ -334,7 +336,9 @@ class HookManager:
         """Get hooks for an event, optionally filtered by tool name."""
         result = []
         for hook in self.hooks.get(event, []):
-            if hook.enabled and hook.matches_pattern(tool_name, getattr(hook, "pattern", None)):
+            if hook.enabled and hook.matches_pattern(
+                tool_name, getattr(hook, "pattern", None)
+            ):
                 result.append(hook)
         return result
 
@@ -479,7 +483,9 @@ def create_security_hook(
 
     class SecurityHook(Hook):
         def __init__(self):
-            super().__init__(name, HookEvent.PRE_TOOL_USE, f"Security hook for {patterns}")
+            super().__init__(
+                name, HookEvent.PRE_TOOL_USE, f"Security hook for {patterns}"
+            )
             self.patterns = patterns
             self.action = action
             self.message = message

@@ -265,6 +265,7 @@ class TestPythonHook:
     @pytest.mark.asyncio
     async def test_python_hook_with_func(self):
         """Test Python hook with direct function."""
+
         async def my_hook(ctx: HookContext) -> HookResult:
             return HookResult(action=HookAction.ALLOW)
 
@@ -281,6 +282,7 @@ class TestPythonHook:
     @pytest.mark.asyncio
     async def test_python_hook_modify_args(self):
         """Test Python hook that modifies arguments."""
+
         async def modify_hook(ctx: HookContext) -> HookResult:
             if ctx.tool_args:
                 modified = dict(ctx.tool_args)

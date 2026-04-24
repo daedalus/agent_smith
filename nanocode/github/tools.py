@@ -1,6 +1,5 @@
 """GitHub tools for the agent."""
 
-
 from nanocode.github import GitHubClient, GitHubGitOperations, create_github_client
 from nanocode.tools import Tool, ToolResult
 

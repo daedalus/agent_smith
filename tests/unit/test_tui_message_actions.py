@@ -1,7 +1,6 @@
 """Tests for TUI message actions."""
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 
 
 class TestMessageActionScreen:
@@ -116,7 +115,7 @@ class TestInputHistoryPersistence:
         """Test loading input history from file."""
         import json
         import os
-        from pathlib import Path
+
         from nanocode.tui.app import NanoCodeTUI
 
         history_file = tmp_path / "nanocode" / "storage" / "tui_history.json"
@@ -124,10 +123,10 @@ class TestInputHistoryPersistence:
         history_file.write_text(json.dumps({"history": ["cmd1", "cmd2"]}))
 
         monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-        
+
         # Need to set env BEFORE importing, or reload the module
         os.environ["XDG_DATA_HOME"] = str(tmp_path)
-        
+
         app = NanoCodeTUI()
         assert app._input_history == ["cmd1", "cmd2"]
         assert app._history_index == 1
@@ -135,7 +134,7 @@ class TestInputHistoryPersistence:
     def test_save_input_history(self, tmp_path, monkeypatch):
         """Test saving input history to file."""
         import json
-        from pathlib import Path
+
         from nanocode.tui.app import NanoCodeTUI
 
         monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
@@ -173,5 +172,6 @@ class TestInputHistoryPersistence:
         app._save_input_history()
 
         import json
+
         data = json.loads(app._history_file.read_text())
         assert "forked" in data["history"]

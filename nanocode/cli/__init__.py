@@ -177,10 +177,32 @@ class ConsoleUI:
 
         if first_token == "/":
             commands = [
-                "help", "exit", "quit", "q", "clear", "history", "tools",
-                "provider", "plan", "resume", "checkpoint", "skills", "revert", "fork", "copy", "save", "load",
-                "snapshot", "snapshots", "revert", "trace", "debug",
-                "compact", "show_thinking", "agents", "agent"
+                "help",
+                "exit",
+                "quit",
+                "q",
+                "clear",
+                "history",
+                "tools",
+                "provider",
+                "plan",
+                "resume",
+                "checkpoint",
+                "skills",
+                "revert",
+                "fork",
+                "copy",
+                "save",
+                "load",
+                "snapshot",
+                "snapshots",
+                "revert",
+                "trace",
+                "debug",
+                "compact",
+                "show_thinking",
+                "agents",
+                "agent",
             ]
             matches = [f"/{c}" for c in commands if c.startswith(text[1:].lower())]
             if state < len(matches):
@@ -193,6 +215,7 @@ class ConsoleUI:
         """Get list of agent names for completion."""
         try:
             from nanocode.agents import get_agent_registry
+
             registry = get_agent_registry()
             return [a.name for a in registry.list_primary()]
         except Exception:
@@ -433,7 +456,13 @@ class CommandHistory:
 class InteractiveCLI:
     """Main CLI for the agent."""
 
-    def __init__(self, agent, show_thinking: bool = True, show_messages: bool = False, enable_spinner: bool = True):
+    def __init__(
+        self,
+        agent,
+        show_thinking: bool = True,
+        show_messages: bool = False,
+        enable_spinner: bool = True,
+    ):
         self.nanocode = agent
         self.ui = ConsoleUI()
         self.history = CommandHistory()
@@ -451,12 +480,14 @@ class InteractiveCLI:
         while True:
             try:
                 agent_name = None
-                if hasattr(self.nanocode, 'current_agent') and self.nanocode.current_agent:
+                if (
+                    hasattr(self.nanocode, "current_agent")
+                    and self.nanocode.current_agent
+                ):
                     agent_name = self.nanocode.current_agent.name
 
                 user_input = self.ui.print_prompt(
-                    state=self.nanocode.state.state.name.lower(),
-                    agent_name=agent_name
+                    state=self.nanocode.state.state.name.lower(), agent_name=agent_name
                 )
 
                 if not user_input.strip():
@@ -469,14 +500,44 @@ class InteractiveCLI:
                     command = user_input.lower()
                     if command in ("/exit", "/quit", "/q"):
                         self.ui.save_history()
-                        session_id = getattr(self.nanocode, '_session_id', 'unknown')
+                        session_id = getattr(self.nanocode, "_session_id", "unknown")
                         print()
-                        print(self.ui.color("cyan", "░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ "))
-                        print(self.ui.color("cyan", "██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗"))
-                        print(self.ui.color("cyan", "██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║"))
-                        print(self.ui.color("cyan", "██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║"))
-                        print(self.ui.color("cyan", "╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║"))
-                        print(self.ui.color("cyan", " ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝"))
+                        print(
+                            self.ui.color(
+                                "cyan",
+                                "░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ ",
+                            )
+                        )
+                        print(
+                            self.ui.color(
+                                "cyan",
+                                "██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗",
+                            )
+                        )
+                        print(
+                            self.ui.color(
+                                "cyan",
+                                "██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║",
+                            )
+                        )
+                        print(
+                            self.ui.color(
+                                "cyan",
+                                "██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║",
+                            )
+                        )
+                        print(
+                            self.ui.color(
+                                "cyan",
+                                "╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║",
+                            )
+                        )
+                        print(
+                            self.ui.color(
+                                "cyan",
+                                " ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝",
+                            )
+                        )
                         print()
                         print(f"Session: {session_id}")
                         print(self.ui.color("green", "Goodbye!"))
@@ -516,7 +577,9 @@ class InteractiveCLI:
                         self._list_checkpoints()
                         continue
 
-                    if command.startswith("/revert ") and not command.startswith("/resume "):
+                    if command.startswith("/revert ") and not command.startswith(
+                        "/resume "
+                    ):
                         try:
                             steps = int(user_input[7:].strip()) or 1
                             await self._revert_messages(steps)
@@ -621,16 +684,29 @@ class InteractiveCLI:
 
             except KeyboardInterrupt:
                 self.ui.save_history()
-                session_id = getattr(self.nanocode, '_session_id', 'unknown')
+                session_id = getattr(self.nanocode, "_session_id", "unknown")
                 print()
                 from rich.console import Console
+
                 c = Console()
-                c.print(f"[cyan]░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ [/cyan]")
-                c.print(f"[cyan]██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗[/cyan]")
-                c.print(f"[cyan]██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║[/cyan]")
-                c.print(f"[cyan]██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║[/cyan]")
-                c.print(f"[cyan]╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║[/cyan]")
-                c.print(f"[cyan] ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/cyan]")
+                c.print(
+                    "[cyan]░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ [/cyan]"
+                )
+                c.print(
+                    "[cyan]██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗[/cyan]"
+                )
+                c.print(
+                    "[cyan]██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║[/cyan]"
+                )
+                c.print(
+                    "[cyan]██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║[/cyan]"
+                )
+                c.print(
+                    "[cyan]╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║[/cyan]"
+                )
+                c.print(
+                    "[cyan] ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/cyan]"
+                )
                 print()
                 print(f"Session: {session_id}")
                 break
@@ -1062,7 +1138,7 @@ class InteractiveCLI:
 
     async def _revert_messages(self, steps: int):
         """Revert N messages."""
-        if not hasattr(self, 'message_manager'):
+        if not hasattr(self, "message_manager"):
             from nanocode.message_actions import create_message_manager
 
             self.message_manager = create_message_manager()
@@ -1082,7 +1158,11 @@ class InteractiveCLI:
             for f in forks:
                 print(f"  • {f}")
         else:
-            print(self.ui.color("gray", "No forks found. Use /save <name> to save current state."))
+            print(
+                self.ui.color(
+                    "gray", "No forks found. Use /save <name> to save current state."
+                )
+            )
 
     async def _fork_session(self, name: str = None):
         """Fork current session."""
@@ -1106,7 +1186,7 @@ class InteractiveCLI:
         if manager.save_as(name):
             self.ui.print_success(f"Saved as {name}")
         else:
-            self.ui.print_error(f"Failed to save fork")
+            self.ui.print_error("Failed to save fork")
 
     async def _load_fork(self, name: str):
         """Load a saved fork."""
@@ -1145,7 +1225,9 @@ class InteractiveCLI:
             success = manager.undo()
             if success:
                 self.ui.print_success("Undo: reverted to previous state")
-                self.ui.print_info(f"Undo stack: {manager.get_undo_stack_size()}, Redo stack: {manager.get_redo_stack_size()}")
+                self.ui.print_info(
+                    f"Undo stack: {manager.get_undo_stack_size()}, Redo stack: {manager.get_redo_stack_size()}"
+                )
             else:
                 self.ui.print_error("Nothing to undo")
         else:
@@ -1161,7 +1243,9 @@ class InteractiveCLI:
             success = manager.redo()
             if success:
                 self.ui.print_success("Redo: restored to next state")
-                self.ui.print_info(f"Undo stack: {manager.get_undo_stack_size()}, Redo stack: {manager.get_redo_stack_size()}")
+                self.ui.print_info(
+                    f"Undo stack: {manager.get_undo_stack_size()}, Redo stack: {manager.get_redo_stack_size()}"
+                )
             else:
                 self.ui.print_error("Nothing to redo")
         else:
@@ -1169,18 +1253,24 @@ class InteractiveCLI:
 
     def _list_agents(self):
         """List available agents."""
-        if not hasattr(self.nanocode, 'nanocode_registry'):
+        if not hasattr(self.nanocode, "nanocode_registry"):
             self.ui.print_error("Agent registry not available")
             return
 
         agents = self.nanocode.nanocode_registry.list_primary()
-        current = self.nanocode.current_agent.name if self.nanocode.current_agent else None
+        current = (
+            self.nanocode.current_agent.name if self.nanocode.current_agent else None
+        )
 
         print(self.ui.color("cyan", "\nAvailable Agents:"))
         print(self.ui.color("gray", "─" * 40))
         for agent in agents:
             marker = " *" if agent.name == current else ""
-            color = self.ui.color('green', agent.name) if agent.name == current else self.ui.color('white', agent.name)
+            color = (
+                self.ui.color("green", agent.name)
+                if agent.name == current
+                else self.ui.color("white", agent.name)
+            )
             print(f"  • {color}{marker}")
             if agent.description:
                 print(f"    {self.ui.color('gray', agent.description)}")
@@ -1191,10 +1281,12 @@ class InteractiveCLI:
     async def _switch_agent(self, agent_name: str):
         """Switch to a different agent."""
         if not agent_name:
-            self.ui.print_error("Agent name required. Use /agents to list available agents.")
+            self.ui.print_error(
+                "Agent name required. Use /agents to list available agents."
+            )
             return
 
-        if not hasattr(self.nanocode, 'switch_agent'):
+        if not hasattr(self.nanocode, "switch_agent"):
             self.ui.print_error("Agent switching not available")
             return
 
@@ -1203,7 +1295,9 @@ class InteractiveCLI:
             self.ui.print_success(f"Switched to agent: {agent_name}")
         else:
             available = [a.name for a in self.nanocode.nanocode_registry.list_primary()]
-            self.ui.print_error(f"Agent '{agent_name}' not found. Available: {', '.join(available)}")
+            self.ui.print_error(
+                f"Agent '{agent_name}' not found. Available: {', '.join(available)}"
+            )
 
     async def _create_snapshot(self):
         """Create a new snapshot."""
@@ -1265,9 +1359,7 @@ class InteractiveCLI:
             print(self.ui.color("cyan", "\nAvailable Snapshots:"))
             print(self.ui.color("gray", "─" * 40))
             for s in snapshots:
-                print(
-                    f"  • {self.ui.color('magenta', s['hash'])} ({s['timestamp']})"
-                )
+                print(f"  • {self.ui.color('magenta', s['hash'])} ({s['timestamp']})")
         except Exception as e:
             self.ui.print_error(f"Error: {e}")
 

@@ -321,6 +321,7 @@ class TestModelLimits:
     def test_model_limits_default_limits(self):
         """Test default limits dict."""
         from nanocode.context import ModelLimits
+
         defaults = ModelLimits.DEFAULT_LIMITS
         assert "gpt-4o" in defaults
         assert "default" in defaults
@@ -348,7 +349,9 @@ class TestContextOverflowDetection:
         manager = ContextManager(max_tokens=8000)
         usage = manager.get_token_usage()
 
-        assert usage["usable_context"] == usage["context_limit"] - usage["reserved_tokens"]
+        assert (
+            usage["usable_context"] == usage["context_limit"] - usage["reserved_tokens"]
+        )
 
     def test_overflow_detection_threshold(self):
         """Test overflow is detected when tokens approach limit."""
@@ -370,9 +373,7 @@ class TestSlidingWindowStrategy:
     def test_sliding_window_preserves_recent(self):
         """Test sliding window preserves recent messages."""
         manager = ContextManager(
-            max_tokens=500,
-            strategy=ContextStrategy.SLIDING_WINDOW,
-            preserve_last_n=2
+            max_tokens=500, strategy=ContextStrategy.SLIDING_WINDOW, preserve_last_n=2
         )
         manager.set_system_prompt("System")
 
@@ -390,15 +391,15 @@ class TestSlidingWindowStrategy:
     def test_sliding_window_with_tool_results(self):
         """Test sliding window handles tool results correctly."""
         manager = ContextManager(
-            max_tokens=1000,
-            strategy=ContextStrategy.SLIDING_WINDOW,
-            preserve_last_n=3
+            max_tokens=1000, strategy=ContextStrategy.SLIDING_WINDOW, preserve_last_n=3
         )
         manager.set_system_prompt("System")
 
         for i in range(5):
             manager.add_message("user", f"User {i}")
-            manager.add_message("assistant", None, tool_calls=[{"id": f"tc_{i}", "name": "test"}])
+            manager.add_message(
+                "assistant", None, tool_calls=[{"id": f"tc_{i}", "name": "test"}]
+            )
             manager.add_tool_result("test", f"tc_{i}", f"Result {i}")
 
         messages = manager.prepare_messages()
@@ -412,16 +413,10 @@ class TestCompactionStrategy:
 
     def test_compaction_strategy_available(self):
         """Test compaction strategy is available."""
-        manager = ContextManager(
-            max_tokens=1000,
-            strategy=ContextStrategy.COMPACTION
-        )
+        manager = ContextManager(max_tokens=1000, strategy=ContextStrategy.COMPACTION)
         assert manager.strategy == ContextStrategy.COMPACTION
 
     def test_topic_id_strategy_available(self):
         """Test topic ID strategy is available."""
-        manager = ContextManager(
-            max_tokens=1000,
-            strategy=ContextStrategy.TOPIC_ID
-        )
+        manager = ContextManager(max_tokens=1000, strategy=ContextStrategy.TOPIC_ID)
         assert manager.strategy == ContextStrategy.TOPIC_ID

@@ -1,12 +1,12 @@
 """Tests for session summary generation."""
 
-import pytest
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+from unittest.mock import Mock
+
 from nanocode.session_summary import (
+    SUMMARY_PROMPT,
+    FileChange,
     SessionSummary,
     SessionSummaryGenerator,
-    FileChange,
-    SUMMARY_PROMPT,
 )
 
 

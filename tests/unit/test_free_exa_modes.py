@@ -1,7 +1,8 @@
 """Tests for FreeExaSearchTool with web_search and web_search_advanced modes."""
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
 
 
 class TestFreeExaSearchToolInit:
@@ -55,9 +56,7 @@ class TestFreeExaSearchToolWebSearch:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
-            "result": [
-                {"title": "Test Result", "url": "https://example.com"}
-            ]
+            "result": [{"title": "Test Result", "url": "https://example.com"}]
         }
 
         with patch("httpx.AsyncClient") as mock_client:
@@ -68,7 +67,9 @@ class TestFreeExaSearchToolWebSearch:
             result = await tool.execute(query="test query", mode="web_search")
 
             assert result.success is True
-            assert result.content == [{"title": "Test Result", "url": "https://example.com"}]
+            assert result.content == [
+                {"title": "Test Result", "url": "https://example.com"}
+            ]
             assert result.metadata["mode"] == "web_search"
 
     @pytest.mark.asyncio

@@ -1,9 +1,9 @@
 """Adversarial tests for TODO system functionality."""
 
-import pytest
 import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
+
+import pytest
 
 
 class TestTodoServiceBasic:
@@ -160,7 +160,9 @@ class TestTodoServiceAdversarial:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             service = TodoService(storage_dir=Path(tmpdir))
-            todo = service.add_todo("session1", "test<script>alert('xss')</script>", "high")
+            todo = service.add_todo(
+                "session1", "test<script>alert('xss')</script>", "high"
+            )
 
             assert todo.content == "test<script>alert('xss')</script>"
 
@@ -194,7 +196,10 @@ class TestTodoServiceAdversarial:
             service.add_todo("session1", "Old 1", "high")
             service.add_todo("session1", "Old 2", "medium")
 
-            service.update_todos("session1", [{"content": "New", "status": "pending", "priority": "high"}])
+            service.update_todos(
+                "session1",
+                [{"content": "New", "status": "pending", "priority": "high"}],
+            )
             todos = service.get_todos("session1")
 
             assert len(todos) == 1
@@ -271,11 +276,18 @@ class TestTodoServiceAdversarial:
 
         with tempfile.TemporaryDirectory() as tmpdir:
             service = TodoService(storage_dir=Path(tmpdir))
-            service.update_todos("session1", [
-                {"content": "Todo 1", "status": "pending", "priority": "high"},
-                {"content": "Todo 2", "status": "in_progress", "priority": "medium"},
-                {"content": "Todo 3", "status": "completed", "priority": "low"},
-            ])
+            service.update_todos(
+                "session1",
+                [
+                    {"content": "Todo 1", "status": "pending", "priority": "high"},
+                    {
+                        "content": "Todo 2",
+                        "status": "in_progress",
+                        "priority": "medium",
+                    },
+                    {"content": "Todo 3", "status": "completed", "priority": "low"},
+                ],
+            )
 
             stats = service.get_stats("session1")
 
@@ -300,9 +312,9 @@ class TestTodoToolBasic:
     @pytest.mark.asyncio
     async def test_todo_read_action(self):
         """Test TodoTool read action."""
+        from nanocode.core import set_current_session_id
         from nanocode.todo_service import TodoService
         from nanocode.tools.builtin import TodoTool
-        from nanocode.core import set_current_session_id
 
         with tempfile.TemporaryDirectory() as tmpdir:
             service = TodoService(storage_dir=Path(tmpdir))
@@ -318,9 +330,9 @@ class TestTodoToolBasic:
     @pytest.mark.asyncio
     async def test_todo_write_action(self):
         """Test TodoTool write action."""
+        from nanocode.core import set_current_session_id
         from nanocode.todo_service import TodoService
         from nanocode.tools.builtin import TodoTool
-        from nanocode.core import set_current_session_id
 
         with tempfile.TemporaryDirectory() as tmpdir:
             service = TodoService(storage_dir=Path(tmpdir))
@@ -358,9 +370,9 @@ class TestTodoToolAdversarial:
     @pytest.mark.asyncio
     async def test_write_empty_todos(self):
         """Test TodoTool write with empty todos."""
+        from nanocode.core import set_current_session_id
         from nanocode.todo_service import TodoService
         from nanocode.tools.builtin import TodoTool
-        from nanocode.core import set_current_session_id
 
         with tempfile.TemporaryDirectory() as tmpdir:
             service = TodoService(storage_dir=Path(tmpdir))
@@ -374,9 +386,9 @@ class TestTodoToolAdversarial:
     @pytest.mark.asyncio
     async def test_write_with_missing_fields(self):
         """Test TodoTool write with missing fields in todo."""
+        from nanocode.core import set_current_session_id
         from nanocode.todo_service import TodoService
         from nanocode.tools.builtin import TodoTool
-        from nanocode.core import set_current_session_id
 
         with tempfile.TemporaryDirectory() as tmpdir:
             service = TodoService(storage_dir=Path(tmpdir))
@@ -391,16 +403,23 @@ class TestTodoToolAdversarial:
     @pytest.mark.asyncio
     async def test_write_with_extra_fields(self):
         """Test TodoTool write with extra fields in todo."""
+        from nanocode.core import set_current_session_id
         from nanocode.todo_service import TodoService
         from nanocode.tools.builtin import TodoTool
-        from nanocode.core import set_current_session_id
 
         with tempfile.TemporaryDirectory() as tmpdir:
             service = TodoService(storage_dir=Path(tmpdir))
             tool = TodoTool(todo_service=service)
             set_current_session_id("test-session")
 
-            todos = [{"content": "Test todo", "status": "pending", "priority": "high", "extra": "field"}]
+            todos = [
+                {
+                    "content": "Test todo",
+                    "status": "pending",
+                    "priority": "high",
+                    "extra": "field",
+                }
+            ]
             result = await tool.execute(action="write", todos=todos)
 
             assert result.success is True
@@ -408,16 +427,18 @@ class TestTodoToolAdversarial:
     @pytest.mark.asyncio
     async def test_write_unicode_content(self):
         """Test TodoTool write with Unicode content."""
+        from nanocode.core import set_current_session_id
         from nanocode.todo_service import TodoService
         from nanocode.tools.builtin import TodoTool
-        from nanocode.core import set_current_session_id
 
         with tempfile.TemporaryDirectory() as tmpdir:
             service = TodoService(storage_dir=Path(tmpdir))
             tool = TodoTool(todo_service=service)
             set_current_session_id("test-session")
 
-            todos = [{"content": "日本語テスト", "status": "pending", "priority": "high"}]
+            todos = [
+                {"content": "日本語テスト", "status": "pending", "priority": "high"}
+            ]
             result = await tool.execute(action="write", todos=todos)
 
             assert result.success is True
@@ -524,7 +545,9 @@ class TestTodoSidebarDisplay:
     def test_todo_display_long_content_truncated(self):
         """Test todo display truncates long content."""
         long_content = "a" * 50
-        truncated = long_content[:30] + "..." if len(long_content) > 30 else long_content
+        truncated = (
+            long_content[:30] + "..." if len(long_content) > 30 else long_content
+        )
 
         assert truncated == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa..."
         assert len(truncated) == 33
@@ -544,7 +567,11 @@ class TestTodoSidebarDisplay:
                     icon = "✗"
                 else:
                     icon = "○"
-                content = t["content"][:30] + "..." if len(t["content"]) > 30 else t["content"]
+                content = (
+                    t["content"][:30] + "..."
+                    if len(t["content"]) > 30
+                    else t["content"]
+                )
                 lines.append(f"  {icon} {content}")
 
         assert "─ Todos ─" in lines
@@ -565,7 +592,11 @@ class TestTodoSidebarDisplay:
                     icon = "✗"
                 else:
                     icon = "○"
-                content = t["content"][:30] + "..." if len(t["content"]) > 30 else t["content"]
+                content = (
+                    t["content"][:30] + "..."
+                    if len(t["content"]) > 30
+                    else t["content"]
+                )
                 lines.append(f"  {icon} {content}")
 
         assert "─ Todos ─" not in lines

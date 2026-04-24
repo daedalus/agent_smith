@@ -7,9 +7,9 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from nanocode.tools import Tool, ToolRegistry, ToolResult
 from nanocode.context import TokenCounter
 from nanocode.todo_service import get_todo_service
+from nanocode.tools import Tool, ToolRegistry, ToolResult
 
 
 def atomic_write(file_path: Path, content: str) -> None:
@@ -745,15 +745,15 @@ class FstatTool(Tool):
             # Get file size without reading full content
             file_size = file_path.stat().st_size
             bytes_val = file_size
-            
+
             # Count lines from file object (more efficient)
-            with open(file_path, 'rb') as f:
-                line_count = sum(1 for _ in f) if file_size < 1024*1024 else None
-            
+            with open(file_path, "rb") as f:
+                line_count = sum(1 for _ in f) if file_size < 1024 * 1024 else None
+
             if line_count is None:
                 # For big files, estimate from size
                 line_count = max(1, file_size // 80)
-            
+
             total_tokens = max(1, bytes_val // 4)
 
             return ToolResult(
@@ -780,7 +780,9 @@ class WriteFileTool(Tool):
         self.root_dir = Path(root_dir) if root_dir else Path.cwd()
         self.file_tracker = file_tracker
 
-    async def execute(self, path: str = None, content: str = "", filePath: str = None, mode: str = "w") -> ToolResult:
+    async def execute(
+        self, path: str = None, content: str = "", filePath: str = None, mode: str = "w"
+    ) -> ToolResult:
         """Write to a file atomically."""
         path = path or filePath  # Handle both 'path' and 'filePath'
         try:
@@ -793,7 +795,10 @@ class WriteFileTool(Tool):
             return ToolResult(
                 success=True,
                 content=f"Written to {file_path}",
-                metadata={"path": str(file_path), "bytes": len(content.encode("utf-8"))},
+                metadata={
+                    "path": str(file_path),
+                    "bytes": len(content.encode("utf-8")),
+                },
             )
         except Exception as e:
             return ToolResult(success=False, content=None, error=str(e))
@@ -842,7 +847,11 @@ class EditFileTool(Tool):
             return ToolResult(
                 success=True,
                 content=f"Edited {file_path}",
-                metadata={"path": str(file_path), "bytes_read": old_bytes, "bytes_written": new_bytes},
+                metadata={
+                    "path": str(file_path),
+                    "bytes_read": old_bytes,
+                    "bytes_written": new_bytes,
+                },
             )
         except Exception as e:
             return ToolResult(success=False, content=None, error=str(e))
@@ -892,27 +901,36 @@ class WebFetchTool(Tool):
             description="Fetch content from a URL",
         )
 
-    async def execute(self, path: str = None, url: str = None, format: str = "text") -> ToolResult:
+    async def execute(
+        self, path: str = None, url: str = None, format: str = "text"
+    ) -> ToolResult:
         """Fetch URL content."""
         import sys
+
         target_url = url or path
-        print(f"DEBUG WebFetchTool.execute: path={path!r}, url={url!r}, target_url={target_url!r}", file=sys.stderr)
-        
+        print(
+            f"DEBUG WebFetchTool.execute: path={path!r}, url={url!r}, target_url={target_url!r}",
+            file=sys.stderr,
+        )
+
         if not target_url:
             return ToolResult(success=False, content=None, error="URL is required")
-        
+
         # Ensure URL has protocol
         if not target_url.startswith(("http://", "https://")):
             target_url = "https://" + target_url
-        
+
         print(f"DEBUG WebFetchTool: fetching {target_url}", file=sys.stderr)
-        
+
         try:
             import httpx
 
             async with httpx.AsyncClient() as client:
                 response = await client.get(target_url, timeout=30.0)
-                print(f"DEBUG WebFetchTool: got response status={response.status_code}", file=sys.stderr)
+                print(
+                    f"DEBUG WebFetchTool: got response status={response.status_code}",
+                    file=sys.stderr,
+                )
                 response.raise_for_status()
 
                 if format == "text":
@@ -1004,9 +1022,25 @@ class TodoTool(Tool):
                             "items": {
                                 "type": "object",
                                 "properties": {
-                                    "content": {"type": "string", "description": "Brief description of the task"},
-                                    "status": {"type": "string", "enum": ["pending", "in_progress", "completed", "cancelled"], "description": "Current status"},
-                                    "priority": {"type": "string", "enum": ["high", "medium", "low"], "description": "Priority level"},
+                                    "content": {
+                                        "type": "string",
+                                        "description": "Brief description of the task",
+                                    },
+                                    "status": {
+                                        "type": "string",
+                                        "enum": [
+                                            "pending",
+                                            "in_progress",
+                                            "completed",
+                                            "cancelled",
+                                        ],
+                                        "description": "Current status",
+                                    },
+                                    "priority": {
+                                        "type": "string",
+                                        "enum": ["high", "medium", "low"],
+                                        "description": "Priority level",
+                                    },
                                 },
                                 "required": ["content", "status", "priority"],
                             },
@@ -1018,16 +1052,16 @@ class TodoTool(Tool):
             },
         }
 
-    async def execute(
-        self, action: str = "read", todos: list = None
-    ) -> ToolResult:
+    async def execute(self, action: str = "read", todos: list = None) -> ToolResult:
         """Manage todos - read or write the entire list."""
         if self.todo_service is None:
             from nanocode.todo_service import get_todo_service
+
             self.todo_service = get_todo_service()
 
         if action == "read":
             from nanocode.core import get_current_session_id
+
             session_id = get_current_session_id() or "default"
             items = self.todo_service.get_todos(session_id)
             todos_list = [
@@ -1042,6 +1076,7 @@ class TodoTool(Tool):
             )
         elif action == "write" and todos is not None:
             from nanocode.core import get_current_session_id
+
             session_id = get_current_session_id() or "default"
             self.todo_service.update_todos(session_id, todos)
             pending = sum(1 for t in todos if t.get("status") == "pending")
@@ -1574,12 +1609,18 @@ class BatchTool(Tool):
                 if result and result.content:
                     output_parts.append(f"**{r['tool']}**: {result.content}")
             else:
-                output_parts.append(f"**{r['tool']}**: FAILED - {r.get('error', 'unknown error')}")
+                output_parts.append(
+                    f"**{r['tool']}**: FAILED - {r.get('error', 'unknown error')}"
+                )
 
-        output = "\n".join(output_parts) if output_parts else (
-            "All tools executed successfully."
-            if failed == 0
-            else f"Executed {successful}/{len(results)} tools successfully."
+        output = (
+            "\n".join(output_parts)
+            if output_parts
+            else (
+                "All tools executed successfully."
+                if failed == 0
+                else f"Executed {successful}/{len(results)} tools successfully."
+            )
         )
 
         return ToolResult(

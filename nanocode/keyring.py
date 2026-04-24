@@ -3,7 +3,6 @@
 import logging
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +42,7 @@ class KeyringManager:
             logger.warning(f"Failed to store credential {key}: {e}")
             return False
 
-    def get_credential(self, key: str) -> Optional[str]:
+    def get_credential(self, key: str) -> str | None:
         """Retrieve a credential."""
         try:
             import keyring
@@ -96,7 +95,7 @@ class EnvKeyringManager(KeyringManager):
         self.prefix = prefix or "NANOCODE"
         self._env_cache: dict[str, str] = {}
 
-    def get_credential(self, key: str) -> Optional[str]:
+    def get_credential(self, key: str) -> str | None:
         """Get credential, first checking keyring, then environment."""
         if key in self._env_cache:
             return self._env_cache[key]
@@ -117,7 +116,7 @@ class EnvKeyringManager(KeyringManager):
         self._env_cache[key] = value
         return super().set_credential(key, value)
 
-    def get_api_key(self, provider: str) -> Optional[str]:
+    def get_api_key(self, provider: str) -> str | None:
         """Get API key for a provider common names."""
         common_keys = [
             f"{provider}_api_key",

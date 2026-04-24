@@ -1,8 +1,7 @@
 """Tests for modified files tracking."""
 
-import pytest
-import tempfile
 import os
+import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -82,7 +81,7 @@ class TestModifiedFilesTracker:
 
     def test_get_modified_files_copy(self):
         """Test get_modified_files returns a copy."""
-        from nanocode.modified_files import ModifiedFilesTracker, FileModification
+        from nanocode.modified_files import FileModification, ModifiedFilesTracker
 
         with tempfile.TemporaryDirectory() as tmpdir:
             tracker = ModifiedFilesTracker(cwd=tmpdir)
@@ -111,7 +110,9 @@ class TestModifiedFilesTrackerGit:
         with tempfile.TemporaryDirectory() as tmpdir:
             os.chdir(tmpdir)
             subprocess.run(["git", "init"], capture_output=True)
-            subprocess.run(["git", "config", "user.email", "test@test.com"], capture_output=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@test.com"], capture_output=True
+            )
             subprocess.run(["git", "config", "user.name", "Test"], capture_output=True)
 
             Path(tmpdir, "test.py").write_text("print('hello')\n")
@@ -123,6 +124,7 @@ class TestModifiedFilesTrackerGit:
             subprocess.run(["git", "commit", "-m", "Update"], capture_output=True)
 
             from nanocode.modified_files import ModifiedFilesTracker
+
             tracker = ModifiedFilesTracker(cwd=tmpdir)
             tracker.refresh_from_git()
 
@@ -319,9 +321,11 @@ class TestGetModifiedFilesTracker:
 
     def test_singleton(self, tmp_path, monkeypatch):
         """Test get_modified_files_tracker returns singleton."""
-        import os
         from pathlib import Path
-        from nanocode.modified_files import get_modified_files_tracker, ModifiedFilesTracker
+
+        from nanocode.modified_files import (
+            get_modified_files_tracker,
+        )
 
         monkeypatch.setattr(Path, "cwd", lambda: tmp_path)
         tracker1 = get_modified_files_tracker()

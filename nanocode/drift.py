@@ -2,9 +2,8 @@
 
 import logging
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 logger = logging.getLogger("nanocode.drift")
 
@@ -55,7 +54,7 @@ class DriftWatchdog:
     def __init__(self, config: DriftConfig = None):
         self.config = config or DriftConfig()
         self.state = DriftState()
-        self._topic_extractor: Optional[object] = None
+        self._topic_extractor: object | None = None
 
     @property
     def is_enabled(self) -> bool:
@@ -121,7 +120,10 @@ class DriftWatchdog:
         alert_threshold = self.config.alert_threshold
         intervene_threshold = self.config.intervene_threshold
 
-        if drift_score >= intervene_threshold and self.config.mode == DriftMode.INTERVENE:
+        if (
+            drift_score >= intervene_threshold
+            and self.config.mode == DriftMode.INTERVENE
+        ):
             self.state.drift_detected = True
             self.state.alert_count += 1
             return DriftAlert(

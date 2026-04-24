@@ -55,23 +55,23 @@ class DoomLoopDetection:
             return False
 
         recent = self._all_recent_calls[-4:]
-        
+
         if len(recent) < 3:
             return False
 
         exploration_tools = {"ls", "glob", "bash"}
-        
+
         recent_tools = [c.tool_name for c in recent]
-        
+
         unique_tools = set(recent_tools)
         if not unique_tools.issubset(exploration_tools):
             # Reset warning flag when non-exploration tools are used
             self._exploration_warning_shown = False
             return False
-        
+
         if len(unique_tools) <= 2:
             return True
-        
+
         return False
 
     def _should_show_exploration_warning(self) -> bool:
@@ -92,15 +92,19 @@ class DoomLoopDetection:
             return False
 
         first_args = recent[0].arguments
-        
+
         # Ignore empty or default arguments for doom loop detection
-        if not first_args or all(v is None or v == "" or v == "." or v == "*" for v in first_args.values()):
+        if not first_args or all(
+            v is None or v == "" or v == "." or v == "*" for v in first_args.values()
+        ):
             return False
-        
+
         # Check if arguments are exactly the same
         args_json = json.dumps(first_args, sort_keys=True)
-        identical_count = sum(1 for c in recent if json.dumps(c.arguments, sort_keys=True) == args_json)
-        
+        identical_count = sum(
+            1 for c in recent if json.dumps(c.arguments, sort_keys=True) == args_json
+        )
+
         # Only detect doom loop if ALL recent calls have identical args
         # If model is making progress (different args), don't trigger
         return identical_count == len(recent)
@@ -115,7 +119,7 @@ class DoomLoopDetection:
                     "count": len(calls),
                     "type": "repeat",
                 }
-        
+
         if self._is_exploration_loop():
             return {
                 "tool": "exploration",
@@ -124,7 +128,7 @@ class DoomLoopDetection:
                 "type": "exploration",
                 "show_warning": not self._exploration_warning_shown,
             }
-        
+
         return None
 
     def clear(self, tool_name: str = None):
@@ -169,8 +173,8 @@ class DoomLoopHandler:
             loop_type = info.get("type", "repeat")
             if loop_type == "exploration":
                 return (
-                    f"⚠️ Permission required: You've called exploration tools repeatedly without making progress.\n"
-                    f"Please use different tools or provide a different approach."
+                    "⚠️ Permission required: You've called exploration tools repeatedly without making progress.\n"
+                    "Please use different tools or provide a different approach."
                 )
             return (
                 f"Warning: The tool '{info['tool']}' has been called "

@@ -3,7 +3,6 @@
 import json
 import os
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -50,7 +49,7 @@ class Message:
         content = self.content
         if content is None or (isinstance(content, list) and not content):
             content = ""
-        
+
         result = {"role": self.role, "content": content}
         if self.tool_calls:
             result["tool_calls"] = [
@@ -87,7 +86,7 @@ class Message:
                         id=tc.get("id"),
                     )
                 )
-        
+
         # Extract tool_call_id from content parts if present (for tool role messages)
         tool_call_id = data.get("tool_call_id")
         content = data.get("content", "")
@@ -96,7 +95,7 @@ class Message:
                 if isinstance(part, dict) and part.get("type") == "tool_result":
                     tool_call_id = part.get("tool_call_id")
                     break
-        
+
         return cls(
             role=data.get("role", "user"),
             content=content,
@@ -177,7 +176,7 @@ class LLMBase(ABC):
         json: dict = None,
         on_retry: callable = None,
         **kwargs,
-) -> httpx.Response:
+    ) -> httpx.Response:
         """Make an HTTP request with retry logic."""
 
         if headers is None:
@@ -230,15 +229,25 @@ class LLMBase(ABC):
                     try:
                         error_data = response.json()
                         print(f"[DEBUG] Raw error JSON: {error_data}")
-                        raw_error = error_data.get("error", {}).get("metadata", {}).get("raw", "")
+                        raw_error = (
+                            error_data.get("error", {})
+                            .get("metadata", {})
+                            .get("raw", "")
+                        )
                         if raw_error:
                             try:
                                 raw_json = json.loads(raw_error)
-                                error_msg = raw_json.get("error", {}).get("message", raw_error)
+                                error_msg = raw_json.get("error", {}).get(
+                                    "message", raw_error
+                                )
                             except Exception:
-                                error_msg = error_data.get("error", {}).get("message", response.text[:300])
+                                error_msg = error_data.get("error", {}).get(
+                                    "message", response.text[:300]
+                                )
                         else:
-                            error_msg = error_data.get("error", {}).get("message", response.text[:300])
+                            error_msg = error_data.get("error", {}).get(
+                                "message", response.text[:300]
+                            )
                     except Exception:
                         error_msg = response.text[:300]
                     print(f"[DEBUG] Error msg extracted: {error_msg}")

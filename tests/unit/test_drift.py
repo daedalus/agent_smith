@@ -1,12 +1,11 @@
 """Tests for drift watchdog."""
 
-import pytest
 
 from nanocode.drift import (
     DriftConfig,
     DriftMode,
-    DriftWatchdog,
     DriftState,
+    DriftWatchdog,
     create_drift_watchdog,
 )
 

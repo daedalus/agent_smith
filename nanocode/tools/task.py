@@ -70,7 +70,7 @@ class TaskTool(Tool):
         self.nanocode_registry = agent_registry
         self.permission_handler = permission_handler
         self.sessions: dict[str, SubAgentSession] = {}
-        self._parent_agent: "AutonomousAgent | None" = None
+        self._parent_agent: AutonomousAgent | None = None
         logger.debug("TaskTool initialized")
 
         description = self._build_description()

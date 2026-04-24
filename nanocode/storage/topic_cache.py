@@ -12,7 +12,6 @@ import os
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 logger = logging.getLogger("nanocode.topic_cache")
 
@@ -81,7 +80,9 @@ class TopicCache:
         hash_hex = hash_obj.hexdigest()[: self.hash_length]
         return f"topic_{hash_hex}"
 
-    def put(self, content: str, topic_type: str = "general", metadata: dict = None) -> str:
+    def put(
+        self, content: str, topic_type: str = "general", metadata: dict = None
+    ) -> str:
         """Store topic and return its ID."""
         if not content or not content.strip():
             logger.debug("Skipping empty content")
@@ -112,7 +113,7 @@ class TopicCache:
                 self._hits += 1
                 with open(filepath) as f:
                     return Topic.from_dict(json.load(f))
-            except (json.JSONDecodeError, IOError) as e:
+            except (OSError, json.JSONDecodeError) as e:
                 logger.debug(f"Failed to load topic {topic_id}: {e}")
                 return None
 

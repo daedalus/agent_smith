@@ -19,6 +19,7 @@ from nanocode.llm.stream_parser import parse_stream_events
 @dataclass
 class StreamEvent:
     """Event from streaming response."""
+
     type: str
     content: str | None = None
     tool_id: str | None = None
@@ -44,17 +45,28 @@ class OpenAILLM(LLMBase):
             "OPENAI_BASE_URL", "https://api.openai.com/v1"
         )
         self.api_key = api_key or os.getenv("OPENAI_API_KEY", "dummy")
-        if self.api_key and self.api_key.startswith("${") and self.api_key.endswith("}"):
+        if (
+            self.api_key
+            and self.api_key.startswith("${")
+            and self.api_key.endswith("}")
+        ):
             env_var = self.api_key[2:-1]
             self.api_key = os.getenv(env_var, self.api_key)
 
     async def chat(
-        self, messages: list, tools: list[dict] = None, on_token: callable = None, **kwargs
+        self,
+        messages: list,
+        tools: list[dict] = None,
+        on_token: callable = None,
+        **kwargs,
     ) -> LLMResponse:
         """Send a chat completion request."""
         messages = self._normalize_messages(messages)
 
-        headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
 
         payload = {
             "model": self.model,
@@ -64,21 +76,21 @@ class OpenAILLM(LLMBase):
 
         # DEBUG: Print request details only in verbose mode
         if self.debug:
-            print(f"\n[DEBUG] OpenAI Request:")
+            print("\n[DEBUG] OpenAI Request:")
             print(f"  URL: {self.base_url}/chat/completions")
             print(f"  Model: {payload['model']}")
             print(f"  Messages: {len(payload['messages'])}")
-            for i, m in enumerate(payload['messages']):
-                msg_role = m.get('role', '?')
-                msg_content = str(m.get('content', ''))
+            for i, m in enumerate(payload["messages"]):
+                msg_role = m.get("role", "?")
+                msg_content = str(m.get("content", ""))
                 print(f"    [{i}] {msg_role}: {msg_content[:100]}...")
-                if m.get('tool_calls'):
+                if m.get("tool_calls"):
                     print(f"        tool_calls: {json.dumps(m['tool_calls'])[:500]}")
-                if msg_role == 'tool':
+                if msg_role == "tool":
                     print(f"        tool_call_id: {m.get('tool_call_id')}")
-            if payload.get('tools'):
+            if payload.get("tools"):
                 print(f"  Tools: {len(payload['tools'])} provided")
-            if 'max_tokens' in payload:
+            if "max_tokens" in payload:
                 print(f"  max_tokens: {payload['max_tokens']}")
 
         # Add max_tokens - default to 4096 for OpenRouter to avoid 402
@@ -96,23 +108,29 @@ class OpenAILLM(LLMBase):
         # DEBUG: Log full request payload only in verbose mode
         if self.debug:
             logger.debug(f"[OpenAI] Request payload: {json.dumps(payload)}")
-            print(f"\n[DEBUG] OpenAI Request payload:")
+            print("\n[DEBUG] OpenAI Request payload:")
             print(f"  URL: {self.base_url}/chat/completions")
             print(f"  Model: {payload['model']}")
-            print(f"  Message order:")
-            for i, m in enumerate(payload['messages']):
-                role = m.get('role', '?')
-                content = str(m.get('content', ''))
-                tc = m.get('tool_calls')
-                tid = m.get('tool_call_id')
-                print(f"    [{i}] {role}: {content} tool_calls={bool(tc)} tool_call_id={tid}")
+            print("  Message order:")
+            for i, m in enumerate(payload["messages"]):
+                role = m.get("role", "?")
+                content = str(m.get("content", ""))
+                tc = m.get("tool_calls")
+                tid = m.get("tool_call_id")
+                print(
+                    f"    [{i}] {role}: {content} tool_calls={bool(tc)} tool_call_id={tid}"
+                )
             print(f"  Full messages JSON: {json.dumps(payload['messages'], indent=2)}")
-        if payload.get('tools'):
-            print(f"  Tools: {len(payload['tools'])} (first: {payload['tools'][0].get('name', 'unknown')})")
+        if payload.get("tools"):
+            print(
+                f"  Tools: {len(payload['tools'])} (first: {payload['tools'][0].get('name', 'unknown')})"
+            )
         print(f"  max_tokens: {payload.get('max_tokens')}")
-        
-        if payload.get('tools'):
-            print(f"  Tools: {len(payload['tools'])} (first: {payload['tools'][0].get('name', 'unknown')})")
+
+        if payload.get("tools"):
+            print(
+                f"  Tools: {len(payload['tools'])} (first: {payload['tools'][0].get('name', 'unknown')})"
+            )
         print(f"  max_tokens: {payload.get('max_tokens')}")
 
         # Handle streaming vs non-streaming
@@ -133,7 +151,9 @@ class OpenAILLM(LLMBase):
             # Debug: Print status code
             status_code = response.status_code
             content_type = response.headers.get("content-type", "")
-            print(f"[DEBUG] HTTP Response status: {status_code}, content-type: {content_type}")
+            print(
+                f"[DEBUG] HTTP Response status: {status_code}, content-type: {content_type}"
+            )
 
             # Handle non-JSON responses (like plain text "Hi there!")
             if "application/json" not in content_type:
@@ -151,7 +171,9 @@ class OpenAILLM(LLMBase):
                 data = response.json()
             except Exception as e:
                 print(f"[DEBUG] Failed to parse JSON response: {e}")
-                print(f"[DEBUG] Response text: {response.text[:500] if response.text else '(empty)'}")
+                print(
+                    f"[DEBUG] Response text: {response.text[:500] if response.text else '(empty)'}"
+                )
                 raise
 
             # DEBUG: Print raw response on error
@@ -167,8 +189,16 @@ class OpenAILLM(LLMBase):
                 logger.error(f"[OpenAI] API Error: {error_msg}")
                 # Handle specific error types - include provider wrapped errors
                 raw_error = data.get("error", {}).get("metadata", {}).get("raw", "")
-                if "tool id" in error_msg.lower() or "tool_call_id" in error_msg.lower() or ("tool" in raw_error.lower() and "not found" in raw_error.lower()):
-                    raise RuntimeError(f"Tool call error: {error_msg}. Try starting a new session.")
+                if (
+                    "tool id" in error_msg.lower()
+                    or "tool_call_id" in error_msg.lower()
+                    or (
+                        "tool" in raw_error.lower() and "not found" in raw_error.lower()
+                    )
+                ):
+                    raise RuntimeError(
+                        f"Tool call error: {error_msg}. Try starting a new session."
+                    )
                 if response.status_code == 400:
                     raise RuntimeError(f"Bad request: {error_msg}")
             if "choices" not in data:
@@ -202,7 +232,9 @@ class OpenAILLM(LLMBase):
                 thinking=msg_data.get("reasoning"),
             )
 
-    async def _stream_chat(self, payload: dict, headers: dict, on_token: callable) -> LLMResponse:
+    async def _stream_chat(
+        self, payload: dict, headers: dict, on_token: callable
+    ) -> LLMResponse:
         """Handle streaming chat request with SSE parsing."""
         # Use streaming client
         async with httpx.AsyncClient(proxy=self.proxy) as client:
@@ -227,7 +259,9 @@ class OpenAILLM(LLMBase):
                             try:
                                 on_token(content)
                             except Exception as e:
-                                logger.warning(f"[OpenAI] on_token callback failed: {e}")
+                                logger.warning(
+                                    f"[OpenAI] on_token callback failed: {e}"
+                                )
                     elif event["type"] == "tool_call":
                         tool_calls.append(
                             ToolCall(

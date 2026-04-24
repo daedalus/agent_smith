@@ -2,9 +2,8 @@
 
 import json
 import tempfile
-from pathlib import Path
 
-from nanocode.storage.topic_cache import TopicCache, Topic
+from nanocode.storage.topic_cache import TopicCache
 
 
 def test_topic_cache_basic():

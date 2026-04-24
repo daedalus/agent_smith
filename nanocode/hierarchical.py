@@ -4,7 +4,6 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
 
 logger = logging.getLogger("nanocode.hierarchical")
 
@@ -55,10 +54,10 @@ class AgentNode:
     id: str
     name: str
     depth: int
-    parent_id: Optional[str] = None
+    parent_id: str | None = None
     children: list = field(default_factory=list)
     state: str = "pending"
-    created_at: Optional[float] = None
+    created_at: float | None = None
     metadata: dict = field(default_factory=dict)
 
 
@@ -68,7 +67,7 @@ class HierarchyManager:
     def __init__(self, config: HierarchyConfig = None):
         self.config = config or HierarchyConfig()
         self._nodes: dict[str, AgentNode] = {}
-        self._root_id: Optional[str] = None
+        self._root_id: str | None = None
         self._active_count: int = 0
 
     def set_root(self, name: str) -> str:
@@ -124,11 +123,11 @@ class HierarchyManager:
         )
         return agent_id
 
-    def get_agent(self, agent_id: str) -> Optional[AgentNode]:
+    def get_agent(self, agent_id: str) -> AgentNode | None:
         """Get an agent by ID."""
         return self._nodes.get(agent_id)
 
-    def get_parent(self, agent_id: str) -> Optional[AgentNode]:
+    def get_parent(self, agent_id: str) -> AgentNode | None:
         """Get parent of an agent."""
         agent = self._nodes.get(agent_id)
         if not agent or not agent.parent_id:
@@ -160,11 +159,7 @@ class HierarchyManager:
         current = self._nodes.get(agent_id)
         while current:
             path.insert(0, current.name)
-            current = (
-                self._nodes.get(current.parent_id)
-                if current.parent_id
-                else None
-            )
+            current = self._nodes.get(current.parent_id) if current.parent_id else None
         return path
 
     def get_stats(self) -> dict:

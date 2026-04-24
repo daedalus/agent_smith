@@ -85,7 +85,9 @@ class FreeExaSearchTool(Tool):
         try:
             import httpx
 
-            tool_name = mode if mode in ["web_search", "web_search_advanced"] else "web_search"
+            tool_name = (
+                mode if mode in ["web_search", "web_search_advanced"] else "web_search"
+            )
             params = kwargs.copy()
             params["query"] = query
             params["num_results"] = num_results

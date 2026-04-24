@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "nanocode"))
 
-from nanocode.storage.topic_cache import TopicCache, Topic
+from nanocode.storage.topic_cache import TopicCache
 
 
 def test_collision_same_content():
@@ -41,7 +41,7 @@ def test_collision_different_content_same_hash():
                 break
 
         if not found_collision:
-            print(f"  No collision in 1000 attempts (expected)")
+            print("  No collision in 1000 attempts (expected)")
 
 
 def test_empty_content():
@@ -73,15 +73,15 @@ def test_special_characters():
         cache = TopicCache(tmpdir)
 
         test_cases = [
-            'null bytes \x00 in text',
-            'newlines\n\n\n',
-            'tabs\t\t\t',
+            "null bytes \x00 in text",
+            "newlines\n\n\n",
+            "tabs\t\t\t",
             'quotes "and" \'',
-            'backslashes\\\\',
-            'unicode: 日本語中文',
-            'emoji: 😀🎉🔥',
-            'control chars\r\n',
-            'binary: \x01\x02\x03',
+            "backslashes\\\\",
+            "unicode: 日本語中文",
+            "emoji: 😀🎉🔥",
+            "control chars\r\n",
+            "binary: \x01\x02\x03",
         ]
 
         for content in test_cases:
@@ -139,7 +139,7 @@ def test_malformed_json_file():
         try:
             result = cache.get(good_id)
             if result is None:
-                print(f"  CORRECT: Returns None for corrupt JSON")
+                print("  CORRECT: Returns None for corrupt JSON")
             else:
                 print(f"  ERROR: Returned {result}")
         except json.JSONDecodeError as e:
@@ -160,7 +160,7 @@ def test_file_permission_denied():
             result = cache.get(id1)
             print(f"  Result with no permissions: {result}")
         except PermissionError:
-            print(f"  PermissionError (expected on some systems)")
+            print("  PermissionError (expected on some systems)")
         finally:
             os.chmod(filepath, 0o644)
 
@@ -204,7 +204,7 @@ def test_dos_disk_full():
             ["df", "-B1", "--output=avail", "."],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=5,
         )
         available = int(result.stdout.strip().split("\n")[-1])
         print(f"  Available: {available} bytes")
@@ -243,7 +243,7 @@ def test_sql_injection_in_content():
 
         retrieved = cache.get_content(id1)
         if retrieved == sql_content:
-            print(f"  SQL content stored correctly (no SQL here)")
+            print("  SQL content stored correctly (no SQL here)")
         else:
             print(f"  Content modified: {repr(retrieved)}")
 
@@ -259,7 +259,7 @@ def test_memory_exhaustion():
         for i in range(1000):
             ids.append(cache.put(f"Memory test {i}", "fact"))
 
-        print(f"  Created 1000 topics")
+        print("  Created 1000 topics")
 
         del ids
         gc.collect()
@@ -277,7 +277,7 @@ def test_duplicate_ids():
         id2 = cache.put(content, "persona")
         id3 = cache.put(content, "place")
 
-        print(f"  Same content with diff types:")
+        print("  Same content with diff types:")
         print(f"    fact: {id1}")
         print(f"    persona: {id2}")
         print(f"    place: {id3}")
@@ -310,8 +310,9 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"  EXCEPTION: {type(e).__name__}: {e}")
             import traceback
+
             traceback.print_exc()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("ADVERSARIAL TESTING COMPLETE")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")

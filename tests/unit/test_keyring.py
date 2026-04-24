@@ -1,15 +1,12 @@
 """Tests for keyring module."""
 
-import os
-import tempfile
 
 import pytest
 
 from nanocode.keyring import (
-    EnvKeyringManager,
-    KeyringError,
-    KeyringManager,
     SERVICE_NAME,
+    EnvKeyringManager,
+    KeyringManager,
     StoredCredential,
     create_keyring_manager,
 )
@@ -55,6 +52,7 @@ class TestEnvKeyringManager:
     def setup_keyring_cleanup(self):
         """Clean up keyring before each test."""
         import keyring
+
         try:
             keyring.delete_password("nanocode", "test_key")
         except Exception:
@@ -161,7 +159,7 @@ class TestEnvKeyringCache:
 
     def test_env_cache_updated_on_set(self, monkeypatch):
         """Test environment cache is updated when setting credential."""
-        test_key = f"test_key"
+        test_key = "test_key"
 
         monkeypatch.delenv("NANOCODE_TEST_KEY", raising=False)
 

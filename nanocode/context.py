@@ -172,19 +172,19 @@ class Message:
                     tool_call_id = part.tool_call_id
                     content = part.content
                     break
-            
+
             result = {"role": "tool", "content": content}
             if tool_call_id:
                 result["tool_call_id"] = tool_call_id
             return result
-        
+
         result = {"role": self.role}
 
         if len(self.parts) == 1 and self.parts[0].part_type == MessagePartType.TEXT:
             result["content"] = self.parts[0].content
         else:
             result["content"] = [p.to_dict() for p in self.parts]
-        
+
         # Add tool_calls if present
         if self.tool_calls:
             result["tool_calls"] = []
@@ -192,14 +192,16 @@ class Message:
                 if isinstance(tc, dict):
                     result["tool_calls"].append(tc)
                 else:
-                    result["tool_calls"].append({
-                        "id": tc.id,
-                        "type": "function",
-                        "function": {
-                            "name": tc.name,
-                            "arguments": json.dumps(tc.arguments),
-                        },
-                    })
+                    result["tool_calls"].append(
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.name,
+                                "arguments": json.dumps(tc.arguments),
+                            },
+                        }
+                    )
 
         return result
 
@@ -257,13 +259,16 @@ class ModelLimits:
     async def load_registry(cls):
         """Load model registry from models.dev."""
         import logging
+
         logger = logging.getLogger("nanocode.context")
         logger.debug("Loading model registry from API...")
         registry = cls._get_registry()
         if registry:
             try:
                 await registry.load()
-                logger.debug(f"Model registry loaded: {len(registry._providers)} providers")
+                logger.debug(
+                    f"Model registry loaded: {len(registry._providers)} providers"
+                )
             except Exception as e:
                 logger.debug(f"Failed to load model registry: {e}")
 
@@ -297,12 +302,13 @@ class ModelLimits:
     def get_limits_sync(cls, model: str) -> dict:
         """Synchronous version of get_limits (uses cache only)."""
         import logging
+
         logger = logging.getLogger("nanocode.context")
         registry = cls._get_registry()
 
         if registry and registry._providers:
             full_id = model
-            
+
             # Extract provider and model from "provider/model" format
             provider_id = None
             model_name = model
@@ -310,16 +316,18 @@ class ModelLimits:
                 parts = full_id.split("/", 1)
                 provider_id = parts[0]
                 model_name = parts[1] if len(parts) > 1 else model
-            
+
             # Try exact full_id first
             if "/" in full_id:
                 model_info = registry.get_model_by_full_id(full_id)
                 if model_info:
                     context_limit = model_info.context_limit
                     output_limit = min(context_limit // 8, 16384)
-                    logger.debug(f"get_limits_sync({model}): found via full_id, context={context_limit}")
+                    logger.debug(
+                        f"get_limits_sync({model}): found via full_id, context={context_limit}"
+                    )
                     return {"context": context_limit, "output": output_limit}
-            
+
             # Try to find by provider + model matching
             for pid, provider in registry._providers.items():
                 # Match if provider_id matches OR if exact model name in provider
@@ -328,16 +336,24 @@ class ModelLimits:
                     if model == mname or model in mname or mname in model:
                         context_limit = model_info.context_limit
                         output_limit = min(context_limit // 8, 16384)
-                        logger.debug(f"get_limits_sync({model}): found in provider '{pid}' ({mname}), context={context_limit}")
+                        logger.debug(
+                            f"get_limits_sync({model}): found in provider '{pid}' ({mname}), context={context_limit}"
+                        )
                         return {"context": context_limit, "output": output_limit}
-            logger.debug(f"get_limits_sync({model}): not found in registry via any match")
+            logger.debug(
+                f"get_limits_sync({model}): not found in registry via any match"
+            )
 
         model_lower = model.lower()
         for key, limits in cls.DEFAULT_LIMITS.items():
             if key in model_lower:
-                logger.debug(f"get_limits_sync({model}): using default '{key}', context={limits['context']}")
+                logger.debug(
+                    f"get_limits_sync({model}): using default '{key}', context={limits['context']}"
+                )
                 return limits.copy()
-        logger.debug(f"get_limits_sync({model}): using default fallback, context={cls.DEFAULT_LIMITS['default']['context']}")
+        logger.debug(
+            f"get_limits_sync({model}): using default fallback, context={cls.DEFAULT_LIMITS['default']['context']}"
+        )
         return cls.DEFAULT_LIMITS["default"].copy()
 
 
@@ -456,6 +472,7 @@ class ContextManager:
     async def init_async(self):
         """Async initialization - load model limits from registry."""
         import logging
+
         logger = logging.getLogger("nanocode.context")
         logger.debug(f"ContextManager.init_async: model={self.model}")
         await ModelLimits.load_registry()
@@ -487,7 +504,13 @@ class ContextManager:
             )
         )
 
-    def add_message(self, role: str, content: Any = None, tool_call_id: str = None, tool_calls: list = None):
+    def add_message(
+        self,
+        role: str,
+        content: Any = None,
+        tool_call_id: str = None,
+        tool_calls: list = None,
+    ):
         """Add a message to context."""
         msg = Message(role=role)
 
@@ -512,7 +535,7 @@ class ContextManager:
                                 c.get("text", ""),
                                 c.get("provider_metadata"),
                             )
-        
+
         # Handle tool_calls for assistant messages
         if tool_calls:
             msg.tool_calls = tool_calls
@@ -731,14 +754,14 @@ class ContextManager:
     def _sliding_window(self) -> list[dict]:
         """Apply sliding window strategy."""
         recent_messages = (
-            self._messages[-self.preserve_last_n:] if self._messages else []
+            self._messages[-self.preserve_last_n :] if self._messages else []
         )
 
         result_messages = list(recent_messages)
         current_tokens = sum(msg.tokens for msg in recent_messages)
 
         older = (
-            [m for m in self._messages[:-self.preserve_last_n]]
+            [m for m in self._messages[: -self.preserve_last_n]]
             if self.preserve_last_n > 0
             else self._messages
         )
@@ -759,10 +782,12 @@ class ContextManager:
         result = []
 
         if self._system_parts and self.preserve_system:
-            result.append({
-                "role": "system",
-                "content": " ".join(p.content for p in self._system_parts),
-            })
+            result.append(
+                {
+                    "role": "system",
+                    "content": " ".join(p.content for p in self._system_parts),
+                }
+            )
 
         last_tool_call_ids = set()
 
@@ -832,9 +857,7 @@ class ContextManager:
 
     async def _create_summary(self, messages: list[Message]) -> str:
         """Create summary of older messages using LLM."""
-        conversation = "\n".join(
-            f"{m.role}: {m.get_text_content()}" for m in messages
-        )
+        conversation = "\n".join(f"{m.role}: {m.get_text_content()}" for m in messages)
 
         prompt = f"""Summarize this conversation concisely, preserving key information:
         

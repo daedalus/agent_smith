@@ -1,7 +1,11 @@
 """Tests for doom loop detection."""
 
-import pytest
-from nanocode.doom_loop import DoomLoopDetection, DoomLoopHandler, ToolCall, create_doom_loop_handler
+from nanocode.doom_loop import (
+    DoomLoopDetection,
+    DoomLoopHandler,
+    ToolCall,
+    create_doom_loop_handler,
+)
 
 
 class TestToolCall:
@@ -16,7 +20,9 @@ class TestToolCall:
 
     def test_tool_call_with_call_id(self):
         """Test ToolCall with call_id."""
-        call = ToolCall(tool_name="read", arguments={"filePath": "/test.py"}, call_id="123")
+        call = ToolCall(
+            tool_name="read", arguments={"filePath": "/test.py"}, call_id="123"
+        )
         assert call.call_id == "123"
 
 

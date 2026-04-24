@@ -8,8 +8,8 @@ from nanocode.hierarchical import (
     HierarchyConfig,
     HierarchyError,
     HierarchyManager,
-    MaxDepthError,
     MaxAgentsError,
+    MaxDepthError,
     create_hierarchy_manager,
 )
 

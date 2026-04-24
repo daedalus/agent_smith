@@ -390,9 +390,7 @@ description: A skill from {skill_subdir}
         yield tmpdir
         shutil.rmtree(tmpdir)
 
-    def test_discover_skills_from_multiple_directories(
-        self, temp_multi_dir
-    ):
+    def test_discover_skills_from_multiple_directories(self, temp_multi_dir):
         """Test discovering skills from multiple tool directories."""
         manager = SkillsManager(temp_multi_dir)
         discovered = manager.discover_skills()
@@ -411,7 +409,9 @@ description: A skill from {skill_subdir}
 
         dirs = SkillsManager.DEFAULT_SKILL_DIRS
 
-        project_dirs = [d for d in dirs if not d.startswith("/home") and not d.startswith("~")]
+        project_dirs = [
+            d for d in dirs if not d.startswith("/home") and not d.startswith("~")
+        ]
         global_dirs = [d for d in dirs if d.startswith("~") or d.startswith("/home")]
 
         assert ".nanocode/skills" in project_dirs
@@ -428,7 +428,9 @@ description: A skill from {skill_subdir}
 
         dirs = SkillsManager.DEFAULT_SKILL_DIRS
 
-        project_dirs = [d for d in dirs if not d.startswith("/home") and not d.startswith("~")]
+        project_dirs = [
+            d for d in dirs if not d.startswith("/home") and not d.startswith("~")
+        ]
         global_dirs = [d for d in dirs if d.startswith("~") or d.startswith("/home")]
 
         assert ".nanocode/skills" in project_dirs
@@ -441,10 +443,9 @@ description: A skill from {skill_subdir}
 
     def test_load_skills_logs_available(self, caplog):
         """Test load_skills logs each skill as available."""
-        import logging
-        from unittest.mock import patch
-        import tempfile
         import os
+        import tempfile
+        from unittest.mock import patch
 
         tmpdir = tempfile.mkdtemp()
         skill_dir = os.path.join(tmpdir, ".nanocode", "skills", "test-skill")
@@ -505,7 +506,9 @@ class TestSkillsManagerURL:
         from nanocode.skills import SkillsManager
 
         manager = SkillsManager(temp_skill_dir)
-        skill = await manager._fetch_skill_from_url("https://invalid.example.com/nonexistent")
+        skill = await manager._fetch_skill_from_url(
+            "https://invalid.example.com/nonexistent"
+        )
 
         assert skill is None
 

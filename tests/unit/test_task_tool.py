@@ -1,11 +1,12 @@
 """Tests for TaskTool (subagent management)."""
 
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, AsyncMock
 
 from nanocode.agents import AgentInfo, AgentMode, AgentRegistry
 from nanocode.agents.permission import PermissionHandler
-from nanocode.tools.task import TaskTool, SubAgentSession, create_task_tool
+from nanocode.tools.task import SubAgentSession, TaskTool, create_task_tool
 
 
 @pytest.fixture
@@ -107,7 +108,9 @@ class TestSubAgentSession:
 
     def test_create_session(self):
         """Test creating a session."""
-        agent = AgentInfo(name="explore", mode=AgentMode.SUBAGENT, description="Explore")
+        agent = AgentInfo(
+            name="explore", mode=AgentMode.SUBAGENT, description="Explore"
+        )
         session = SubAgentSession(id="session-123", agent=agent)
 
         assert session.id == "session-123"
@@ -118,7 +121,9 @@ class TestSubAgentSession:
 
     def test_session_with_parent_id(self):
         """Test session with parent session ID."""
-        agent = AgentInfo(name="explore", mode=AgentMode.SUBAGENT, description="Explore")
+        agent = AgentInfo(
+            name="explore", mode=AgentMode.SUBAGENT, description="Explore"
+        )
         session = SubAgentSession(
             id="session-123",
             agent=agent,
@@ -129,7 +134,9 @@ class TestSubAgentSession:
 
     def test_mark_completed(self):
         """Test marking session as completed."""
-        agent = AgentInfo(name="explore", mode=AgentMode.SUBAGENT, description="Explore")
+        agent = AgentInfo(
+            name="explore", mode=AgentMode.SUBAGENT, description="Explore"
+        )
         session = SubAgentSession(id="session-123", agent=agent)
         session.completed = True
         session.result = "Task done!"

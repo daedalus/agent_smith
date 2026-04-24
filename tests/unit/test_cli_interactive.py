@@ -175,6 +175,7 @@ class TestRichColors:
     def test_rich_colors_defined(self):
         """Test RICH_COLORS dict is defined."""
         from nanocode.cli import ConsoleUI
+
         assert hasattr(ConsoleUI, "RICH_COLORS")
         assert "[cyan]" in ConsoleUI.RICH_COLORS["cyan"]
         assert "[green]" in ConsoleUI.RICH_COLORS["green"]
@@ -184,6 +185,7 @@ class TestRichColors:
     def test_color_method_cyan(self):
         """Test color method with cyan."""
         from nanocode.cli import ConsoleUI
+
         ui = ConsoleUI.__new__(ConsoleUI)
         ui.use_colors = False
         ui.RICH_COLORS = ConsoleUI.RICH_COLORS
@@ -194,6 +196,7 @@ class TestRichColors:
     def test_color_method_disabled(self):
         """Test color method when colors disabled."""
         from nanocode.cli import ConsoleUI
+
         ui = ConsoleUI.__new__(ConsoleUI)
         ui.use_colors = False
 
@@ -203,6 +206,7 @@ class TestRichColors:
     def test_color_unknown(self):
         """Test color method with unknown color."""
         from nanocode.cli import ConsoleUI
+
         ui = ConsoleUI.__new__(ConsoleUI)
         ui.use_colors = True
         ui.RICH_COLORS = ConsoleUI.RICH_COLORS

@@ -8,19 +8,18 @@ from messages during context compaction.
 import json
 import re
 from dataclasses import dataclass
-from typing import Any
 
 from topic_cache import TopicCache, get_topic_cache
 
 TOPIC_TYPES = [
-    "persona",    # User personas, agents, roles
-    "place",      # File paths, directories, locations
-    "thing",     # Tools, files, specific objects
-    "concept",   # Ideas, patterns, abstractions
-    "fact",      # True statements, historical info
-    "entity",    # Named entities (URLs, IDs, etc.)
-    "code",      # Code snippets, functions, classes
-    "context",   # Conversation context, summaries
+    "persona",  # User personas, agents, roles
+    "place",  # File paths, directories, locations
+    "thing",  # Tools, files, specific objects
+    "concept",  # Ideas, patterns, abstractions
+    "fact",  # True statements, historical info
+    "entity",  # Named entities (URLs, IDs, etc.)
+    "code",  # Code snippets, functions, classes
+    "context",  # Conversation context, summaries
 ]
 
 
@@ -77,7 +76,7 @@ class TopicExtractor:
         try:
             response = await self.llm.chat([{"role": "user", "content": full_prompt}])
             extracted = self._parse_response(response.content)
-        except Exception as e:
+        except Exception:
             return []
 
         topic_ids = []

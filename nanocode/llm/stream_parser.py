@@ -4,13 +4,14 @@ This implements the same logic as the Vercel AI SDK for parsing tool calls
 from streaming LLM responses.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import AsyncIterator
 
 
 @dataclass
 class ToolCall:
     """Accumulated tool call during streaming."""
+
     id: str
     name: str
     arguments: str = ""
@@ -20,6 +21,7 @@ class ToolCall:
 @dataclass
 class StreamChunk:
     """Represents a parsed chunk from the stream."""
+
     text: str | None = None
     tool_call_start: tuple[str, str] | None = None  # (id, name)
     tool_call_delta: tuple[str, str] | None = None  # (id, delta)
@@ -38,6 +40,7 @@ def is_complete_json(s: str) -> bool:
         return False
     try:
         import json
+
         json.loads(s)
         return True
     except json.JSONDecodeError:
@@ -102,28 +105,18 @@ async def parse_sse_stream(
 
                 if tc_id and tc_name:
                     tool_calls[index] = ToolCall(id=tc_id, name=tc_name)
-                    yield StreamChunk(
-                        tool_call_start=(tc_id, tc_name)
-                    )
+                    yield StreamChunk(tool_call_start=(tc_id, tc_name))
 
                     # Check if arguments already started (complete in one chunk)
                     args = tc_delta.get("function", {}).get("arguments", "")
                     if args:
                         tool_calls[index].arguments = args
-                        yield StreamChunk(
-                            tool_call_delta=(tc_id, args)
-                        )
+                        yield StreamChunk(tool_call_delta=(tc_id, args))
 
                         if is_complete_json(args):
                             tool_calls[index].has_finished = True
                             yield StreamChunk(tool_call_end=tc_id)
-                            yield StreamChunk(
-                                tool_call_complete=(
-                                    tc_id,
-                                    tc_name,
-                                    args
-                                )
-                            )
+                            yield StreamChunk(tool_call_complete=(tc_id, tc_name, args))
             else:
                 # Existing tool call - accumulate arguments
                 tc = tool_calls[index]
@@ -131,28 +124,20 @@ async def parse_sse_stream(
                     args_delta = tc_delta.get("function", {}).get("arguments", "")
                     if args_delta:
                         tc.arguments += args_delta
-                        yield StreamChunk(
-                            tool_call_delta=(tc.id, args_delta)
-                        )
+                        yield StreamChunk(tool_call_delta=(tc.id, args_delta))
 
                         if is_complete_json(tc.arguments):
                             tc.has_finished = True
                             yield StreamChunk(tool_call_end=tc.id)
                             yield StreamChunk(
-                                tool_call_complete=(
-                                    tc.id,
-                                    tc.name,
-                                    tc.arguments
-                                )
+                                tool_call_complete=(tc.id, tc.name, tc.arguments)
                             )
 
     # Flush any remaining tool calls
     for index, tc in sorted(tool_calls.items()):
         if not tc.has_finished:
             yield StreamChunk(tool_call_end=tc.id)
-            yield StreamChunk(
-                tool_call_complete=(tc.id, tc.name, tc.arguments)
-            )
+            yield StreamChunk(tool_call_complete=(tc.id, tc.name, tc.arguments))
 
     # Yield final metadata
     if finish_reason:
@@ -174,7 +159,6 @@ async def parse_stream_events(
     - {"type": "tool_call", "id": str, "name": str, "arguments": dict}
     - {"type": "finish", "reason": str, "usage": dict}
     """
-    import json
 
     async for chunk in parse_sse_stream(response):
         if chunk.text is not None:
@@ -199,6 +183,7 @@ async def parse_stream_events(
 
         if chunk.tool_call_complete is not None:
             import json as json_mod
+
             try:
                 args = json_mod.loads(chunk.tool_call_complete[2])
             except json_mod.JSONDecodeError:

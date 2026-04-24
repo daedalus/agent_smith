@@ -98,10 +98,10 @@ class BloomFilter:
             )
 
     @classmethod
-    def load(cls, path: str) -> "BloomFilter":
+    def load(cls, path: str) -> BloomFilter:
         if not os.path.exists(path):
             return cls()
-        with open(path, "r") as f:
+        with open(path) as f:
             data = json.load(f)
         bf = cls.__new__(cls)
         bf.size = data["array_size"]

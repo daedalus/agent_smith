@@ -1,6 +1,5 @@
 """Tests for text-to-tool detection."""
 
-import pytest
 
 from nanocode.tools.text_detector import (
     DetectedCommand,
@@ -46,7 +45,7 @@ class TestDetectCommandsInText:
 
     def test_detect_inline_command(self):
         """Detect inline command with backticks."""
-        text = 'Run `ls -la` to see all files.'
+        text = "Run `ls -la` to see all files."
         detected = detect_commands_in_text(text)
         assert len(detected) >= 1
         assert any(cmd.tool_name == "bash" for cmd in detected)
@@ -135,13 +134,13 @@ class TestExtractJsonFromText:
 
     def test_extract_json_from_code_block(self):
         """Extract JSON from code block."""
-        text = '''
+        text = """
         Here's the configuration:
 
         ```json
         {"name": "test", "value": 123}
         ```
-        '''
+        """
         result = extract_json_from_text(text)
         assert result is not None
         assert result["name"] == "test"

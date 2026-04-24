@@ -10,9 +10,9 @@ from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "nanocode"))
 
-from nanocode.context import ContextManager, TokenCounter, Message, MessageRole
-from nanocode.tools import Tool, ToolResult, ToolRegistry
 from nanocode.config import Config
+from nanocode.context import ContextManager, Message, TokenCounter
+from nanocode.tools import ToolRegistry, ToolResult
 
 
 class TestContextAdversarial:
@@ -21,40 +21,40 @@ class TestContextAdversarial:
     def test_very_long_message(self):
         """ADVERSARIAL: Very long message (1MB)."""
         manager = ContextManager(max_tokens=100000)
-        
+
         long_content = "x" * 1_000_000
         manager.add_message("user", long_content)
-        
+
         tokens = TokenCounter.count_tokens(long_content)
         print(f"  1MB message tokens: {tokens}")
 
     def test_unicode_extreme(self):
         """ADVERSARIAL: Extreme unicode characters."""
         manager = ContextManager(max_tokens=10000)
-        
-        unicode_content = "\U0001F600" * 10000
+
+        unicode_content = "\U0001f600" * 10000
         manager.add_message("user", unicode_content)
-        
+
         tokens = TokenCounter.count_tokens(unicode_content)
         print(f"  Extreme unicode tokens: {tokens}")
 
     def test_nested_json_message(self):
         """ADVERSARIAL: Nested JSON structure."""
         manager = ContextManager(max_tokens=10000)
-        
+
         nested = {"key": {"nested": {"deep": [{"a": 1}, {"b": 2}]}}}
         content = json.dumps(nested)
         manager.add_message("user", content)
-        
+
         assert len(manager._messages) == 1
 
     def test_message_with_null_bytes(self):
         """ADVERSARIAL: Message containing null bytes."""
         manager = ContextManager(max_tokens=10000)
-        
+
         content = "hello\x00world\x00test"
         manager.add_message("user", content)
-        
+
         assert len(manager._messages) == 1
 
     def test_max_tokens_zero(self):
@@ -77,40 +77,42 @@ class TestContextAdversarial:
         """ADVERSARIAL: Concurrent message additions."""
         manager = ContextManager(max_tokens=100000)
         errors = []
-        
+
         def add_messages():
             try:
                 for i in range(100):
                     manager.add_message("user", f"Message {i}")
             except Exception as e:
                 errors.append(e)
-        
+
         threads = [threading.Thread(target=add_messages) for _ in range(5)]
         for t in threads:
             t.start()
         for t in threads:
             t.join()
-        
-        print(f"  Concurrent add: {len(manager._messages)} messages, {len(errors)} errors")
+
+        print(
+            f"  Concurrent add: {len(manager._messages)} messages, {len(errors)} errors"
+        )
 
     def test_system_prompt_override(self):
         """ADVERSARIAL: Multiple system prompt overrides."""
         manager = ContextManager(max_tokens=10000)
-        
+
         manager.set_system_prompt("First")
         manager.set_system_prompt("Second")
         manager.set_system_prompt("Third")
-        
+
         assert len(manager._messages) == 0
 
     def test_message_role_invalid(self):
         """ADVERSARIAL: Invalid message role."""
         manager = ContextManager(max_tokens=10000)
-        
+
         msg = Message(role="invalid_role")
         msg.add_text("test")
         manager._messages.append(msg)
-        
+
         messages = manager.prepare_messages()
         assert len(messages) >= 0
 
@@ -163,18 +165,18 @@ class TestToolRegistryAdversarial:
     def test_register_duplicate_tool(self):
         """ADVERSARIAL: Register duplicate tool name."""
         registry = ToolRegistry()
-        
+
         tool1 = MagicMock()
         tool1.name = "test_tool"
         tool1.description = "First"
-        
+
         tool2 = MagicMock()
         tool2.name = "test_tool"
         tool2.description = "Second"
-        
+
         registry.register(tool1)
         registry.register(tool2)
-        
+
         tools = registry.list_tools()
         count = sum(1 for t in tools if t.name == "test_tool")
         print(f"  Duplicate tool count: {count}")
@@ -182,34 +184,34 @@ class TestToolRegistryAdversarial:
     def test_register_tool_with_none_name(self):
         """ADVERSARIAL: Tool with None name."""
         registry = ToolRegistry()
-        
+
         tool = MagicMock()
         tool.name = None
         tool.description = "Test"
-        
+
         try:
             registry.register(tool)
-            print(f"  None name allowed")
+            print("  None name allowed")
         except Exception as e:
             print(f"  None name rejected: {e}")
 
     def test_get_tool_nonexistent(self):
         """ADVERSARIAL: Get nonexistent tool."""
         registry = ToolRegistry()
-        
+
         has_tool = registry.has_tool("nonexistent_tool_xyz")
         assert has_tool is False
 
     def test_unregister_during_iteration(self):
         """ADVERSARIAL: Unregister tool during iteration."""
         registry = ToolRegistry()
-        
+
         for i in range(10):
             tool = MagicMock()
             tool.name = f"tool_{i}"
             tool.description = f"Tool {i}"
             registry.register(tool)
-        
+
         tools = registry.list_tools()
         try:
             for t in tools:
@@ -223,11 +225,11 @@ class TestConfigAdversarial:
 
     def test_config_with_special_chars(self):
         """ADVERSARIAL: Config with special characters."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("key: value with $pecial ch@rs\n")
             f.write("number: 12345\n")
             f.flush()
-            
+
             try:
                 config = Config(f.name)
                 assert config.get("key") == "value with $pecial ch@rs"
@@ -238,11 +240,12 @@ class TestConfigAdversarial:
 
     def test_config_nested_dots(self):
         """ADVERSARIAL: Nested keys with dots."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             import yaml
+
             yaml.dump({"a": {"b": {"c": "value", "d": "other"}}}, f)
             f.flush()
-            
+
             try:
                 config = Config(f.name)
                 assert config.get("a.b.c") == "value"
@@ -251,12 +254,13 @@ class TestConfigAdversarial:
 
     def test_config_deeply_nested(self):
         """ADVERSARIAL: Deeply nested config."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             nested = {"level1": {"level2": {"level3": {"level4": {"value": "deep"}}}}}
             import yaml
+
             yaml.dump(nested, f)
             f.flush()
-            
+
             try:
                 config = Config(f.name)
                 assert config.get("level1.level2.level3.level4.value") == "deep"
@@ -271,10 +275,10 @@ class TestConfigAdversarial:
 
     def test_config_empty_yaml(self):
         """ADVERSARIAL: Empty YAML file."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("")
             f.flush()
-            
+
             try:
                 config = Config(f.name)
                 assert config.get("any.key") is None
@@ -283,10 +287,10 @@ class TestConfigAdversarial:
 
     def test_config_invalid_yaml(self):
         """ADVERSARIAL: Invalid YAML."""
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write("key: [unclosed\n")
             f.flush()
-            
+
             try:
                 config = Config(f.name)
                 print(f"  Invalid YAML handled: {config._config}")
@@ -303,7 +307,7 @@ class TestToolResultAdversarial:
         """ADVERSARIAL: Tool result with 1MB content."""
         content = "x" * 1_000_000
         result = ToolResult(success=True, content=content)
-        
+
         d = result.to_dict()
         assert len(d["content"]) == 1_000_000
 
@@ -312,7 +316,7 @@ class TestToolResultAdversarial:
         content = bytes([0, 1, 2, 255, 128, 64])
         try:
             result = ToolResult(success=True, content=content)
-            print(f"  Binary content allowed")
+            print("  Binary content allowed")
         except Exception as e:
             print(f"  Binary rejected: {e}")
 
@@ -320,7 +324,7 @@ class TestToolResultAdversarial:
         """ADVERSARIAL: Tool result with deeply nested metadata."""
         nested = {"a": {"b": {"c": {"d": {"e": "value"}}}}}
         result = ToolResult(success=True, content="test", metadata=nested)
-        
+
         d = result.to_dict()
         assert d["metadata"]["a"]["b"]["c"]["d"]["e"] == "value"
 
@@ -333,7 +337,7 @@ class TestToolResultAdversarial:
         """ADVERSARIAL: Tool result with many metadata keys."""
         metadata = {f"key_{i}": f"value_{i}" for i in range(100)}
         result = ToolResult(success=True, content="test", metadata=metadata)
-        
+
         d = result.to_dict()
         assert len(d["metadata"]) == 100
 
@@ -341,4 +345,5 @@ class TestToolResultAdversarial:
 if __name__ == "__main__":
     print("Running adversarial tests...")
     import pytest
+
     pytest.main([__file__, "-v", "-s"])

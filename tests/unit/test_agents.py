@@ -14,7 +14,6 @@ from nanocode.agents import (
     get_disabled_tools,
     match_pattern,
 )
-
 from nanocode.tools.task import SubAgentSession
 
 
@@ -434,7 +433,9 @@ class TestSubAgentSession:
 
     def test_create_session(self):
         """Test creating a subagent session."""
-        agent = AgentInfo(name="explore", mode=AgentMode.SUBAGENT, description="Explore")
+        agent = AgentInfo(
+            name="explore", mode=AgentMode.SUBAGENT, description="Explore"
+        )
         session = SubAgentSession(id="test-123", agent=agent)
 
         assert session.id == "test-123"
@@ -444,7 +445,9 @@ class TestSubAgentSession:
 
     def test_session_completion(self):
         """Test marking session as complete."""
-        agent = AgentInfo(name="explore", mode=AgentMode.SUBAGENT, description="Explore")
+        agent = AgentInfo(
+            name="explore", mode=AgentMode.SUBAGENT, description="Explore"
+        )
         session = SubAgentSession(id="test-123", agent=agent)
 
         session.completed = True

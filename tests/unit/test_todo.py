@@ -1,10 +1,11 @@
 """Tests for TodoService."""
 
-import pytest
 import tempfile
 from pathlib import Path
 
-from nanocode.todo_service import TodoService, TodoItem, get_todo_service
+import pytest
+
+from nanocode.todo_service import TodoService, get_todo_service
 
 
 class TestTodoService:
@@ -115,11 +116,14 @@ class TestTodoService:
 
     def test_get_stats_with_todos(self, todo_service):
         """Test getting todo statistics."""
-        todo_service.update_todos("session1", [
-            {"content": "Todo 1", "status": "pending", "priority": "high"},
-            {"content": "Todo 2", "status": "in_progress", "priority": "medium"},
-            {"content": "Todo 3", "status": "completed", "priority": "low"},
-        ])
+        todo_service.update_todos(
+            "session1",
+            [
+                {"content": "Todo 1", "status": "pending", "priority": "high"},
+                {"content": "Todo 2", "status": "in_progress", "priority": "medium"},
+                {"content": "Todo 3", "status": "completed", "priority": "low"},
+            ],
+        )
 
         stats = todo_service.get_stats("session1")
 
@@ -152,9 +156,10 @@ class TestTodoTool:
         """Test TodoTool read action."""
         import tempfile
         from pathlib import Path
-        from nanocode.tools.builtin import TodoTool
-        from nanocode.todo_service import TodoService
+
         from nanocode.core import set_current_session_id
+        from nanocode.todo_service import TodoService
+        from nanocode.tools.builtin import TodoTool
 
         with tempfile.TemporaryDirectory() as tmpdir:
             service = TodoService(storage_dir=Path(tmpdir))
@@ -172,9 +177,10 @@ class TestTodoTool:
         """Test TodoTool write action."""
         import tempfile
         from pathlib import Path
-        from nanocode.tools.builtin import TodoTool
-        from nanocode.todo_service import TodoService
+
         from nanocode.core import set_current_session_id
+        from nanocode.todo_service import TodoService
+        from nanocode.tools.builtin import TodoTool
 
         with tempfile.TemporaryDirectory() as tmpdir:
             service = TodoService(storage_dir=Path(tmpdir))
@@ -195,8 +201,9 @@ class TestTodoTool:
         """Test TodoTool with invalid action."""
         import tempfile
         from pathlib import Path
-        from nanocode.tools.builtin import TodoTool
+
         from nanocode.todo_service import TodoService
+        from nanocode.tools.builtin import TodoTool
 
         service = TodoService(storage_dir=Path(tempfile.mkdtemp()))
         tool = TodoTool(todo_service=service)

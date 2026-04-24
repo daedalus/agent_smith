@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """Entry point for the autonomous agent."""
 
-import asyncio
 import argparse
+import asyncio
 import atexit
 import os
 
 from rich.console import Console
 
-from nanocode.core import AutonomousAgent
 from nanocode.cli import InteractiveCLI
 from nanocode.config import Config
+from nanocode.core import AutonomousAgent
+from nanocode import __version__
 from nanocode.server import run_server
 
 
@@ -35,8 +36,8 @@ def parse_args():
         "--config",
         "-c",
         type=str,
-        default="config.yaml",
-        help="Path to config file",
+        default=None,
+        help="Path to config file (default: ~/.config/nanocode/config.yaml)",
     )
     parser.add_argument(
         "--resume",
@@ -230,10 +231,14 @@ def parse_args():
     return parser.parse_args()
 
 
-async def run_cli(agent, show_thinking: bool = False, show_messages: bool = False, enable_spinner: bool = True):
+async def run_cli(
+    agent,
+    show_thinking: bool = False,
+    show_messages: bool = False,
+    enable_spinner: bool = True,
+):
     """Run the CLI interface."""
     from nanocode.agents.permission import (
-        PermissionCallback,
         PermissionReply,
         PermissionReplyType,
         PermissionRequest,
@@ -257,19 +262,33 @@ async def run_cli(agent, show_thinking: bool = False, show_messages: bool = Fals
         try:
             response = input().strip().lower()
             if response in ("y", "yes"):
-                return PermissionReply(request_id=request.id, reply=PermissionReplyType.ONCE)
+                return PermissionReply(
+                    request_id=request.id, reply=PermissionReplyType.ONCE
+                )
             elif response == "always":
-                return PermissionReply(request_id=request.id, reply=PermissionReplyType.ALWAYS)
+                return PermissionReply(
+                    request_id=request.id, reply=PermissionReplyType.ALWAYS
+                )
             else:
-                return PermissionReply(request_id=request.id, reply=PermissionReplyType.REJECT, message="Permission denied by user")
+                return PermissionReply(
+                    request_id=request.id,
+                    reply=PermissionReplyType.REJECT,
+                    message="Permission denied by user",
+                )
         except (KeyboardInterrupt, EOFError):
-            return PermissionReply(request_id=request.id, reply=PermissionReplyType.REJECT, message="Permission denied by user")
+            return PermissionReply(
+                request_id=request.id,
+                reply=PermissionReplyType.REJECT,
+                message="Permission denied by user",
+            )
 
     agent.permission_handler.set_callback(permission_callback)
 
     cli = InteractiveCLI(
-        agent, show_thinking=show_thinking, show_messages=show_messages,
-        enable_spinner=enable_spinner
+        agent,
+        show_thinking=show_thinking,
+        show_messages=show_messages,
+        enable_spinner=enable_spinner,
     )
     await cli.run()
 
@@ -296,6 +315,7 @@ async def main():
 
     if args.list_sessions:
         from nanocode.session_manager import get_session_manager
+
         mgr = get_session_manager()
         sessions = mgr.list()
         if not sessions:
@@ -303,7 +323,9 @@ async def main():
             return
         print("Sessions:")
         for s in sessions:
-            print(f"  {s.id}: {s.title} (updated: {s.updated_at.strftime('%Y-%m-%d %H:%M')})")
+            print(
+                f"  {s.id}: {s.title} (updated: {s.updated_at.strftime('%Y-%m-%d %H:%M')})"
+            )
         return
 
     gui_mode = getattr(args, "gui", "cli")
@@ -334,7 +356,15 @@ async def main():
             else:
                 auth_username = args.serve_auth
 
-        agent = AutonomousAgent(config, session_id=args.resume, verbose=args.verbose, yolo=args.yolo, drift_alert=args.drift_alert, drift_intervene=args.drift_intervene, auto_execute=args.auto_execute)
+        agent = AutonomousAgent(
+            config,
+            session_id=args.resume,
+            verbose=args.verbose,
+            yolo=args.yolo,
+            drift_alert=args.drift_alert,
+            drift_intervene=args.drift_intervene,
+            auto_execute=args.auto_execute,
+        )
         await agent.init_async()
 
         if args.mdns:
@@ -366,7 +396,14 @@ async def main():
             config.set("proxy", args.proxy)
         if args.user_agent:
             config.set("user_agent", args.user_agent)
-        agent = AutonomousAgent(config, session_id=args.resume, yolo=args.yolo, drift_alert=args.drift_alert, drift_intervene=args.drift_intervene, auto_execute=args.auto_execute)
+        agent = AutonomousAgent(
+            config,
+            session_id=args.resume,
+            yolo=args.yolo,
+            drift_alert=args.drift_alert,
+            drift_intervene=args.drift_intervene,
+            auto_execute=args.auto_execute,
+        )
         await agent.init_async()
         await run_acp(agent)
         return
@@ -390,15 +427,29 @@ async def main():
         try:
             await asyncio.Event().wait()
         except KeyboardInterrupt:
-            session_id = getattr(agent, '_session_id', 'unknown') if agent else 'unknown'
+            session_id = (
+                getattr(agent, "_session_id", "unknown") if agent else "unknown"
+            )
             print()
             c = Console()
-            c.print(f"[cyan]░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ [/cyan]")
-            c.print(f"[cyan]██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗[/cyan]")
-            c.print(f"[cyan]██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║[/cyan]")
-            c.print(f"[cyan]██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║[/cyan]")
-            c.print(f"[cyan]╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║[/cyan]")
-            c.print(f"[cyan] ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/cyan]")
+            c.print(
+                "[cyan]░██████╗ ███████╗████████╗██████╗  ██████╗ ██████╗  █████╗ ██████╗ ██████╗ [/cyan]"
+            )
+            c.print(
+                "[cyan]██╔════╝ ██╔════╝╚══██╔══╝██╔══██╗██╔═══██╗██╔══██╗██╔══██╗██╔══██╗██╔══██╗[/cyan]"
+            )
+            c.print(
+                "[cyan]██║  ███╗█████╗     ██║   ██████╔╝██║   ██║██████╔╝███████║██████╔╝███████║[/cyan]"
+            )
+            c.print(
+                "[cyan]██║   ██║██╔══╝     ██║   ██╔══██╗██║   ██║██╔══██╗██╔══██║██╔══██╗██╔══██║[/cyan]"
+            )
+            c.print(
+                "[cyan]╚██████╔╝███████╗   ██║   ██║  ██║╚██████╔╝██████╔╝██║  ██║██║  ██║██║  ██║[/cyan]"
+            )
+            c.print(
+                "[cyan] ╚═════╝ ╚══════╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝[/cyan]"
+            )
             print()
             print(f"Session: {session_id}")
         finally:
@@ -406,6 +457,8 @@ async def main():
         return
 
     config = Config(args.config)
+
+    print(f"nanocode v{__version__}")
 
     if args.no_proxy:
         config.set("proxy", None)
@@ -426,11 +479,21 @@ async def main():
             args.model,
         )
 
-    agent = AutonomousAgent(config, session_id=args.resume, verbose=args.verbose, yolo=args.yolo, drift_alert=args.drift_alert, drift_intervene=args.drift_intervene, auto_execute=args.auto_execute)
+    agent = AutonomousAgent(
+        config,
+        session_id=args.resume,
+        verbose=args.verbose,
+        yolo=args.yolo,
+        drift_alert=args.drift_alert,
+        drift_intervene=args.drift_intervene,
+        auto_execute=args.auto_execute,
+    )
     await agent.init_async()
     atexit.register(lambda: _save_session_on_exit(agent))
 
-    show_thinking = getattr(args, "thinking", False)  # Default: disabled (use --thinking to enable)
+    show_thinking = getattr(
+        args, "thinking", False
+    )  # Default: disabled (use --thinking to enable)
     show_messages = getattr(args, "show_messages", False)
     gui_show_thinking = True if gui_mode == "textual" else show_thinking
 
@@ -447,7 +510,11 @@ async def main():
         else:
             level = logging.DEBUG
 
-        handlers = [logging.FileHandler(log_file) if log_file else logging.FileHandler("/tmp/nanocode.log")]
+        handlers = [
+            logging.FileHandler(log_file)
+            if log_file
+            else logging.FileHandler("/tmp/nanocode.log")
+        ]
 
         # Only add StreamHandler when --debug is used
         handlers.append(logging.StreamHandler())
@@ -468,15 +535,33 @@ async def main():
     should_debug = debug_arg or log_file or gui_mode == "textual"
     if debug_arg:
         concerns = [c.strip().lower() for c in debug_arg.split(",")]
-        invalid = set(concerns) - {"agent", "tools", "cache", "context", "llm", "tui", "all"}
+        invalid = set(concerns) - {
+            "agent",
+            "tools",
+            "cache",
+            "context",
+            "llm",
+            "tui",
+            "all",
+        }
         if invalid:
-            print(f"Warning: Unknown debug concerns: {invalid}. Valid options: agent, tools, cache, context, llm, tui, all")
-            concerns = [c for c in concerns if c in {"agent", "tools", "cache", "context", "llm", "tui", "all"}]
+            print(
+                f"Warning: Unknown debug concerns: {invalid}. Valid options: agent, tools, cache, context, llm, tui, all"
+            )
+            concerns = [
+                c
+                for c in concerns
+                if c in {"agent", "tools", "cache", "context", "llm", "tui", "all"}
+            ]
             if not concerns:
                 concerns = ["all"]
         _configure_debug_logging(concerns)
     elif log_file or gui_mode == "textual":
-        handlers = [logging.FileHandler(log_file) if log_file else logging.FileHandler("/tmp/nanocode.log")]
+        handlers = [
+            logging.FileHandler(log_file)
+            if log_file
+            else logging.FileHandler("/tmp/nanocode.log")
+        ]
         logging.basicConfig(
             level=logging.DEBUG,
             format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -485,6 +570,7 @@ async def main():
 
     if getattr(args, "prompt", None):
         import traceback
+
         try:
             result = await agent.process_input(
                 args.prompt, show_thinking=show_thinking, show_messages=show_messages
@@ -509,10 +595,12 @@ async def main():
             agent,
             show_thinking=show_thinking,
             show_messages=show_messages,
-            enable_spinner=not getattr(args, "no_spinner", False)
+            enable_spinner=not getattr(args, "no_spinner", False),
         )
     else:
-        await run_tui(agent, show_thinking=gui_show_thinking, show_messages=show_messages)
+        await run_tui(
+            agent, show_thinking=gui_show_thinking, show_messages=show_messages
+        )
 
 
 def _format_markdown(text: str) -> str:
@@ -522,7 +610,7 @@ def _format_markdown(text: str) -> str:
     def replace_bold(match):
         return f"[magenta bold]{match.group(1)}[/magenta bold]"
 
-    return re.sub(r'\*\*(.+?)\*\*', replace_bold, text)
+    return re.sub(r"\*\*(.+?)\*\*", replace_bold, text)
 
 
 if __name__ == "__main__":

@@ -6,7 +6,6 @@ import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
 
 logger = logging.getLogger("nanocode.message_actions")
 
@@ -31,7 +30,7 @@ class RevertState:
     message_count: int = 0
 
 
-@dataclass 
+@dataclass
 class UndoEntry:
     """An undo entry with messages and state."""
 
@@ -47,10 +46,10 @@ class MessageActionManager:
         self._messages = messages or []
         self._action_history: list[MessageAction] = []
         self._undo_stack: list[UndoEntry] = []  # For undo
-        self._redo_stack: list[UndoEntry] = []   # For redo
-        self._current_state: Optional[RevertState] = None
+        self._redo_stack: list[UndoEntry] = []  # For redo
+        self._current_state: RevertState | None = None
 
-    def get_message(self, index: int) -> Optional[dict]:
+    def get_message(self, index: int) -> dict | None:
         """Get message by index from end (negative indexes from start)."""
         if index < 0:
             index = len(self._messages) + index
@@ -199,7 +198,7 @@ class MessageActionManager:
         """Get size of redo stack."""
         return len(self._redo_stack)
 
-    def copy_message(self, index: int) -> Optional[dict]:
+    def copy_message(self, index: int) -> dict | None:
         """Copy a message to clipboard (returns dict for external use)."""
         msg = self.get_message(index)
         if msg:
@@ -242,7 +241,9 @@ class MessageActionManager:
         """Save current messages as a named checkpoint."""
         from pathlib import Path
 
-        storage_dir = Path.home() / ".local" / "share" / "nanocode" / "storage" / "forks"
+        storage_dir = (
+            Path.home() / ".local" / "share" / "nanocode" / "storage" / "forks"
+        )
         os.makedirs(storage_dir, exist_ok=True)
 
         fork_path = storage_dir / f"{name}.json"
@@ -259,7 +260,9 @@ class MessageActionManager:
         """Load a named fork."""
         from pathlib import Path
 
-        storage_dir = Path.home() / ".local" / "share" / "nanocode" / "storage" / "forks"
+        storage_dir = (
+            Path.home() / ".local" / "share" / "nanocode" / "storage" / "forks"
+        )
         fork_path = storage_dir / f"{name}.json"
 
         if not fork_path.exists():
@@ -278,7 +281,9 @@ class MessageActionManager:
         """List available forks."""
         from pathlib import Path
 
-        storage_dir = Path.home() / ".local" / "share" / "nanocode" / "storage" / "forks"
+        storage_dir = (
+            Path.home() / ".local" / "share" / "nanocode" / "storage" / "forks"
+        )
         if not storage_dir.exists():
             return []
 

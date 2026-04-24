@@ -2,10 +2,8 @@
 
 import json
 import logging
-import os
-from pathlib import Path
-from typing import Optional
 from dataclasses import dataclass
+from pathlib import Path
 
 logger = logging.getLogger("nanocode.todo")
 
@@ -13,6 +11,7 @@ logger = logging.getLogger("nanocode.todo")
 @dataclass
 class TodoItem:
     """A single todo item."""
+
     content: str
     status: str = "pending"
     priority: str = "medium"
@@ -21,7 +20,7 @@ class TodoItem:
 class TodoService:
     """Service for managing todos with file-based persistence."""
 
-    def __init__(self, storage_dir: Optional[Path] = None):
+    def __init__(self, storage_dir: Path | None = None):
         if storage_dir is None:
             storage_dir = Path.home() / ".local/share/nanocode/storage"
         self.storage_dir = Path(storage_dir)
@@ -47,12 +46,20 @@ class TodoService:
         self._save(all_todos)
         logger.debug(f"Updated {len(todos)} todos for session {session_id}")
 
-    def add_todo(self, session_id: str, content: str, priority: str = "medium") -> TodoItem:
+    def add_todo(
+        self, session_id: str, content: str, priority: str = "medium"
+    ) -> TodoItem:
         """Add a new todo to a session."""
         todos = self.get_todos(session_id)
         todo = TodoItem(content=content, status="pending", priority=priority)
         todos.append(todo)
-        self.update_todos(session_id, [{"content": t.content, "status": t.status, "priority": t.priority} for t in todos])
+        self.update_todos(
+            session_id,
+            [
+                {"content": t.content, "status": t.status, "priority": t.priority}
+                for t in todos
+            ],
+        )
         return todo
 
     def complete_todo(self, session_id: str, index: int) -> bool:
@@ -60,7 +67,13 @@ class TodoService:
         todos = self.get_todos(session_id)
         if 0 <= index < len(todos):
             todos[index].status = "completed"
-            self.update_todos(session_id, [{"content": t.content, "status": t.status, "priority": t.priority} for t in todos])
+            self.update_todos(
+                session_id,
+                [
+                    {"content": t.content, "status": t.status, "priority": t.priority}
+                    for t in todos
+                ],
+            )
             return True
         return False
 
@@ -69,7 +82,13 @@ class TodoService:
         todos = self.get_todos(session_id)
         if 0 <= index < len(todos):
             todos.pop(index)
-            self.update_todos(session_id, [{"content": t.content, "status": t.status, "priority": t.priority} for t in todos])
+            self.update_todos(
+                session_id,
+                [
+                    {"content": t.content, "status": t.status, "priority": t.priority}
+                    for t in todos
+                ],
+            )
             return True
         return False
 
@@ -129,7 +148,7 @@ class TodoService:
 
 
 # Global service instance
-_service: Optional[TodoService] = None
+_service: TodoService | None = None
 
 
 def get_todo_service() -> TodoService:

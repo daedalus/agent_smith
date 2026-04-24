@@ -50,11 +50,15 @@ llm:
     opencode:
       api_key: public
       base_url: https://opencode.ai/zen/v1
-      model: hy3-preview-free
+      model: big-pickle
     openrouter:
       api_key: ${OPENROUTER_API_KEY}
       base_url: https://openrouter.ai/api/v1
       model: openrouter/free
+    nano-gpt:
+      model: Gemma-3-27B-Big-Tiger-v3
+    qiniu-ai:
+      model: kling-v2-6
   use_model_registry: false
   user_agent: opencode/1.4.8
 mcp:
@@ -74,35 +78,91 @@ planning:
 permissions:
   agents:
     build:
-      - {permission: "*", pattern: "*", action: "allow"}
-      - {permission: "doom_loop", pattern: "*", action: "ask"}
-      - {permission: "external_directory", pattern: "*", action: "ask"}
-      - {permission: "external_directory", pattern: "${HOME}/*", action: "allow"}
-      - {permission: "question", pattern: "*", action: "deny"}
-      - {permission: "plan_enter", pattern: "*", action: "deny"}
-      - {permission: "plan_exit", pattern: "*", action: "deny"}
-      - {permission: "read", pattern: "*.env", action: "ask"}
-      - {permission: "read", pattern: "*.env.*", action: "ask"}
-      - {permission: "read", pattern: "*.env.example", action: "allow"}
-      - {permission: "task", pattern: "*", action: "allow"}
-      - {permission: "todo", pattern: "*", action: "allow"}
+    - permission: '*'
+      pattern: '*'
+      action: allow
+    - permission: doom_loop
+      pattern: '*'
+      action: ask
+    - permission: external_directory
+      pattern: '*'
+      action: ask
+    - permission: external_directory
+      pattern: ${HOME}/*
+      action: allow
+    - permission: question
+      pattern: '*'
+      action: deny
+    - permission: plan_enter
+      pattern: '*'
+      action: deny
+    - permission: plan_exit
+      pattern: '*'
+      action: deny
+    - permission: read
+      pattern: '*.env'
+      action: ask
+    - permission: read
+      pattern: '*.env.*'
+      action: ask
+    - permission: read
+      pattern: '*.env.example'
+      action: allow
+    - permission: task
+      pattern: '*'
+      action: allow
+    - permission: todo
+      pattern: '*'
+      action: allow
     plan:
-      - {permission: "*", pattern: "*", action: "allow"}
-      - {permission: "doom_loop", pattern: "*", action: "ask"}
-      - {permission: "external_directory", pattern: "${HOME}/.opencode/plans/*", action: "allow"}
-      - {permission: "question", pattern: "*", action: "allow"}
-      - {permission: "plan_enter", pattern: "*", action: "deny"}
-      - {permission: "plan_exit", pattern: "*", action: "allow"}
-      - {permission: "edit", pattern: "*", action: "deny"}
-      - {permission: "write", pattern: "*", action: "deny"}
-      - {permission: "patch", pattern: "*", action: "deny"}
-      - {permission: "apply_patch", pattern: "*", action: "deny"}
-      - {permission: "multiedit", pattern: "*", action: "deny"}
-      - {permission: "read", pattern: "*.env", action: "ask"}
-      - {permission: "read", pattern: "*.env.*", action: "ask"}
-      - {permission: "read", pattern: "*.env.example", action: "allow"}
-      - {permission: "todo", pattern: "*", action: "allow"}
-      - {permission: "task", pattern: "*", action: "allow"}
+    - permission: '*'
+      pattern: '*'
+      action: allow
+    - permission: doom_loop
+      pattern: '*'
+      action: ask
+    - permission: external_directory
+      pattern: ${HOME}/.opencode/plans/*
+      action: allow
+    - permission: question
+      pattern: '*'
+      action: allow
+    - permission: plan_enter
+      pattern: '*'
+      action: deny
+    - permission: plan_exit
+      pattern: '*'
+      action: allow
+    - permission: edit
+      pattern: '*'
+      action: deny
+    - permission: write
+      pattern: '*'
+      action: deny
+    - permission: patch
+      pattern: '*'
+      action: deny
+    - permission: apply_patch
+      pattern: '*'
+      action: deny
+    - permission: multiedit
+      pattern: '*'
+      action: deny
+    - permission: read
+      pattern: '*.env'
+      action: ask
+    - permission: read
+      pattern: '*.env.*'
+      action: ask
+    - permission: read
+      pattern: '*.env.example'
+      action: allow
+    - permission: todo
+      pattern: '*'
+      action: allow
+    - permission: task
+      pattern: '*'
+      action: allow
 snapshot:
   enabled: true
   prune_days: 7
