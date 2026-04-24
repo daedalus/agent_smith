@@ -264,6 +264,10 @@ class ModelExplorerScreen(ModalScreen):
         self._selected_index = 0
         self._update_list()
 
+    def on_input_submitted(self, event: Input.Submitted):
+        """Handle Enter key in search input."""
+        self.action_select()
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected):
         row_index = event.cursor_row
         if 0 <= row_index < len(self._filtered):
