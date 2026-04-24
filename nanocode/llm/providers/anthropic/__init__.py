@@ -90,13 +90,6 @@ class AnthropicLLM(LLMBase):
             thinking=thinking,
         )
 
-    async def chat_stream(
-        self, messages: list[Message], tools: list[dict] = None, **kwargs
-    ) -> AsyncIterator[str]:
-        """Stream is not fully supported for Claude with tools."""
-        response = await self.chat(messages, tools, **kwargs)
-        yield response.content
-
     def get_tool_schema(self) -> list[dict]:
         """Get Anthropic tool format."""
         return []

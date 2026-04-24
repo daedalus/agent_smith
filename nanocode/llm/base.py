@@ -157,13 +157,6 @@ class LLMBase(ABC):
         pass
 
     @abstractmethod
-    async def chat_stream(
-        self, messages: list, tools: list[dict] = None, **kwargs
-    ) -> AsyncIterator[str]:
-        """Stream chat completion responses."""
-        pass
-
-    @abstractmethod
     def get_tool_schema(self) -> list[dict]:
         """Get the tool schema format for this provider."""
         pass

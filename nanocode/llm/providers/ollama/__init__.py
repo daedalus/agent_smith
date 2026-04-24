@@ -65,33 +65,6 @@ class OllamaLLM(LLMBase):
             finish_reason=data.get("done"),
         )
 
-    async def chat_stream(
-        self, messages: list[Message], tools: list[dict] = None, **kwargs
-    ) -> AsyncIterator[str]:
-        """Stream chat completion responses."""
-        payload = {
-            "model": self.model,
-            "messages": [m.to_dict() for m in messages],
-            "stream": True,
-            **kwargs,
-        }
-
-        if tools:
-            payload["tools"] = tools
-
-        async with httpx.AsyncClient(proxy=self.proxy) as client:
-            async with client.stream(
-                "POST",
-                f"{self.base_url}/api/chat",
-                json=payload,
-                timeout=120.0,
-            ) as response:
-                async for line in response.aiter_lines():
-                    if line:
-                        chunk = json.loads(line)
-                        if content := chunk.get("message", {}).get("content"):
-                            yield content
-
     def get_tool_schema(self) -> list[dict]:
         """Get Ollama tool format."""
         return []

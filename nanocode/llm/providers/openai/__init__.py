@@ -239,12 +239,12 @@ class OpenAILLM(LLMBase):
                     elif event["type"] == "finish":
                         finish_reason = event.get("reason")
 
-                return LLMResponse(
-                    content=full_content,
-                    tool_calls=tool_calls,
-                    finish_reason=finish_reason,
-                    thinking=thinking,
-                )
+        return LLMResponse(
+            content=full_content,
+            tool_calls=tool_calls,
+            finish_reason=finish_reason,
+            thinking=thinking,
+        )
 
     def get_tool_schema(self) -> list[dict]:
         """Get OpenAI function calling format."""
