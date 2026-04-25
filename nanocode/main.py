@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import atexit
 import os
+from pathlib import Path
 
 from rich.console import Console
 
@@ -27,10 +28,10 @@ def parse_args():
         description="Autonomous AI Agent with advanced tool use"
     )
     parser.add_argument(
-        "prompt",
-        nargs="*",
-        default=[],
-        help="Prompt to send to the agent (positional argument)",
+        "-p", "--prompt",
+        type=str,
+        default=None,
+        help="Prompt to send to the agent",
     )
     parser.add_argument(
         "--config",
@@ -222,11 +223,35 @@ def parse_args():
         help="Enable auto-execution of commands found in file contents (potentially dangerous)",
     )
     parser.add_argument(
-        "--prompt",
-        "-p",
+        "--non-interactive",
+        "-n",
+        action="store_true",
+        help="Non-interactive mode: process input and exit (no prompts)",
+    )
+    parser.add_argument(
+        "--input-file",
+        "-i",
         type=str,
         default=None,
-        help="Run a single prompt and exit",
+        help="Read prompts from file (one per line or blank-line separated)",
+    )
+    parser.add_argument(
+        "--stdin",
+        action="store_true",
+        help="Read prompts from stdin",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=str,
+        default=None,
+        help="Write result to file instead of stdout",
+    )
+    parser.add_argument(
+        "--separator",
+        type=str,
+        default="\n",
+        help="Input separator: blank (default), '---' or custom string",
     )
     return parser.parse_args()
 
@@ -571,26 +596,79 @@ async def main():
             handlers=handlers,
         )
 
-    if getattr(args, "prompt", None):
-        import traceback
+    # Non-interactive mode: read from stdin or file, process, and exit
+    non_interactive = getattr(args, "non_interactive", False)
+    input_file = getattr(args, "input_file", None)
+    use_stdin = getattr(args, "stdin", False)
+    prompt_arg = getattr(args, "prompt", None)
 
-        try:
-            result = await agent.process_input(
-                args.prompt, show_thinking=show_thinking, show_messages=show_messages
-            )
-        except Exception as e:
-            traceback.print_exc()
-            result = f"Error: {str(e)}"
+    # Single prompt mode or full batch non-interactive mode
+    if prompt_arg or non_interactive or input_file or use_stdin:
+        import sys
 
-        print("\n" + "=" * 60)
-        print("AGENT RESPONSE:")
-        print("=" * 60)
-        if isinstance(result, str) and result.startswith("Error:"):
-            print(result)
-            print("\nFull traceback above.")
+        # Determine input source
+        if prompt_arg:
+            content = str(prompt_arg)
+        elif use_stdin:
+            content = sys.stdin.read()
+            if not content.strip():
+                print("No input from stdin", file=sys.stderr)
+                return
+        elif input_file:
+            input_path = Path(input_file)
+            if not input_path.exists():
+                print(f"Input file not found: {input_file}", file=sys.stderr)
+                return
+            content = input_path.read_text()
         else:
-            formatted = _format_markdown(result)
-            print(formatted)
+            print("Non-interactive mode requires --input-file, --stdin, or --prompt", file=sys.stderr)
+            return
+
+        # Parse prompts from content
+        sep = getattr(args, "separator", None) or "\n"
+        if sep == "blank":
+            prompts = [p.strip() for p in content.split("\n\n") if p.strip()]
+        elif sep == "---":
+            prompts = [p.strip() for p in content.split("\n---\n") if p.strip()]
+        else:
+            prompts = content.split(sep)
+
+        results = []
+        output_file = getattr(args, "output", None)
+
+        for idx, prompt in enumerate(prompts):
+            if not prompt.strip():
+                continue
+
+            print(f"\n[{idx + 1}/{len(prompts)}] Processing...")
+            print(f"Prompt: {prompt[:100]}{'...' if len(prompt) > 100 else ''}")
+
+            try:
+                result = await agent.process_input(
+                    prompt, show_thinking=show_thinking, show_messages=show_messages
+                )
+            except Exception:
+                import traceback as tb
+
+                tb.print_exc()
+                result = f"Error: {str(e)}"
+
+            results.append(result)
+            print(f"Response: {result[:200]}{'...' if len(result) > 200 else ''}")
+
+        final_result = "\n\n---\n\n".join(results)
+
+        if output_file:
+            Path(output_file).write_text(final_result)
+            print(f"Result written to: {output_file}")
+        else:
+            print("\n" + "=" * 60)
+            print("AGENT RESPONSE(S):")
+            print("=" * 60)
+            print(final_result)
+
+        if hasattr(agent, "save_session"):
+            agent.save_session()
         return
 
     if gui_mode == "cli":
