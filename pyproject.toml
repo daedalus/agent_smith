@@ -51,7 +51,7 @@ storage = [
 ]
 
 [project.scripts]
-nanocode = "nanocode.main:cli_main"
+nanocode = "nanocode.__main__:cli_main"
 agent-smith-install-skills = "nanocode.skills:install_skills"
 
 [project.urls]
