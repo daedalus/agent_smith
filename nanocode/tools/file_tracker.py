@@ -30,6 +30,16 @@ class FileTracker:
     def __init__(self, cache_dir: str = None, file_watcher=None):
         if cache_dir is None:
             cache_dir = str(_get_default_storage_dir() / "file_tracker")
+        
+        # Handle relative paths when cwd is deleted or inaccessible
+        if cache_dir and not os.path.isabs(cache_dir):
+            try:
+                # Try to check if we can access the current directory
+                if not os.path.exists(os.path.dirname(cache_dir) or '.'):
+                    cache_dir = str(_get_default_storage_dir() / "file_tracker")
+            except OSError:
+                cache_dir = str(_get_default_storage_dir() / "file_tracker")
+        
         self._cache: dict[str, FileCacheEntry] = {}
         self._cache_dir = cache_dir
         self._file_watcher = file_watcher

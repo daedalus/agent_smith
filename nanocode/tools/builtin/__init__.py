@@ -798,6 +798,7 @@ class WriteFileTool(Tool):
                 metadata={
                     "path": str(file_path),
                     "bytes": len(content.encode("utf-8")),
+                    "content": content,
                 },
             )
         except Exception as e:

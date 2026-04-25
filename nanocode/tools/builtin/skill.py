@@ -28,6 +28,35 @@ class SkillTool(Tool):
         )
         self.skills_manager = skills_manager
 
+    def get_schema(self) -> dict:
+        """Get schema with dynamically generated skill list."""
+        skills = self.skills_manager.list_skills()
+        skill_lines = []
+        if skills:
+            skill_lines.append("")
+            skill_lines.append("Available skills:")
+            for s in skills:
+                skill_lines.append(f"  - {s['name']}: {s['description']}")
+        else:
+            skill_lines.append("(No skills available)")
+
+        description = (
+            "Load a specialized skill that provides domain-specific instructions and workflows.\n"
+            "When you recognize that a task matches one of the available skills listed below, use this tool to load the full skill instructions.\n"
+            "The skill will inject detailed instructions, workflows, and access to bundled resources into the conversation context.\n"
+            "IMPORTANT: After loading a skill, use 'todo(action='write', todos=[...])' to track the workflow steps, then FOLLOW the skill's instructions EXACTLY.\n"
+            + "\n".join(skill_lines)
+        )
+
+        return {
+            "type": "function",
+            "function": {
+                "name": self.name,
+                "description": description,
+                "parameters": self.parameters,
+            },
+        }
+
     async def execute(
         self, name: str = None, input: str = None, **kwargs
     ) -> ToolResult:
@@ -38,52 +67,53 @@ class SkillTool(Tool):
             )
 
         try:
-            self.skills_manager.get_skill(name)
+            skill_info = self.skills_manager.get_skill(name)
+            if not skill_info:
+                available = [s["name"] for s in self.skills_manager.list_skills()]
+                return ToolResult(
+                    success=False,
+                    content=None,
+                    error=f"Skill '{name}' not found. Available: {', '.join(available) if available else 'none'}",
+                )
 
             context = {
                 "input": input or "",
                 "kwargs": kwargs,
             }
 
-            result = await self.skills_manager.execute_skill(
-                name, {"input": input}, context
+            result = await self.skills_manager.execute_skill(name, {"input": input}, context)
+
+            skill_content = result.get("content", "")
+            wrapped = (
+                f"<skill_content name=\"{name}\">\n"
+                f"# Skill: {name}\n\n"
+                f"{skill_content}\n\n"
+                f"</skill_content>"
             )
 
-            return ToolResult(success=True, content=result)
+            return ToolResult(success=True, content=wrapped, metadata={"skill_name": name})
         except Exception as e:
             return ToolResult(success=False, content=None, error=str(e))
 
 
 class ListSkillsTool(Tool):
-    """Tool for listing available skills."""
+    """DEPRECATED: Use SkillTool directly instead."""
 
     def __init__(self, skills_manager: SkillsManager):
         super().__init__(
             name="list_skills",
-            description="[DEPRECATED] Use the 'skill' tool directly instead. When you want to use a skill, call skill(name='<skill-name>', input='<your-request>') directly without listing first.",
-            parameters={
-                "type": "object",
-                "properties": {},
-            },
+            description="[DEPRECATED] Do NOT use this tool. Use 'skill' directly. "
+            "When you want to use a skill, call: skill(name='<skill-name>', input='<your-request>')",
+            parameters={"type": "object", "properties": {}},
         )
         self.skills_manager = skills_manager
 
     async def execute(self, **kwargs) -> ToolResult:
-        """List all available skills."""
-        try:
-            skills = self.skills_manager.list_skills()
-            lines = [
-                "Use the 'skill' tool directly instead of listing. Example:",
-                "  skill(name='mcp-builder', input='build a server for my API')",
-                "",
-                "Available skills (use skill tool, don't call list_skills):",
-            ]
-            for s in skills:
-                lines.append(f"  - {s['name']}: {s['description']}")
-
-            return ToolResult(success=True, content="\n".join(lines))
-        except Exception as e:
-            return ToolResult(success=False, content=None, error=str(e))
+        return ToolResult(
+            success=False,
+            content=None,
+            error="list_skills is deprecated. Use 'skill' tool directly with name='<skill-name>' and input='<your-request>'",
+        )
 
 
 def register_skill_tools(registry, skills_manager: SkillsManager):

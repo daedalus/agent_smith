@@ -1,10 +1,17 @@
 """NanoCode TUI - Terminal UI matching opencode style."""
 
 import asyncio
+import logging
 import os
 import sys
 from dataclasses import dataclass
 from enum import Enum
+
+# Set up TUI logger early for debug statements
+_tui_logger = logging.getLogger("nanocode.tui")
+_tui_logger.setLevel(logging.DEBUG)
+if not _tui_logger.handlers:
+    _tui_logger.addHandler(logging.FileHandler("/tmp/nanocode.log"))
 
 
 class RichColor(Enum):
@@ -739,6 +746,10 @@ class MessageActionScreen(ModalScreen):
         self._message_text = message_text
         self._message_index = message_index
         self._result = None
+        _tui_logger.debug(f"MessageActionScreen created: index={message_index}")
+
+    def on_mount(self) -> None:
+        _tui_logger.debug("MessageActionScreen mounted")
 
     def compose(self) -> ComposeResult:
         preview = (
@@ -761,6 +772,7 @@ class MessageActionScreen(ModalScreen):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         action = event.button.id
+        _tui_logger.debug(f"MessageActionScreen button pressed: {action}")
         if action == "btn-fork":
             self._result = ("fork", self._message_text, self._message_index)
         elif action == "btn-copy":
@@ -769,6 +781,7 @@ class MessageActionScreen(ModalScreen):
             self._result = ("revert", self._message_text, self._message_index)
         else:
             self._result = None
+        _tui_logger.debug(f"MessageActionScreen dismissing with: {self._result}")
         self.dismiss(self._result)
 
 
@@ -899,23 +912,10 @@ class OutputArea(RichLog):
 
     def _on_click(self, event: "events.Click") -> None:
         """Handle click to show message actions for user messages."""
-        # RichLog doesn't support click spans, so show actions for last user message
+        # Delegate to app action for proper screen handling
         if self._user_messages:
-            index, text = self._user_messages[-1]
-            self.app.push_screen(
-                MessageActionScreen(text, index),
-                self._handle_message_action,
-            )
-
-    def _handle_message_action(self, result):
-        """Handle result from MessageActionScreen."""
-        if result:
-            action, text, index = result
-            if action == "copy":
-                import pyperclip
-
-                pyperclip.copy(text)
-                self.app.notify("Copied to clipboard", severity="info")
+            _tui_logger.debug(f"OutputArea._on_click: {len(self._user_messages)} user messages")
+            self.app.action_message_actions()
 
     def add_line(self, text: str, style: str = ""):
         """Add a line to output with Rich markdown rendering."""
@@ -1893,11 +1893,15 @@ Footer {
     @work()
     async def action_message_actions(self):
         """Show message actions for the last user message."""
+        _tui_logger.debug(f"action_message_actions started")
         output = self.query_one("#output-area", OutputArea)
+        _tui_logger.debug(f"output area found, user_messages: {output._user_messages}")
         if output._user_messages:
             # Get the last user message
             index, text = output._user_messages[-1]
+            _tui_logger.debug(f"pushing MessageActionScreen for index={index}")
             result = await self.push_screen_wait(MessageActionScreen(text, index))
+            _tui_logger.debug(f"push_screen_wait returned: {result}")
             if result:
                 action, msg_text, msg_index = result
                 if action == "copy":
@@ -2099,13 +2103,39 @@ Footer {
 
                     def on_tool_complete(tool_name, result):
                         """Called when a tool completes."""
+                        # Handle write tool specially - show file path and contents
+                        if tool_name == "write":
+                            try:
+                                # Get path and content from result
+                                if isinstance(result, dict):
+                                    metadata = result.get("metadata", {})
+                                    path = metadata.get("path", "unknown")
+                                    content = metadata.get("content", "")
+                                else:
+                                    content = str(result)
+                                    path = "unknown"
+                                    metadata = {}
+                                
+                                # Show file path with ✓
+                                self._print_line(
+                                    f"✓ write: {path}", Style.TOOL_MESSAGE
+                                )
+                                # Show first 50 lines of content
+                                lines = content.split('\n')[:50]
+                                for line in lines:
+                                    if line.strip():
+                                        self._print_line(f"  {line}", Style.TOOL_MESSAGE)
+                                if len(lines) >= 50:
+                                    self._print_line("  ...", Style.TOOL_MESSAGE)
+                                return
+                            except Exception:
+                                pass
+                        
                         # Handle both string and dict results
                         if isinstance(result, dict):
-                            # Convert dict to string preview
                             result_str = str(result) if result else ""
                         else:
                             result_str = str(result) if result else ""
-                        # Show a summary (first 200 chars)
                         preview = (
                             result_str[:200] + "..."
                             if len(result_str) > 200
@@ -2115,13 +2145,20 @@ Footer {
                             f"✓ {tool_name}: {preview}", Style.TOOL_MESSAGE
                         )
 
-                    result = await self.agent.process_input(
-                        text,
-                        show_thinking=True,
-                        show_messages=False,
-                        on_tool_start=on_tool_start,
-                        on_tool_complete=on_tool_complete,
-                    )
+                    try:
+                        _tui_logger.debug("Calling agent.process_input...")
+                        result = await self.agent.process_input(
+                            text,
+                            show_thinking=True,
+                            show_messages=False,
+                            on_tool_start=on_tool_start,
+                            on_tool_complete=on_tool_complete,
+                        )
+                        _tui_logger.debug(f"agent.process_input returned: {type(result)}")
+                    except Exception as e:
+                        _tui_logger.debug(f"EXCEPTION in process_input: {e}")
+                        self._print_line(f"Error: {e}", Style.TEXT_DANGER)
+                        result = None
                 finally:
                     # Restore stdout/stderr first
                     sys.stdout = self._saved_stdout
@@ -2153,6 +2190,7 @@ Footer {
 
                 # Restore debug setting
                 self.agent.debug = original_debug
+                _tui_logger.debug("Process input complete, showing results")
 
                 # Display tool calls using opencode's format
                 if hasattr(self.agent, "_last_tool_results"):
@@ -2224,6 +2262,7 @@ Footer {
                 self._stream_timer = None
             # Flush any remaining stream buffer
             if hasattr(self, "_stream_buffer") and self._stream_buffer:
+                _tui_logger.debug("Flushing stream buffer")
                 output_area = self.query_one("#output-area", RichLog)
                 output_area.write(self._stream_buffer)
                 self._stream_buffer = ""
@@ -2231,6 +2270,7 @@ Footer {
             self._processing = False
             input_widget.disabled = False
             input_widget.focus()
+            _tui_logger.debug("Input re-enabled, processing complete")
 
     async def _handle_command(self, command: str):
         """Handle slash-prefixed commands locally."""

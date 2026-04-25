@@ -51,7 +51,7 @@ storage = [
 ]
 
 [project.scripts]
-nanocode = "nanocode.__main__:cli_main"
+nanocode = "nanocode.main:cli_main"
 agent-smith-install-skills = "nanocode.skills:install_skills"
 
 [project.urls]
@@ -62,8 +62,11 @@ Issues = "https://github.com/dclavijo/nanocode/issues"
 [tool.hatch.build.targets.wheel]
 packages = ["nanocode"]
 
+[tool.hatch.build.targets.wheel.data]
+".system_prompts" = ".system_prompts"
+
 [tool.hatch.build.targets.sdist]
-include = ["nanocode"]
+include = ["nanocode", ".system_prompts"]
 
 [tool.ruff]
 line-length = 88

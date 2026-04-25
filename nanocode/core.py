@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+import os
 import traceback
 from enum import Enum
 from typing import Any
@@ -70,13 +71,31 @@ def _load_system_prompt_template() -> str:
     import os
     from pathlib import Path
 
-    cwd = os.getcwd()
-    system_prompts_dir = Path(cwd) / ".system_prompts"
+    # Try to get cwd, fallback to package dir if that fails
+    try:
+        cwd = os.getcwd()
+    except OSError:
+        cwd = None
 
-    if system_prompts_dir.exists():
-        template_file = system_prompts_dir / "template.md"
-        if template_file.exists():
-            return template_file.read_text()
+    # Try multiple locations for system prompts
+    search_paths = []
+    
+    # 1. Current working directory (for editable installs)
+    if cwd:
+        search_paths.append(Path(cwd) / ".system_prompts")
+    
+    # 2. Package directory (for pip installs)
+    package_dir = Path(__file__).parent.parent
+    search_paths.append(package_dir / ".system_prompts")
+    
+    # 3. User config directory
+    search_paths.append(Path.home() / ".config" / "nanocode" / "system_prompts")
+
+    for system_prompts_dir in search_paths:
+        if system_prompts_dir.exists():
+            template_file = system_prompts_dir / "template.md"
+            if template_file.exists():
+                return template_file.read_text()
 
     return "You are NanoCode, CLI agent."
 
@@ -391,6 +410,12 @@ class AutonomousAgent:
     def _init_file_tracker(self):
         """Initialize file tracker for auto-reload on modification."""
         cache_dir = self.config.get("file_tracker.cache_dir")
+        # Resolve relative paths to absolute, handling deleted cwd
+        if cache_dir and not os.path.isabs(cache_dir):
+            try:
+                cache_dir = os.path.abspath(cache_dir)
+            except OSError:
+                cache_dir = None  # Will use default
         self.file_tracker = FileTracker(cache_dir)
 
     def _init_llm(self):
@@ -652,20 +677,23 @@ class AutonomousAgent:
                 extra_prompts += gemini_file.read_text()
                 break
 
-        # Format template with placeholders
+        from string import Template
+
+        # Format template with placeholders using safe substitution
+        # (Python's str.format has issues with {...} patterns in text)
         try:
-            prompt = prompt.format(
-                agents="\n".join(agents_info)
-                if agents_info
-                else "- (no custom agents)",
-                tools="\n".join(tools_info) if tools_info else "- (built-in only)",
-                skills="\n".join(skill_info) if skill_info else "- (none installed)",
-                mcp_servers="\n".join(mcp_info) if mcp_info else "- (none configured)",
-                lsp_servers="\n".join(lsp_info) if lsp_info else "- (none configured)",
-                cwd=cwd,
-                config_file=config_file,
-            )
-        except KeyError:
+            template = Template(prompt)
+            formatted_vars = {
+                "agents": "\n".join(agents_info) if agents_info else "- (no custom agents)",
+                "tools": "\n".join(tools_info) if tools_info else "- (built-in only)",
+                "skills": "\n".join(skill_info) if skill_info else "- (none installed)",
+                "mcp_servers": "\n".join(mcp_info) if mcp_info else "- (none configured)",
+                "lsp_servers": "\n".join(lsp_info) if lsp_info else "- (none configured)",
+                "cwd": cwd,
+                "config_file": config_file,
+            }
+            prompt = template.safe_substitute(formatted_vars)
+        except (KeyError, ValueError):
             pass  # template.md might not have all placeholders
 
         return prompt + extra_prompts
@@ -1605,58 +1633,99 @@ Conversation:
             else:
                 content = response.content
 
-            # Force retry to complete task - if model listed tools but didn't finish, make it work
-            if not content and tool_results_history:
-                logger.info(f"[{agent_name}] Empty response - retrying to complete task")
+            # After tool execution loop, always continue if we have tool results
+            # The model should execute pending tasks, not just describe them
+            if tool_results_history:
                 messages = self.context_manager.prepare_messages()
+                # Inject explicit instruction to write complete content to files
                 messages.append(
                     {
                         "role": "user",
-                        "content": "Based on the tool results above, you MUST now complete the user's request. If the user asked for a skill (like 'mcp-builder'), call the 'skill' tool with the appropriate name and input. Do not just summarize - actually complete the task.",
+                        "content": "IMPORTANT: 1) Use 'todo(action='write', todos=[...])' to track your progress on each step. 2) Write COMPLETE content to every file you created. Do NOT use 'touch' or create empty files. Use the 'write' tool with full content for: README.md, pyproject.toml, source files, test files, etc.",
                     }
                 )
-                retry_response = await self._chat_with_retry(
-                    messages, tools, on_token=self._on_token
-                )
-                content = retry_response.content
-
-            # Final fallback
-            if not content:
-                if tool_results_history:
-                    content = "Tools executed successfully. Results shown above."
-                else:
-                    content = "(no response)"
-
-                # Text-to-Tool Detection: Handle model outputs text that looks like commands
-                detected = detect_commands_in_text(content)
-                if detected:
-                    logger.warning(
-                        f"[{agent_name}] Detected {len(detected)} command(s) in text that were not executed"
+                # Loop until no more tool calls or max iterations
+                max_agent_steps = self.get_agent_steps() if self.get_agent_steps() else 20
+                iteration = 0
+                while iteration < max_agent_steps:
+                    iteration += 1
+                    final_response = await self._chat_with_retry(
+                        messages, tools, on_token=self._on_token
                     )
-                    if self.debug:
-                        console.print(
-                            "\n[warning][WARN] Detected unexecuted commands:[/warning]"
+                    if not final_response.has_tool_calls:
+                        # No more tools called - check if we should continue
+                        content = final_response.content
+                        if content:
+                            self.context_manager.add_message("assistant", content)
+                        break
+                    # Handle tool calls
+                    tool_results = await self._handle_tool_calls(final_response.tool_calls)
+                    tool_results_history.extend(tool_results)
+                    for tr in tool_results:
+                        result_content = self.context_manager.truncate_tool_result(tr["result"])
+                        self.context_manager.add_tool_result(
+                            tr["tool_name"],
+                            tr["tool_call_id"],
+                            result_content,
                         )
-                        for cmd in detected:
-                            console.print(
-                                f"  - [{cmd.tool_name}] {cmd.command[:60]}..."
-                            )
+                    # Add assistant message with tool calls
+                    self.context_manager.add_message(
+                        "assistant",
+                        None,
+                        tool_calls=final_response.tool_calls,
+                    )
+                    # Prepare messages for next iteration
+                    messages = self.context_manager.prepare_messages()
+                    # Check if model just created empty files - inject more specific instruction
+                    if any("mkdir" in str(tr.get("result", "")) or "touch" in str(tr.get("result", "")) for tr in tool_results):
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": "Write COMPLETE content to all files and update your todo list with 'todo(action='write', todos=[...])'. Every file must have full, working content.",
+                            }
+                        )
+                    else:
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": "Update todo list with 'todo(action='write', todos=[...])' and continue executing the next step. Write complete content to all files.",
+                            }
+                        )
+                else:
+                    content = final_response.content
+            else:
+                content = response.content
 
-                # Check if model should have used tools but didn't
-                tools = self.tool_registry.get_schemas()
-                should_reprompt, reason = should_reprompt_for_tools(
-                    content, tools_were_expected=bool(tools)
+            # Text-to-Tool Detection: Handle model outputs text that looks like commands
+            detected = detect_commands_in_text(content)
+            if detected:
+                logger.warning(
+                    f"[{agent_name}] Detected {len(detected)} command(s) in text that were not executed"
                 )
+                if self.debug:
+                    console.print(
+                        "\n[warning][WARN] Detected unexecuted commands:[/warning]"
+                    )
+                    for cmd in detected:
+                        console.print(
+                            f"  - [{cmd.tool_name}] {cmd.command[:60]}..."
+                        )
 
-                if should_reprompt:
-                    logger.warning(f"[{agent_name}] Model didn't use tools: {reason}")
-                    if self.debug:
-                        console.print(f"\n[warning][WARN] {reason}[/warning]")
+            # Check if model should have used tools but didn't
+            tools = self.tool_registry.get_schemas()
+            should_reprompt, reason = should_reprompt_for_tools(
+                content, tools_were_expected=bool(tools)
+            )
 
-                    # Add detected commands warning to content
-                    warning_msg = format_detected_commands_message(detected)
-                    if warning_msg:
-                        content += warning_msg
+            if should_reprompt:
+                logger.warning(f"[{agent_name}] Model didn't use tools: {reason}")
+                if self.debug:
+                    console.print(f"\n[warning][WARN] {reason}[/warning]")
+
+                # Add detected commands warning to content
+                warning_msg = format_detected_commands_message(detected)
+                if warning_msg:
+                    content += warning_msg
 
             self.context_manager.add_message("assistant", content)
 
