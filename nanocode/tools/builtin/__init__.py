@@ -649,7 +649,7 @@ class ReadFileTool(Tool):
     def __init__(self, root_dir: str = None, file_tracker=None):
         super().__init__(
             name="read",
-            description="Read file content. Supports: read(path) to read full file, or read(path, offset, limit) to read chunk.",
+            description="Read file content. Supports: read(path) for full file, or read(path, offset, limit) for chunk. UNLOCKS file for writing on FIRST read only. Subsequent reads use cached content. After write, must read again.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -813,7 +813,7 @@ class WriteFileTool(Tool):
     def __init__(self, root_dir: str = None, file_tracker=None):
         super().__init__(
             name="write",
-            description="Write to a file. MUST have read it first (unlocks on first read only). After write, must read again before next write.",
+            description="Write to a file. File must have been READ first (unlocks on first read only). After write, must READ again before next write.",
         )
         self.root_dir = Path(root_dir) if root_dir else Path.cwd()
         self._unlocked: set = file_tracker if isinstance(file_tracker, set) else set()
