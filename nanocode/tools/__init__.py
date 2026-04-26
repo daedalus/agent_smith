@@ -386,7 +386,13 @@ class ToolExecutor:
                 )
         else:
             logger.debug(f"Executing tool '{tool_name}'")
+            import time
+            start = time.monotonic()
             result_obj = await tool.execute(**arguments)
+            elapsed = time.monotonic() - start
+            logger.debug(f"Tool '{tool_name}' executed in {elapsed:.2f}s")
+            if elapsed > 5:
+                logger.warning(f"Tool '{tool_name}' took {elapsed:.2f}s (>5s slow!)")
 
         # Run post-tool hooks
         if self.hook_manager:

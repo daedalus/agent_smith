@@ -993,6 +993,8 @@ Conversation:
     async def _handle_tool_calls(self, tool_calls: list) -> list[dict]:
         """Handle tool calls from LLM with permission checking and doom loop detection."""
         agent_name = self.current_agent.name if self.current_agent else "unknown"
+        import time
+        start = time.monotonic()
         logger.info(f"[{agent_name}] Handling {len(tool_calls)} tool call(s)")
 
         results = []
@@ -1168,7 +1170,7 @@ Conversation:
                 }
             )
 
-        logger.debug(f"[{agent_name}] Finished handling {len(tool_calls)} tool call(s)")
+        logger.debug(f"[{agent_name}] Finished handling {len(tool_calls)} tool call(s) in {time.monotonic() - start:.2f}s")
         return results
 
     def _format_thinking(self, thinking: str) -> str:

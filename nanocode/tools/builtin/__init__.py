@@ -151,6 +151,11 @@ class BashTool(Tool):
         self, command: str, workdir: str = None, timeout: int = 60, pty: bool = False
     ) -> ToolResult:
         """Execute a shell command."""
+        import logging
+
+        logger = logging.getLogger("nanocode.bash")
+        logger.debug(f"Executing: {command[:100]}")
+
         for pattern in self.blocked_patterns:
             if pattern in command:
                 return ToolResult(
@@ -159,6 +164,7 @@ class BashTool(Tool):
                     error=f"Blocked command pattern: {pattern}",
                 )
 
+        logger.debug(f"BashTool: running subprocess for '{command[:50]}...'")
         if pty:
             return await self._execute_pty(command, workdir)
 
