@@ -719,7 +719,7 @@ class ReadFileTool(Tool):
     def __init__(self, root_dir: str = None, read_tracker=None, write_unlock_tracker=None):
         super().__init__(
             name="read",
-            description="Read file content. ALWAYS reads fresh content. UNLOCKS file for writing on first read. After write, must READ again.",
+            description="Read file content. On first read, file is cached. Subsequent reads return cached content unless file changed. Cached files are UNLOCKED for writing. Do NOT re-read the same file multiple times - use the cached content.",
             parameters={
                 "type": "object",
                 "properties": {
