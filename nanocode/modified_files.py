@@ -37,11 +37,29 @@ class ModifiedFilesTracker:
         """Refresh modified files from git diff.
 
         Args:
-            from_commit: Commit to diff from (default: HEAD~1)
+            from_commit: Commit to diff from (default: HEAD~1, or HEAD if only 1 commit, or empty if no commits)
         """
         try:
             if from_commit is None:
-                from_commit = "HEAD~1"
+                result = subprocess.run(
+                    ["git", "rev-list", "--count", "HEAD"],
+                    cwd=self.cwd,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+                if result.returncode != 0:
+                    logger.debug(f"Git diff skipped: no commits yet")
+                    return
+                commit_count = int(result.stdout.strip()) if result.stdout.strip().isdigit() else 0
+                if commit_count <= 1:
+                    from_commit = "HEAD" if commit_count == 1 else None
+                else:
+                    from_commit = "HEAD~1"
+
+                if from_commit is None:
+                    logger.debug(f"Git diff skipped: no commits")
+                    return
 
             result = subprocess.run(
                 ["git", "diff", "--numstat", from_commit, "--", "."],
@@ -52,7 +70,11 @@ class ModifiedFilesTracker:
             )
 
             if result.returncode != 0:
-                logger.debug(f"Git diff failed: {result.stderr}")
+                err = result.stderr.strip()
+                if "does not contain" in err.lower() or "invalid" in err.lower():
+                    logger.debug(f"Git diff skipped: {err}")
+                else:
+                    logger.debug(f"Git diff failed: {err}")
                 return
 
             self._files = []

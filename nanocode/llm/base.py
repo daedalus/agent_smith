@@ -1,6 +1,7 @@
 """Base classes for LLM providers."""
 
 import json
+import logging
 import os
 import uuid
 from abc import ABC, abstractmethod
@@ -15,6 +16,9 @@ from nanocode.retry import (
     RetryConfig,
     retry_with_backoff,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 class ToolCall:
@@ -215,6 +219,7 @@ class LLMBase(ABC):
                             error = RateLimitError(f"Rate limited: {error_msg}")
                             raise error
                 except Exception:
+                    logger.debug("Failed to extract error details from response")
                     pass
 
                 if (

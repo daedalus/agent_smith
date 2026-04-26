@@ -179,6 +179,9 @@ def calculate_retry_delay(
 
 def is_retryable_error(error: Exception) -> str | None:
     """Check if an error is retryable and return reason if not."""
+    if isinstance(error, asyncio.CancelledError):
+        return None  # Don't retry cancellations - let them propagate
+
     if isinstance(error, ContextOverflowError):
         return None
 

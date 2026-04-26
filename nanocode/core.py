@@ -1,5 +1,6 @@
 """Core agent implementation."""
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -1177,8 +1178,6 @@ Conversation:
 
     def _get_cache_key(self, messages: list, tools: list[dict] | None) -> str:
         """Generate a cache key from messages and tools."""
-        import hashlib
-
         parts = []
         for msg in messages:
             if hasattr(msg, "to_dict"):
@@ -1294,6 +1293,9 @@ Conversation:
                 on_tool_start=on_tool_start,
                 on_tool_complete=on_tool_complete,
             )
+        except asyncio.CancelledError:
+            traceback.print_exc()
+            raise
         except Exception as e:
             if "Expecting value" in str(e) or isinstance(e, json.JSONDecodeError):
                 logger.error(f"JSON parsing error in process_input: {e}")
@@ -1771,6 +1773,9 @@ Conversation:
 
             return augmented
 
+        except asyncio.CancelledError:
+            self.state.state = AgentState.ERROR
+            raise
         except Exception as e:
             self.state.state = AgentState.ERROR
             self.state.error = str(e)
