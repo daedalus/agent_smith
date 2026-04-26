@@ -2331,7 +2331,13 @@ Footer {
                         elif tool_name == "read" and result:
                             lines = result.strip().split("\n")
                             count = len(lines)
-                            suffix = f"[{count} lines]"
+                            # Include offset/limit from arguments if present
+                            offset = arguments.get("offset")
+                            limit = arguments.get("limit")
+                            if offset or limit:
+                                suffix = f"[{count} lines, offset={offset}, limit={limit}]"
+                            else:
+                                suffix = f"[{count} lines]"
                             tool_call.description = suffix
 
                         status = "✓" if success else "✗"
