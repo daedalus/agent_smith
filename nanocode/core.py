@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import time
 import traceback
 from enum import Enum
 from typing import Any
@@ -1334,6 +1335,7 @@ Conversation:
         self._on_tool_complete = on_tool_complete
 
         tool_results_history = []
+        _start_time = time.monotonic()
 
         try:
             tools = self.tool_registry.get_schemas()
@@ -1740,7 +1742,9 @@ Conversation:
 
             # Only generate summary if tools were used
             if tool_results_history:
+                elapsed = time.monotonic() - _start_time
                 await self._generate_summary(tool_results_history)
+                self.state.last_summary = {**(self.state.last_summary or {}), "elapsed": elapsed}
 
             # Build augmented content with thinking and tool use info
             augmented = content

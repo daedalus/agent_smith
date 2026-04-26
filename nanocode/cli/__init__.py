@@ -752,21 +752,31 @@ class InteractiveCLI:
         deletions = summary.get("deletions", 0)
         files = summary.get("files", 0)
         text = summary.get("text", "")
+        elapsed = summary.get("elapsed", 0)
+
+        print()
+        print(self.ui.color("cyan", "─" * 40))
 
         if files > 0:
-            print()
-            print(self.ui.color("cyan", "─" * 40))
             print(self.ui.color("green", f"  ✓ {files} file(s) changed"))
-
             if additions > 0:
                 print(self.ui.color("green", f"  +{additions}"))
             if deletions > 0:
                 print(self.ui.color("red", f"  -{deletions}"))
 
+        if elapsed > 0:
+            if elapsed < 60:
+                print(self.ui.color("yellow", f"  ⏱ {elapsed:.1f}s"))
+            else:
+                mins = int(elapsed // 60)
+                secs = elapsed % 60
+                print(self.ui.color("yellow", f"  ⏱ {mins}m {secs:.0f}s"))
+
         if text:
             print()
             print(self.ui.color("cyan", text))
-            print(self.ui.color("cyan", "─" * 40))
+
+        print(self.ui.color("cyan", "─" * 40))
 
     async def _execute_task(self, task: str):
         """Execute a task with planning."""
