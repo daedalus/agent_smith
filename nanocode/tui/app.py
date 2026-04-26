@@ -105,6 +105,66 @@ class Style:
     THINKING = f"{RichColor.YELLOW.value} italic"
 
 
+class TracebackScreen(ModalScreen):
+    """Modal screen showing error traceback."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss", "Dismiss"),
+    ]
+
+    CSS = """
+    TracebackScreen {
+        align: center middle;
+    }
+    
+    TracebackScreen > #traceback-dialog {
+        width: 90;
+        height: 80%;
+        border: solid #cc241d;
+        background: #282828;
+        padding: 1 2;
+    }
+    
+    #traceback-title {
+        text-align: center;
+        text-style: bold;
+        color: #cc241d;
+        margin-bottom: 1;
+    }
+    
+    #traceback-content {
+        color: #ebdbb2;
+        height: 1fr;
+        overflow-y: scroll;
+    }
+    
+    #traceback-hint {
+        color: #928374;
+        text-align: center;
+        margin-top: 1;
+    }
+    """
+
+    def __init__(self, title: str, traceback: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._title = title
+        self._traceback = traceback
+
+    def compose(self) -> ComposeResult:
+        yield Static(self._title, id="traceback-title")
+        yield ScrollableContainer(
+            Static(self._traceback, id="traceback-content"),
+            id="traceback-scroll"
+        )
+        yield Static("Press Escape to dismiss", id="traceback-hint")
+
+    def on_mount(self):
+        _tui_logger.debug(f"TracebackScreen mounted: {self._title}")
+
+    def action_dismiss(self):
+        self.dismiss()
+
+
 class PermissionScreen(ModalScreen):
     """Modal screen for permission requests with y/N/a options."""
 
@@ -2206,8 +2266,11 @@ Footer {
                         )
                         _tui_logger.debug(f"agent.process_input returned: {type(result)}")
                     except asyncio.CancelledError as e:
+                        import traceback
                         _tui_logger.error(f"CANCELLED_ERROR: {e}")
                         self._print_error("Request timed out - please try again")
+                        # Show traceback in modal
+                        self.push_screen(TracebackScreen("Timeout Error", traceback.format_exc()))
                         result = None
                     except Exception as e:
                         _tui_logger.debug(f"EXCEPTION in process_input: {e}")
@@ -2297,13 +2360,18 @@ Footer {
             else:
                 self._print_error("No agent configured")
         except asyncio.CancelledError as e:
+            import traceback
             _tui_logger.error(f"OUTER_CANCELLED_ERROR: {e}")
             self._print_error("Request timed out - please try again")
+            # Show traceback in modal
+            self.push_screen(TracebackScreen("Timeout Error", traceback.format_exc()))
         except Exception as e:
+            import traceback
             _tui_logger.debug(f"OUTER_EXCEPTION: {e}")
 
             self._print_error(f"Error: {e}")
-            traceback.print_exc()
+            # Show traceback in modal
+            self.push_screen(TracebackScreen("Error", traceback.format_exc()))
         finally:
             # Stop spinner
             if hasattr(self, "_spinner_timer") and self._spinner_timer:
