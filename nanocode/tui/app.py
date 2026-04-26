@@ -2377,6 +2377,32 @@ Footer {
 
                 # Completion marker like opencode's `▣`
                 self._print_line("▣", Style.TEXT_SUCCESS_BOLD)
+
+                # Print summary with elapsed time
+                summary = getattr(self.agent.state, "last_summary", None)
+                if summary:
+                    elapsed = summary.get("elapsed", 0)
+                    files = summary.get("files", 0)
+                    additions = summary.get("additions", 0)
+                    deletions = summary.get("deletions", 0)
+
+                    if files > 0 or elapsed > 0:
+                        parts = []
+                        if files > 0:
+                            parts.append(f"{files} file(s)")
+                            if additions > 0:
+                                parts.append(f"+{additions}")
+                            if deletions > 0:
+                                parts.append(f"-{deletions}")
+                        if elapsed > 0:
+                            if elapsed < 60:
+                                parts.append(f"{elapsed:.1f}s")
+                            else:
+                                mins = int(elapsed // 60)
+                                secs = elapsed % 60
+                                parts.append(f"{mins}m {secs:.0f}s")
+                        summary_str = " | ".join(parts)
+                        self._print_line(f"│ {summary_str}", Style.TEXT_DIM)
             else:
                 self._print_error("No agent configured")
         except asyncio.CancelledError as e:
