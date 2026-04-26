@@ -2022,6 +2022,10 @@ Footer {
         _tui_logger.debug(f"agent exists: {self.agent is not None}")
         _tui_logger.debug(f"processing: {getattr(self, '_processing', 'N/A')}")
 
+        # Write start marker directly to log file (bypass any capture)
+        with open("/tmp/nanocode.log", "a") as f:
+            f.write(f"=== Input START: {text[:30]}... ===\n")
+
         self._print_line(f"> {text}", Style.USER_MESSAGE)
         self._print_empty()
 
@@ -2191,9 +2195,12 @@ Footer {
                             on_tool_complete=on_tool_complete,
                         )
                         _tui_logger.debug(f"agent.process_input returned: {type(result)}")
-                    except asyncio.CancelledError as e:
+except asyncio.CancelledError as e:
+                        # Write directly to file before anything else
+                        with open("/tmp/nanocode.log", "a") as f:
+                            f.write(f"CANCELLED_ERROR: {e}\n")
+                            f.write(traceback.format_exc())
                         _tui_logger.error(f"CANCELLED_ERROR: {e}")
-                        import traceback
                         _tui_logger.error(f"Cancel traceback: {traceback.format_exc()}")
                         self._print_error(f"Cancelled: {e}")
                         result = None
@@ -2285,11 +2292,18 @@ Footer {
             else:
                 self._print_error("No agent configured")
         except asyncio.CancelledError as e:
+            # Write directly to file before anything else
+            with open("/tmp/nanocode.log", "a") as f:
+                f.write(f"OUTER_CANCELLED_ERROR: {e}\n")
+                f.write(traceback.format_exc())
             _tui_logger.error(f"OUTER_CANCELLED_ERROR: {e}")
-            import traceback
             _tui_logger.error(f"Outer Cancel traceback: {traceback.format_exc()}")
             self._print_error(f"Cancelled: {e}")
         except Exception as e:
+            # Write directly to file before anything else
+            with open("/tmp/nanocode.log", "a") as f:
+                f.write(f"OUTER_EXCEPTION: {e}\n")
+                f.write(traceback.format_exc())
             _tui_logger.debug(f"OUTER_EXCEPTION: {e}")
 
             self._print_error(f"Error: {e}")
