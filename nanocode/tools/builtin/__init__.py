@@ -895,9 +895,14 @@ class WriteFileTool(Tool):
             atomic_write(file_path, content)
             self._write_unlock.discard(resolved)
 
+            lines = content.split("\n")
+            preview = "\n".join(lines[:20])
+            if len(lines) > 20:
+                preview += f"\n... ({len(lines) - 20} more lines)"
+
             return ToolResult(
                 success=True,
-                content=f"Written to {file_path}",
+                content=f"Written to {file_path}:\n{preview}",
                 metadata={
                     "path": str(file_path),
                     "bytes": len(content.encode("utf-8")),
@@ -948,13 +953,18 @@ class EditFileTool(Tool):
             old_bytes = len(old.encode("utf-8"))
             new_bytes = len(new.encode("utf-8"))
 
+            preview = "\n".join(new_content.split("\n")[:20])
+            if len(new_content.split("\n")) > 20:
+                preview += f"\n... ({len(new_content.split('\\n')) - 20} more lines)"
+
             return ToolResult(
                 success=True,
-                content=f"Edited {file_path}",
+                content=f"Edited {file_path}:\n{preview}",
                 metadata={
                     "path": str(file_path),
                     "bytes_read": old_bytes,
                     "bytes_written": new_bytes,
+                    "content": new_content,
                 },
             )
         except Exception as e:
@@ -1864,9 +1874,13 @@ class ApplyPatchTool(Tool):
                 metadata={"files_changed": files_changed},
             )
 
+        content_parts = [f"Applied patch to {len(files_changed)} file(s): {', '.join(files_changed)}"]
+        if files_changed:
+            content_parts.append("\nFiles changed: " + ", ".join(files_changed))
+
         return ToolResult(
             success=True,
-            content=f"Applied patch to {len(files_changed)} file(s): {', '.join(files_changed)}",
+            content="\n".join(content_parts),
             metadata={"files_changed": files_changed},
         )
 
