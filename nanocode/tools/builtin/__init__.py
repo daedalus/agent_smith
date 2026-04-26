@@ -649,7 +649,7 @@ class ReadFileTool(Tool):
     def __init__(self, root_dir: str = None, file_tracker=None):
         super().__init__(
             name="read",
-            description="Read file content. Unlocks file for writing (read first, then write). For chunks: read(path, offset, limit). After write, must read again before writing.",
+            description="Read file content. Unlocks file for writing ON FIRST READ. Subsequent reads don't re-unlock. After write, must read again before writing.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -689,9 +689,9 @@ class ReadFileTool(Tool):
             file_path = self.root_dir / path
             resolved = str(file_path.resolve())
             
-            # Add to unlocked set - even if doesn't exist yet (for new files)
-            self._unlocked.add(resolved)
-            file_path = self.root_dir / path
+            # Only unlock on FIRST read (avoid re-reading same file unnecessarily)
+            if resolved not in self._unlocked:
+                self._unlocked.add(resolved)
             
             # Check if file exists
             if not file_path.exists():
@@ -813,7 +813,7 @@ class WriteFileTool(Tool):
     def __init__(self, root_dir: str = None, file_tracker=None):
         super().__init__(
             name="write",
-            description="Write to a file. MUST read file first to unlock. After write, must read again before next write.",
+            description="Write to a file. MUST have read it first (unlocks on first read only). After write, must read again before next write.",
         )
         self.root_dir = Path(root_dir) if root_dir else Path.cwd()
         self._unlocked: set = file_tracker if isinstance(file_tracker, set) else set()
