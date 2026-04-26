@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import httpx
 
 from nanocode.llm.base import LLMBase, LLMResponse, Message, ToolCall
+from nanocode.llm.router import OUTPUT_TOKEN_MAX
 from nanocode.llm.stream_parser import parse_stream_events
 
 
@@ -38,6 +39,7 @@ class OpenAILLM(LLMBase):
         base_url: str = None,
         model: str = "gpt-4",
         proxy: str = None,
+        context_limit: int = None,
         **kwargs,
     ):
         super().__init__(api_key, base_url, model, proxy=proxy, **kwargs)
@@ -45,6 +47,7 @@ class OpenAILLM(LLMBase):
             "OPENAI_BASE_URL", "https://api.openai.com/v1"
         )
         self.api_key = api_key or os.getenv("OPENAI_API_KEY", "dummy")
+        self.context_limit = context_limit
         if (
             self.api_key
             and self.api_key.startswith("${")
@@ -93,10 +96,9 @@ class OpenAILLM(LLMBase):
             if "max_tokens" in payload:
                 print(f"  max_tokens: {payload['max_tokens']}")
 
-        # Add max_tokens - default to 4096 for OpenRouter to avoid 402
         max_tokens = kwargs.get("max_tokens", self.max_tokens)
         if not max_tokens:
-            max_tokens = 4096
+            max_tokens = OUTPUT_TOKEN_MAX
         payload["max_tokens"] = max_tokens
 
         if tools:

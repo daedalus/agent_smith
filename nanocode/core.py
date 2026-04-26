@@ -420,11 +420,20 @@ class AutonomousAgent:
 
     def _init_llm(self):
         """Initialize LLM provider."""
-        use_registry = self.config.get("llm.use_model_registry", False)
+        import asyncio
         default_model = self.config.get("llm.default_model")
         default_provider = self.config.default_provider
         user_agent = self.config.get("llm.user_agent", "nanocode/1.0")
         proxy = self.config.proxy
+
+        # Load model registry once
+        from nanocode.llm.registry import get_registry
+        registry = get_registry()
+        if not registry._providers:
+            if os.path.exists(registry.cache_file):
+                registry._providers = registry._load_from_cache() or {}
+            else:
+                asyncio.create_task(registry.load())
 
         # Validate required config
         if not default_provider:
@@ -438,11 +447,20 @@ class AutonomousAgent:
             if default_provider in providers:
                 provider_config = providers[default_provider].copy()
                 model = provider_config.pop("model", default_model)
-                max_tokens = provider_config.pop("max_tokens", None)
+                explicit_max_tokens = provider_config.pop("max_tokens", None)
                 logger.info(
                     f"Using default_provider: {default_provider}, model: {model}"
                 )
                 logger.info(f"URL: {provider_config.get('base_url')}")
+
+                # Try to get max_tokens from registry if not explicitly set
+                if not explicit_max_tokens:
+                    from nanocode.llm.router import OUTPUT_TOKEN_MAX
+                    model_id = model if "/" in model else f"{default_provider}/{model}"
+                    registry_model_info = registry.get_model_by_full_id(model_id)
+                    if registry_model_info and registry_model_info.max_output_tokens > 0:
+                        explicit_max_tokens = max(registry_model_info.max_output_tokens, OUTPUT_TOKEN_MAX)
+
                 from nanocode.llm import create_llm
 
                 llm = create_llm(
@@ -451,10 +469,9 @@ class AutonomousAgent:
                     user_agent=user_agent,
                     proxy=proxy,
                     debug=self.debug,
+                    max_tokens=explicit_max_tokens,
                     **provider_config,
                 )
-                if max_tokens:
-                    llm.max_tokens = max_tokens
                 self.llm = llm
                 return
             else:
@@ -677,22 +694,19 @@ class AutonomousAgent:
                 extra_prompts += gemini_file.read_text()
                 break
 
-        from string import Template
-
-        # Format template with placeholders using safe substitution
-        # (Python's str.format has issues with {...} patterns in text)
+        # Format template with placeholders using str.format
+        # (safe_substitute used Template but template uses {} syntax)
+        formatted_vars = {
+            "agents": "\n".join(agents_info) if agents_info else "- (no custom agents)",
+            "tools": "\n".join(tools_info) if tools_info else "- (built-in only)",
+            "skills": "\n".join(skill_info) if skill_info else "- (none installed)",
+            "mcp_servers": "\n".join(mcp_info) if mcp_info else "- (none configured)",
+            "lsp_servers": "\n".join(lsp_info) if lsp_info else "- (none configured)",
+            "cwd": cwd,
+            "config_file": config_file,
+        }
         try:
-            template = Template(prompt)
-            formatted_vars = {
-                "agents": "\n".join(agents_info) if agents_info else "- (no custom agents)",
-                "tools": "\n".join(tools_info) if tools_info else "- (built-in only)",
-                "skills": "\n".join(skill_info) if skill_info else "- (none installed)",
-                "mcp_servers": "\n".join(mcp_info) if mcp_info else "- (none configured)",
-                "lsp_servers": "\n".join(lsp_info) if lsp_info else "- (none configured)",
-                "cwd": cwd,
-                "config_file": config_file,
-            }
-            prompt = template.safe_substitute(formatted_vars)
+            prompt = prompt.format_map(formatted_vars)
         except (KeyError, ValueError):
             pass  # template.md might not have all placeholders
 
@@ -1062,16 +1076,9 @@ Conversation:
                     else:
                         # Permission granted - reset doom loop state for this tool
                         self.doom_loop_handler.reset(tool_name)
-                        results.append(
-                            {
-                                "tool_call_id": tc.id,
-                                "tool_name": tool_name,
-                                "result": doom_loop_msg
-                                + "Tool executed but doom loop detected.",
-                                "success": True,
-                            }
+                        logger.info(
+                            f"[{agent_name}] Doom loop permission granted - executing tool '{tool_name}'"
                         )
-                        continue
 
             if self.current_agent:
                 if self.yolo:

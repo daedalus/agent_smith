@@ -8,6 +8,8 @@ from dataclasses import dataclass
 
 from nanocode.llm.registry import ModelRegistry, get_registry
 
+OUTPUT_TOKEN_MAX = 32000
+
 PROVIDER_DEFAULTS = {
     "openai": {
         "base_url": "https://api.openai.com/v1",
@@ -109,6 +111,7 @@ class ProviderConfig:
     api_key: str | None
     model: str
     max_tokens: int | None = None
+    context_limit: int | None = None
 
 
 class ProviderRouter:
@@ -195,6 +198,16 @@ class ProviderRouter:
             )
 
         # Check models.dev registry
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_closed():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            coro = self.registry.load()
+            loop.run_until_complete(coro)
+        except RuntimeError:
+            pass
         model_info = self.registry.get_model_by_full_id(model_id)
         if model_info and model_info.api_endpoint:
             api_key = self._get_api_key(parsed.provider)
@@ -203,7 +216,8 @@ class ProviderRouter:
                 base_url=model_info.api_endpoint,
                 api_key=api_key,
                 model=parsed.model,
-                max_tokens=model_info.max_output_tokens or None,
+                max_tokens=max(model_info.max_output_tokens, OUTPUT_TOKEN_MAX) if model_info.max_output_tokens > 0 else OUTPUT_TOKEN_MAX,
+                context_limit=model_info.context_limit if model_info.context_limit > 0 else None,
             )
 
         # Fall back to defaults

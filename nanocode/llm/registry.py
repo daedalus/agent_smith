@@ -250,7 +250,7 @@ class ModelRegistry:
                     supports_vision="image" in str(modalities.get("input", [])),
                     supports_streaming=model_data.get("stream", True),
                     is_free=cost.get("input", 0) == 0 and cost.get("output", 0) == 0,
-                    max_output_tokens=limit.get("max_output", 0),
+                    max_output_tokens=limit.get("output", 0),
                     latency_tier=model_data.get("latency_tier", ""),
                     throughput_tier=model_data.get("throughput_tier", ""),
                     reasoning_effort=model_data.get("reasoning_effort", ""),

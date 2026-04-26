@@ -418,7 +418,16 @@ class GlobTool(Tool):
         """Find files matching pattern."""
         try:
             search_path = Path(path) if path else self.root_dir
-            files = list(search_path.glob(pattern))
+
+            resolved_pattern = pattern
+            if os.path.isabs(pattern):
+                try:
+                    pattern_path = Path(pattern)
+                    resolved_pattern = str(pattern_path.relative_to(search_path))
+                except ValueError:
+                    pass
+
+            files = list(search_path.glob(resolved_pattern))
             file_list = [str(f.relative_to(search_path)) for f in files]
             return ToolResult(
                 success=True,
@@ -886,7 +895,7 @@ class ListDirTool(Tool):
 
             return ToolResult(
                 success=True,
-                content="\n".join(sorted(entries)),
+                content="\n".join(sorted(entries)) if entries else "(empty directory)",
                 metadata={"path": str(dir_path), "count": len(entries)},
             )
         except Exception as e:

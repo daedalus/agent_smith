@@ -2,6 +2,7 @@
 
 import json
 import os
+import uuid
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -22,7 +23,7 @@ class ToolCall:
     def __init__(self, name: str, arguments: dict, id: str = None):
         self.name = name
         self.arguments = arguments
-        self.id = id or f"call_{name}_{hash(str(arguments))}"
+        self.id = id or f"call_{name}_{uuid.uuid4().hex[:8]}"
 
     def __repr__(self):
         return f"ToolCall({self.name}, {self.arguments})"

@@ -82,6 +82,7 @@ async def create_llm_from_model_id(
             api_key=provider_config.api_key or "dummy",
             model=provider_config.model,
             max_tokens=provider_config.max_tokens,
+            context_limit=getattr(provider_config, 'context_limit', None),
         )
 
     return llm, provider_config

@@ -301,7 +301,6 @@ class TestDebugOutput:
         """Test debug output uses Rich markup tags."""
         from nanocode.core import console
 
-        output_lines = []
         with patch.object(console, "print") as mock_print:
             console.print("[debug]test[/debug]")
             mock_print.assert_called_once()
@@ -313,3 +312,48 @@ class TestDebugOutput:
         with patch.object(console, "print") as mock_print:
             console.print("[warning]test[/warning]")
             mock_print.assert_called_once()
+
+
+class TestSystemPromptTemplate:
+    """Test system prompt template formatting."""
+
+    def test_template_format_replaces_placeholders(self):
+        """Template with {placeholder} syntax should be replaced by format_map."""
+        prompt = "Agents: {agents}\nTools: {tools}\nCWD: {cwd}"
+        agents_info = ["- Agent1: test"]
+        tools_info = ["- bash: run commands"]
+        cwd = "/home/user/project"
+
+        formatted = prompt.format_map({
+            "agents": "\n".join(agents_info),
+            "tools": "\n".join(tools_info),
+            "cwd": cwd,
+        })
+
+        assert "Agents: - Agent1: test" in formatted
+        assert "Tools: - bash: run commands" in formatted
+        assert f"CWD: {cwd}" in formatted
+        assert "{agents}" not in formatted
+        assert "{tools}" not in formatted
+        assert "{cwd}" not in formatted
+
+    def test_template_preserves_content_without_placeholders(self):
+        """Template without placeholders should be preserved."""
+        prompt = "You are a helpful assistant."
+
+        formatted = prompt.format_map({
+            "agents": "custom agents",
+        })
+
+        assert formatted == prompt
+
+    def test_template_handles_missing_placeholders(self):
+        """Template with placeholders not in vars should preserve them."""
+        prompt = "Agents: {agents}\nOther: $unknown_var"
+
+        formatted = prompt.format_map({
+            "agents": "custom agents",
+        })
+
+        assert "Agents: custom agents" in formatted
+        assert "{agents}" not in formatted

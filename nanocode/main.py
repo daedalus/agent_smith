@@ -234,6 +234,16 @@ def parse_args():
         help="Non-interactive mode: process input and exit (auto-allow permissions)",
     )
     parser.add_argument(
+        "--auto-ask-allow",
+        action="store_true",
+        help="When permission is ASK, auto-allow (implies --non-interactive)",
+    )
+    parser.add_argument(
+        "--auto-ask-deny",
+        action="store_true",
+        help="When permission is ASK, auto-deny (implies --non-interactive)",
+    )
+    parser.add_argument(
         "--input-file",
         "-i",
         type=str,
@@ -639,13 +649,30 @@ async def main():
             prompts = content.split(sep)
 
         # Auto-allow all permissions in non-interactive mode
-        async def auto_allow_permission(request):
-            return PermissionReply(
-                request_id=request.id,
-                reply=PermissionReplyType.ALLOW,
-            )
+        auto_ask_allow = getattr(args, "auto_ask_allow", False)
+        auto_ask_deny = getattr(args, "auto_ask_deny", False)
 
-        agent.permission_handler.set_callback(auto_allow_permission)
+        if auto_ask_allow:
+            async def auto_ask_permission(request):
+                return PermissionReply(
+                    request_id=request.id,
+                    reply=PermissionReplyType.ALLOW,
+                )
+        elif auto_ask_deny:
+            async def auto_ask_permission(request):
+                return PermissionReply(
+                    request_id=request.id,
+                    reply=PermissionReplyType.REJECT,
+                    message="Permission denied (auto-ask-deny mode)",
+                )
+        else:
+            async def auto_ask_permission(request):
+                return PermissionReply(
+                    request_id=request.id,
+                    reply=PermissionReplyType.ALLOW,
+                )
+
+        agent.permission_handler.set_callback(auto_ask_permission)
 
         results = []
         output_file = getattr(args, "output", None)

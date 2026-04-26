@@ -483,3 +483,124 @@ class TestOpenAICompatibleProviders:
             )
             assert llm.model == model
             assert llm.base_url == f"https://api.{provider}.com/v1"
+
+
+class TestToolCallIdUniqueness:
+    """Tests for unique tool call ID generation."""
+
+    def test_tool_call_id_uniqueness_with_same_arguments(self):
+        """Tool calls with same arguments should get unique IDs."""
+        from nanocode.llm.base import ToolCall
+
+        args = {"path": "/tmp/test.txt", "content": "hello"}
+
+        tc1 = ToolCall(name="write", arguments=args)
+        tc2 = ToolCall(name="write", arguments=args)
+        tc3 = ToolCall(name="write", arguments=args)
+
+        assert tc1.id != tc2.id, "Tool calls with same args must have unique IDs"
+        assert tc2.id != tc3.id, "Tool calls with same args must have unique IDs"
+        assert tc1.id != tc3.id, "Tool calls with same args must have unique IDs"
+
+    def test_tool_call_id_uniqueness_with_different_arguments(self):
+        """Tool calls with different arguments should also be unique."""
+        from nanocode.llm.base import ToolCall
+
+        tc1 = ToolCall(name="write", arguments={"path": "/tmp/a.txt"})
+        tc2 = ToolCall(name="write", arguments={"path": "/tmp/b.txt"})
+        tc3 = ToolCall(name="read", arguments={"path": "/tmp/a.txt"})
+
+        assert tc1.id != tc2.id, "Tool calls with different args should have unique IDs"
+        assert tc2.id != tc3.id, "Different tool types should have unique IDs"
+
+    def test_tool_call_id_format(self):
+        """Tool call IDs should follow expected format."""
+        from nanocode.llm.base import ToolCall
+
+        tc = ToolCall(name="bash", arguments={"command": "ls"})
+
+        assert tc.id.startswith("call_bash_"), f"ID format: {tc.id}"
+        assert len(tc.id) > 15, "ID should be reasonably long for uniqueness"
+
+    def test_tool_call_id_with_explicit_id(self):
+        """Explicit IDs should be preserved."""
+        from nanocode.llm.base import ToolCall
+
+        explicit_id = "my_custom_id_123"
+        tc = ToolCall(name="bash", arguments={"command": "ls"}, id=explicit_id)
+
+        assert tc.id == explicit_id, "Explicit ID should be preserved"
+
+
+class TestModelRegistryOutputTokens:
+    """Tests for model registry output token handling."""
+
+    @pytest.fixture
+    def temp_cache_dir(self):
+        """Create temp cache directory."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            yield tmpdir
+
+    def test_model_registry_reads_output_key(self, temp_cache_dir):
+        """Registry should read 'output' key from limit dict."""
+        import json
+        from nanocode.llm.registry import ModelRegistry
+
+        data = {
+            "openai": {
+                "id": "openai",
+                "name": "OpenAI",
+                "api_base": "https://api.openai.com/v1",
+                "models": {
+                    "gpt-4o": {
+                        "id": "openai/gpt-4o",
+                        "name": "GPT-4o",
+                        "provider_id": "openai",
+                        "api_endpoint": "https://api.openai.com",
+                        "context_limit": 128000,
+                        "max_output_tokens": 16384,
+                    },
+                },
+            },
+        }
+        cache_file = os.path.join(temp_cache_dir, "models_registry.json")
+        with open(cache_file, "w") as f:
+            json.dump(data, f)
+
+        registry = ModelRegistry(cache_dir=temp_cache_dir)
+        registry._providers = registry._load_from_cache()
+
+        model_info = registry.get_model("openai", "gpt-4o")
+        assert model_info is not None, "Should find the model"
+        assert model_info.max_output_tokens == 16384
+
+    def test_model_registry_default_output_tokens(self, temp_cache_dir):
+        """Models without max_output_tokens should have default 0."""
+        import json
+        from nanocode.llm.registry import ModelRegistry
+
+        data = {
+            "test": {
+                "id": "test",
+                "name": "Test",
+                "api_base": "https://test.com",
+                "models": {
+                    "model1": {
+                        "id": "test/model1",
+                        "name": "Model 1",
+                        "provider_id": "test",
+                        "api_endpoint": "https://test.com",
+                        "context_limit": 128000,
+                    },
+                },
+            },
+        }
+        cache_file = os.path.join(temp_cache_dir, "models_registry.json")
+        with open(cache_file, "w") as f:
+            json.dump(data, f)
+
+        registry = ModelRegistry(cache_dir=temp_cache_dir)
+        registry._providers = registry._load_from_cache()
+
+        model_info = registry.get_model("test", "model1")
+        assert model_info.max_output_tokens == 0
