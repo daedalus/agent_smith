@@ -57,6 +57,7 @@ from nanocode.session_summary import SessionSummaryGenerator
 from nanocode.snapshot import create_snapshot_manager
 from nanocode.state import AgentState, AgentStateData
 from nanocode.storage.cache import CachedResponse, PromptCache, get_prompt_cache
+from nanocode.todo_service import get_todo_service
 from nanocode.tools import ToolExecutor, ToolRegistry
 from nanocode.tools.builtin import register_builtin_tools
 from nanocode.tools.file_tracker import FileTracker
@@ -826,6 +827,17 @@ class AutonomousAgent:
                 f"[{self.current_agent.name if self.current_agent else 'unknown'}] Pruned {len(to_remove)} tool results ({pruned} tokens)"
             )
             return len(to_remove)
+
+    async def _check_pending_todos(self) -> list[str]:
+        """Check for pending todos that need completion. Returns list of pending todo contents."""
+        session_id = getattr(self, "_session_id", None)
+        if not session_id:
+            return []
+
+        todo_service = get_todo_service()
+        todos = todo_service.get_todos(session_id)
+        pending = [t.content for t in todos if t.status == "pending"]
+        return pending
 
         return 0
 
@@ -1774,6 +1786,25 @@ Conversation:
                     for tr in tool_results_history:
                         tool_summary += f"\n- {tr['tool_name']}: executed"
                     augmented += tool_summary
+
+            # Check if there are pending todos - if so, prompt to complete them
+            pending_todos = await self._check_pending_todos()
+            if pending_todos:
+                logger.info(f"[{agent_name}] {len(pending_todos)} pending todos, prompting to complete")
+                messages = self.context_manager.prepare_messages()
+                messages.append({
+                    "role": "user",
+                    "content": f"You have {len(pending_todos)} pending todo(s). Please complete them before responding:\n" +
+                              "\n".join(f"- {t}" for t in pending_todos)
+                })
+                continuation = await self._chat_with_retry(messages, tools)
+                if continuation and continuation.content:
+                    self.context_manager.add_message("assistant", continuation.content)
+                    augmented += f"\n\n{continuation.content}"
+                    # Handle any new tool calls
+                    if continuation.has_tool_calls:
+                        more_results = await self._handle_tool_calls(continuation.tool_calls)
+                        tool_results_history.extend(more_results)
 
             self.state.state = AgentState.COMPLETE
 
