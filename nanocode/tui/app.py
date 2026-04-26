@@ -2447,6 +2447,19 @@ Footer {
 
             self._processing = False
             _tui_logger.debug("Finally block complete")
+
+            # Force screen refresh to prevent black screen
+            try:
+                input_area = self.query_one("#input-area")
+                input_area.refresh()
+            except Exception:
+                pass
+
+            try:
+                self.screen.refresh()
+            except Exception:
+                pass
+
             input_widget.disabled = False
             input_widget.focus()
             _tui_logger.debug("Input re-enabled, processing complete")
