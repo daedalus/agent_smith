@@ -970,6 +970,10 @@ class WebFetchTool(Tool):
         """Fetch URL content."""
         target_url = url or path
 
+        from nanocode.tools import logger
+
+        logger.debug(f"WebFetchTool.execute: path={path!r}, url={url!r}, target_url={target_url!r}")
+
         if not target_url:
             return ToolResult(success=False, content=None, error="URL is required")
 
@@ -977,11 +981,14 @@ class WebFetchTool(Tool):
         if not target_url.startswith(("http://", "https://")):
             target_url = "https://" + target_url
 
+        logger.debug(f"WebFetchTool: fetching {target_url}")
+
         try:
             import httpx
 
             async with httpx.AsyncClient() as client:
                 response = await client.get(target_url, timeout=30.0)
+                logger.debug(f"WebFetchTool: got response status={response.status_code}")
                 response.raise_for_status()
 
                 if format == "text":
