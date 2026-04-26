@@ -2097,8 +2097,11 @@ Footer {
         _tui_logger.debug(f"processing: {getattr(self, '_processing', 'N/A')}")
 
         # Screen state debug
-        _tui_logger.debug(f"Current screen: {type(self.screen).__name__}")
-        _tui_logger.debug(f"Stack size: {len(self.screen.stack)}")
+        try:
+            _tui_logger.debug(f"Current screen: {type(self.screen).__name__}")
+            _tui_logger.debug(f"Stack size: {len(self.screen._stack)}")
+        except AttributeError:
+            pass  # Older Textual versions may not have _stack
 
         self._print_line(f"> {text}", Style.USER_MESSAGE)
         self._print_empty()
