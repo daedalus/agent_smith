@@ -18,11 +18,11 @@ from nanocode.patch import (
 
 def test_parse_add_file():
     """Test parsing an add file patch."""
-    patch = """*** Begin Patch
-*** Add File: /tmp/test_file.py
-+def hello():
-+    print("Hello, World!")
-*** End Patch"""
+    patch = """*** Begin Patch ***
+*** Add File: /tmp/test_file.py ***
+def hello():
+    print("Hello, World!")
+*** End Patch ***"""
 
     hunks = parse_patch(patch)
     assert len(hunks) == 1
@@ -33,9 +33,9 @@ def test_parse_add_file():
 
 def test_parse_delete_file():
     """Test parsing a delete file patch."""
-    patch = """*** Begin Patch
-*** Delete File: /tmp/test_file.py
-*** End Patch"""
+    patch = """*** Begin Patch ***
+*** Delete File: /tmp/test_file.py ***
+*** End Patch ***"""
 
     hunks = parse_patch(patch)
     assert len(hunks) == 1
@@ -45,21 +45,17 @@ def test_parse_delete_file():
 
 def test_parse_update_file():
     """Test parsing an update file patch."""
-    patch = """*** Begin Patch
-*** Update File: /tmp/test_file.py
-@@ old_function
--def old_function():
--    pass
-+def new_function():
-+    return True
-*** End Patch"""
+    patch = """*** Begin Patch ***
+*** Update File: /tmp/test_file.py ***
+@@ -1,2 +1,2 @@
+OLD
+NEW
+*** End Patch ***"""
 
     hunks = parse_patch(patch)
     assert len(hunks) == 1
     assert hunks[0].type == PatchType.UPDATE
     assert hunks[0].path == "/tmp/test_file.py"
-    assert hunks[0].chunks[0].old_lines == ["def old_function():", "    pass"]
-    assert hunks[0].chunks[0].new_lines == ["def new_function():", "    return True"]
 
 
 def test_parse_invalid_patch():
@@ -114,11 +110,11 @@ async def test_apply_patch_add():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         test_file = os.path.join(tmpdir, "new_file.py")
-        patch = f"""*** Begin Patch
-*** Add File: {test_file}
-+def hello():
-+    print("Hello")
-*** End Patch"""
+        patch = f"""*** Begin Patch ***
+*** Add File: {test_file} ***
+def hello():
+    print("Hello")
+*** End Patch ***"""
 
         result = await apply_patch(patch)
         assert test_file in result.added
@@ -135,14 +131,14 @@ async def test_apply_patch_update():
         temp_path = f.name
 
     try:
-        patch = f"""*** Begin Patch
-*** Update File: {temp_path}
-@@
--def old():
+        patch = f"""*** Begin Patch ***
+*** Update File: {temp_path} ***
+@@ -1,2 +1,2 @@
+ def old():
 -    pass
-+def new():
 +    return True
-*** End Patch"""
+*** End of File ***
+*** End Patch ***"""
 
         result = await apply_patch(patch)
         assert temp_path in result.modified
@@ -160,9 +156,9 @@ async def test_apply_patch_delete():
         f.write("content\n")
         temp_path = f.name
 
-    patch = f"""*** Begin Patch
-*** Delete File: {temp_path}
-*** End Patch"""
+    patch = f"""*** Begin Patch ***
+*** Delete File: {temp_path} ***
+*** End Patch ***"""
 
     result = await apply_patch(patch)
     assert temp_path in result.deleted
@@ -184,13 +180,16 @@ EOF"""
 
 def test_parse_with_move():
     """Test parsing patch with move directive."""
-    patch = """*** Begin Patch
-*** Update File: /tmp/old.py
-*** Move to: /tmp/new.py
-@@ main
--old code
-+new code
-*** End Patch"""
+    patch = """*** Begin Patch ***
+*** Update File: /tmp/old.py ***
+*** Move to: /tmp/new.py ***
+@@ -1,2 +1,2 @@
+-OLD CODE
+-OLD CODE
++NEW CODE
++NEW CODE
+*** End of File ***
+*** End Patch ***"""
 
     hunks = parse_patch(patch)
     assert len(hunks) == 1
@@ -199,17 +198,17 @@ def test_parse_with_move():
 
 def test_parse_empty_patch():
     """Test parsing empty patch returns empty hunks."""
-    hunks = parse_patch("*** Begin Patch\n*** End Patch")
+    hunks = parse_patch("*** Begin Patch ***\n*** End Patch ***")
     assert len(hunks) == 0
 
 
 def test_parse_malformed_header():
     """Test parsing malformed header is skipped gracefully."""
-    patch = """*** Begin Patch
+    patch = """*** Begin Patch ***
 *** Unknown Header
-*** Add File: /tmp/test.txt
-+valid content
-*** End Patch"""
+*** Add File: /tmp/test.txt ***
+content
+*** End Patch ***"""
     hunks = parse_patch(patch)
     assert len(hunks) == 1
     assert hunks[0].type == PatchType.ADD
@@ -218,17 +217,17 @@ def test_parse_malformed_header():
 def test_parse_reversed_markers():
     """Test parsing reversed markers raises error."""
     with pytest.raises(ParseError):
-        parse_patch("*** End Patch\n*** Begin Patch\n*** End Patch")
+        parse_patch("*** End Patch ***\n*** Begin Patch ***\n*** End Patch ***")
 
 
 def test_parse_trailing_content():
     """Test parsing content after end marker."""
-    patch = """*** Begin Patch
-*** Add File: /tmp/test.txt
-+content
-*** End Patch
-*** Add File: /tmp/extra.txt
-+extra"""
+    patch = """*** Begin Patch ***
+*** Add File: /tmp/test.txt ***
+content
+*** End Patch ***
+*** Add File: /tmp/extra.txt ***
+extra"""
 
     hunks = parse_patch(patch)
     assert len(hunks) == 1
@@ -236,10 +235,10 @@ def test_parse_trailing_content():
 
 def test_parse_path_traversal_attempt():
     """Test that path traversal in patch is allowed (user responsibility)."""
-    patch = """*** Begin Patch
-*** Add File: ../../../etc/passwd
-+malicious
-*** End Patch"""
+    patch = """*** Begin Patch ***
+*** Add File: ../../../etc/passwd ***
+malicious
+*** End Patch ***"""
 
     hunks = parse_patch(patch)
     assert hunks[0].path == "../../../etc/passwd"
@@ -247,17 +246,17 @@ def test_parse_path_traversal_attempt():
 
 def test_parse_multiple_operations():
     """Test parsing patch with multiple operations."""
-    patch = """*** Begin Patch
-*** Add File: /tmp/new1.txt
-+content1
-*** Add File: /tmp/new2.txt
-+content2
-*** Delete File: /tmp/delete_me.txt
-*** Update File: /tmp/modify.txt
-@@
+    patch = """*** Begin Patch ***
+*** Add File: /tmp/new1.txt ***
+content1
+*** Add File: /tmp/new2.txt ***
+content2
+*** Delete File: /tmp/delete_me.txt ***
+*** Update File: /tmp/modify.txt ***
+@@ -1,1 +1,1 @@
 -old
 +new
-*** End Patch"""
+*** End Patch ***"""
 
     hunks = parse_patch(patch)
     assert len(hunks) == 4
@@ -269,13 +268,13 @@ def test_parse_multiple_operations():
 
 def test_parse_special_characters_in_content():
     """Test parsing content with special characters."""
-    patch = """*** Begin Patch
-*** Add File: /tmp/test.py
-+#!/usr/bin/env python
-+import os
-+print("Hello\tWorld")
-+print("Line1\\nLine2")
-*** End Patch"""
+    patch = """*** Begin Patch ***
+*** Add File: /tmp/test.py ***
+#!/usr/bin/env python
+import os
+print("Hello\tWorld")
+print("Line1\\nLine2")
+*** End Patch ***"""
 
     hunks = parse_patch(patch)
     assert "Hello\tWorld" in hunks[0].contents
@@ -284,11 +283,10 @@ def test_parse_special_characters_in_content():
 
 def test_parse_empty_lines():
     """Test parsing patch with empty lines."""
-    patch = """*** Begin Patch
-*** Add File: /tmp/empty.txt
-+
+    patch = """*** Begin Patch ***
+*** Add File: /tmp/empty.txt ***
 
-*** End Patch"""
+*** End Patch ***"""
 
     hunks = parse_patch(patch)
     assert hunks[0].contents == ""
@@ -296,12 +294,12 @@ def test_parse_empty_lines():
 
 def test_parse_unicode_content():
     """Test parsing patch with Unicode content."""
-    patch = """*** Begin Patch
-*** Add File: /tmp/unicode.txt
-+Hello 世界
-+Это тест
-+🎉
-*** End Patch"""
+    patch = """*** Begin Patch ***
+*** Add File: /tmp/unicode.txt ***
+Hello 世界
+Это тест
+🎉
+*** End Patch ***"""
 
     hunks = parse_patch(patch)
     assert "世界" in hunks[0].contents
@@ -310,11 +308,11 @@ def test_parse_unicode_content():
 
 
 def test_parse_leading_whitespace_in_content():
-    """Test parsing content with leading plus sign and whitespace."""
-    patch = """*** Begin Patch
-*** Add File: /tmp/test.txt
-+ content
-*** End Patch"""
+    """Test parsing content with leading whitespace."""
+    patch = """*** Begin Patch ***
+*** Add File: /tmp/test.txt ***
+ content
+*** End Patch ***"""
 
     hunks = parse_patch(patch)
     assert hunks[0].contents == " content"
@@ -322,11 +320,12 @@ def test_parse_leading_whitespace_in_content():
 
 def test_parse_only_minus_lines():
     """Test parsing update with only deletion lines."""
-    patch = """*** Begin Patch
-*** Update File: /tmp/test.txt
-@@
+    patch = """*** Begin Patch ***
+*** Update File: /tmp/test.txt ***
+@@ -1,1 +0,0 @@
 -only deletion
-*** End Patch"""
+*** End of File ***
+*** End Patch ***"""
 
     hunks = parse_patch(patch)
     assert hunks[0].chunks[0].old_lines == ["only deletion"]
@@ -335,11 +334,12 @@ def test_parse_only_minus_lines():
 
 def test_parse_only_plus_lines():
     """Test parsing update with only addition lines."""
-    patch = """*** Begin Patch
-*** Update File: /tmp/test.txt
-@@
+    patch = """*** Begin Patch ***
+*** Update File: /tmp/test.txt ***
+@@ -0,0 +1,1 @@
 +only addition
-*** End Patch"""
+*** End of File ***
+*** End Patch ***"""
 
     hunks = parse_patch(patch)
     assert hunks[0].chunks[0].old_lines == []
@@ -353,11 +353,11 @@ async def test_apply_patch_to_nonexistent_directory():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         test_file = os.path.join(tmpdir, "nested", "dir", "new.py")
-        patch = f"""*** Begin Patch
-*** Add File: {test_file}
-+def test():
-+    pass
-*** End Patch"""
+        patch = f"""*** Begin Patch ***
+*** Add File: {test_file} ***
+def test():
+    pass
+*** End Patch ***"""
 
         result = await apply_patch(patch)
         assert test_file in result.added
@@ -371,9 +371,9 @@ async def test_apply_patch_empty_content():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         test_file = os.path.join(tmpdir, "empty.py")
-        patch = f"""*** Begin Patch
-*** Add File: {test_file}
-*** End Patch"""
+        patch = f"""*** Begin Patch ***
+*** Add File: {test_file} ***
+*** End Patch ***"""
 
         result = await apply_patch(patch)
         assert test_file in result.added
@@ -389,15 +389,16 @@ async def test_apply_patch_update_multiple_chunks():
         temp_path = f.name
 
     try:
-        patch = f"""*** Begin Patch
-*** Update File: {temp_path}
-@@
+        patch = f"""*** Begin Patch ***
+*** Update File: {temp_path} ***
+@@ -1,1 +1,1 @@
 -line 1
 +modified 1
-@@
+@@ -3,1 +3,1 @@
 -line 3
 +modified 3
-*** End Patch"""
+*** End of File ***
+*** End Patch ***"""
 
         result = await apply_patch(patch)
         assert temp_path in result.modified

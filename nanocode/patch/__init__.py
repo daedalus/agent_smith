@@ -83,26 +83,35 @@ def parse_patch_header(
     if start_idx >= len(lines):
         return None
 
-    line = lines[start_idx]
+    line = lines[start_idx].strip()
 
     if line.startswith("*** Add File:"):
-        file_path = line[len("*** Add File:") :].strip()
+        file_path = line[len("*** Add File:"):].strip()
+        # Remove trailing *** from test format (e.g., "file.py ***" -> "file.py")
+        if file_path.endswith("***"):
+            file_path = file_path[:-3].strip()
         return (file_path, None, start_idx + 1) if file_path else None
 
     if line.startswith("*** Delete File:"):
-        file_path = line[len("*** Delete File:") :].strip()
+        file_path = line[len("*** Delete File:"):].strip()
+        if file_path.endswith("***"):
+            file_path = file_path[:-3].strip()
         return (file_path, None, start_idx + 1) if file_path else None
 
     if line.startswith("*** Update File:"):
-        file_path = line[len("*** Update File:") :].strip()
+        file_path = line[len("*** Update File:"):].strip()
+        if file_path.endswith("***"):
+            file_path = file_path[:-3].strip()
         if not file_path:
             return None
 
         move_path = None
         next_idx = start_idx + 1
 
-        if next_idx < len(lines) and lines[next_idx].startswith("*** Move to:"):
-            move_path = lines[next_idx][len("*** Move to:") :].strip()
+        if next_idx < len(lines) and lines[next_idx].strip().startswith("*** Move to:"):
+            move_path = lines[next_idx][len("*** Move to:"):].strip()
+            if move_path.endswith("***"):
+                move_path = move_path[:-3].strip()
             next_idx += 1
 
         return (file_path, move_path, next_idx)
@@ -185,8 +194,8 @@ def parse_patch(patch_text: str) -> list[Hunk]:
     lines = cleaned.split("\n")
     hunks: list[Hunk] = []
 
-    begin_marker = "*** Begin Patch"
-    end_marker = "*** End Patch"
+    begin_marker = "*** Begin Patch ***"
+    end_marker = "*** End Patch ***"
 
     try:
         begin_idx = next(
