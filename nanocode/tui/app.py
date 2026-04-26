@@ -8,13 +8,25 @@ from dataclasses import dataclass
 from enum import Enum
 
 # Set up TUI logger early for debug statements
-# Log file path - configurable via TUI_LOG_FILE env var
-_TUI_LOG_FILE = os.environ.get("TUI_LOG_FILE", "/tmp/nanocode.log")
+# Default log path - same default as main.py uses
+_DEFAULT_TUI_LOG = "_log_file"
 _tui_logger = logging.getLogger("nanocode.tui")
 _tui_logger.setLevel(logging.DEBUG)
-if not _tui_logger.handlers:
-    _tui_logger.addHandler(logging.FileHandler(_TUI_LOG_FILE))
-    _tui_logger.debug("=== TUI Logger initialized ===")
+
+# Find log file from existing handlers (set up by main.py) or use default
+_log_file = _DEFAULT_TUI_LOG
+_root_logger = logging.getLogger()
+if _root_logger.handlers:
+    for h in _root_logger.handlers:
+        if hasattr(h, 'baseFilename'):
+            _log_file = h.baseFilename
+            break
+
+if not any(hasattr(h, 'baseFilename') and h.baseFilename == _log_file for h in _tui_logger.handlers):
+    try:
+        _tui_logger.addHandler(logging.FileHandler(_log_file))
+    except Exception:
+        pass
 
 
 class RichColor(Enum):
