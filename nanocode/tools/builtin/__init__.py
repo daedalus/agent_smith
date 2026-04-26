@@ -5,11 +5,15 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from nanocode.context import TokenCounter
+from nanocode.flock import DEFAULT_STALE_MS, Flock
 from nanocode.todo_service import get_todo_service
 from nanocode.tools import Tool, ToolRegistry, ToolResult
+
+if TYPE_CHECKING:
+    from nanocode.flock import FlockLease
 
 
 def atomic_write(file_path: Path, content: str) -> None:
@@ -48,6 +52,66 @@ def atomic_read(file_path: Path) -> str:
     finally:
         if os.path.exists(temp_path):
             os.unlink(temp_path)
+
+
+async def flock_read(
+    file_path: Path,
+    stale_ms: int = DEFAULT_STALE_MS,
+) -> tuple[str, "FlockLease"]:
+    """Read a file with flock protection.
+
+    Returns (content, lease) - must release lease after read.
+    Handles non-existing files (returns empty string).
+    """
+    fl = Flock(stale_ms=stale_ms)
+    key = f"file-read:{file_path}"
+    lease = await fl.acquire(key)
+    content = ""
+    if file_path.exists():
+        content = file_path.read_text(errors="ignore")
+    return content, lease
+
+
+async def flock_write(
+    file_path: Path,
+    content: str,
+    stale_ms: int = DEFAULT_STALE_MS,
+) -> "FlockLease":
+    """Write a file with flock protection.
+
+    Returns lease - must release lease after write.
+    Creates parent directories if needed.
+    """
+    fl = Flock(stale_ms=stale_ms)
+    key = f"file-write:{file_path}"
+    lease = await fl.acquire(key)
+    if file_path.parent.exists() or file_path.parent == Path("."):
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write(file_path, content)
+    return lease
+
+
+async def flock_read_write(
+    file_path: Path,
+    transform: callable,
+    stale_ms: int = DEFAULT_STALE_MS,
+) -> None:
+    """Read, transform, and write a file under flock protection.
+
+    This is a convenience wrapper that handles read-before-write pattern
+    similar to opencode's Flock.withLock pattern.
+    Creates parent directories if needed.
+    """
+    fl = Flock(stale_ms=stale_ms)
+    key = f"file:{file_path}"
+
+    async with fl.with_lock(key) as lease:
+        content = ""
+        if file_path.exists():
+            content = file_path.read_text(errors="ignore")
+        new_content = transform(content)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write(file_path, new_content)
 
 
 class BashTool(Tool):
@@ -886,41 +950,6 @@ class EditFileTool(Tool):
                     "bytes_read": old_bytes,
                     "bytes_written": new_bytes,
                 },
-            )
-        except Exception as e:
-            return ToolResult(success=False, content=None, error=str(e))
-
-
-class ListDirTool(Tool):
-    """List directory contents."""
-
-    def __init__(self, root_dir: str = None):
-        super().__init__(
-            name="ls",
-            description="List directory contents",
-        )
-        self.root_dir = Path(root_dir) if root_dir else Path.cwd()
-
-    async def execute(self, path: str = None, show_hidden: bool = False) -> ToolResult:
-        """List directory."""
-        try:
-            dir_path = Path(path) if path else self.root_dir
-            if not dir_path.exists():
-                return ToolResult(
-                    success=False, content=None, error="Directory not found"
-                )
-
-            entries = []
-            for entry in dir_path.iterdir():
-                if not show_hidden and entry.name.startswith("."):
-                    continue
-                entry_type = "dir" if entry.is_dir() else "file"
-                entries.append(f"{entry.name}/" if entry_type == "dir" else entry.name)
-
-            return ToolResult(
-                success=True,
-                content="\n".join(sorted(entries)) if entries else "(empty directory)",
-                metadata={"path": str(dir_path), "count": len(entries)},
             )
         except Exception as e:
             return ToolResult(success=False, content=None, error=str(e))
@@ -1961,7 +1990,6 @@ def create_builtin_tools(
         ReadFileTool(file_tracker=unlocked_files),
         WriteFileTool(file_tracker=unlocked_files),
         EditFileTool(),
-        ListDirTool(),
         FstatTool(),
         WebFetchTool(),
         WebSearchTool(),
