@@ -689,11 +689,34 @@ class ReadFileTool(Tool):
             file_path = self.root_dir / path
             resolved = str(file_path.resolve())
             
-            # Add to unlocked set
+            # Add to unlocked set - even if doesn't exist yet (for new files)
             self._unlocked.add(resolved)
             file_path = self.root_dir / path
+            
+            # Check if file exists
             if not file_path.exists():
-                return ToolResult(success=False, content=None, error="File not found")
+                # Check if parent dir exists or can be created
+                parent_dir = file_path.parent
+                if not parent_dir.exists():
+                    try:
+                        parent_dir.mkdir(parents=True, exist_ok=True)
+                    except Exception:
+                        return ToolResult(success=False, content=None, error="Cannot create parent directory")
+                
+                # Return success for new file - unlock succeeded
+                return ToolResult(
+                    success=True,
+                    content="",  # Empty content for new file
+                    metadata={
+                        "path": str(file_path),
+                        "lines": 0,
+                        "total_lines": 0,
+                        "bytes": 0,
+                        "tokens_estimate": 0,
+                        "cached": False,
+                        "new_file": True,
+                    },
+                )
 
             full_path = str(file_path.resolve())
 
