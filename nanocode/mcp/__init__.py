@@ -441,7 +441,7 @@ class FilesystemMCPServer:
             },
             {
                 "name": "filesystem_write",
-                "description": "Write a file",
+                "description": "Write a file. REQUIRES read tool first to unlock the file for writing.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {

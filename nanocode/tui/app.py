@@ -12,6 +12,7 @@ _tui_logger = logging.getLogger("nanocode.tui")
 _tui_logger.setLevel(logging.DEBUG)
 if not _tui_logger.handlers:
     _tui_logger.addHandler(logging.FileHandler("/tmp/nanocode.log"))
+    _tui_logger.debug("=== TUI Logger initialized ===")
 
 
 class RichColor(Enum):
@@ -141,10 +142,29 @@ class PermissionScreen(ModalScreen):
     }
     """
 
-def __init__(self, request, *args, **kwargs):
+    def __init__(self, request, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.request = request
         self._result = None
+
+    def on_mount(self):
+        _tui_logger.debug(f"PermissionScreen mounted: tool={self.request.tool_name}")
+
+    def action_allow_once(self):
+        from nanocode.agents.permission import PermissionReply, PermissionReplyType
+        self.dismiss(PermissionReply(request_id=self.request.id, reply=PermissionReplyType.ONCE))
+
+    def action_deny(self):
+        from nanocode.agents.permission import PermissionReply, PermissionReplyType
+        self.dismiss(PermissionReply(request_id=self.request.id, reply=PermissionReplyType.REJECT))
+
+    def action_allow_always(self):
+        from nanocode.agents.permission import PermissionReply, PermissionReplyType
+        self.dismiss(PermissionReply(request_id=self.request.id, reply=PermissionReplyType.ALWAYS))
+
+    def action_cancel(self):
+        from nanocode.agents.permission import PermissionReply, PermissionReplyType
+        self.dismiss(PermissionReply(request_id=self.request.id, reply=PermissionReplyType.REJECT))
 
 
 class ModelExplorerScreen(ModalScreen):
@@ -1646,9 +1666,6 @@ Footer {
         return result
 
     def _print_tool(self, tool_call: ToolCall):
-        return result
-
-    def _print_tool(self, tool_call: ToolCall):
         """Print a tool call matching opencode style."""
         icon = tool_call.icon
         title = tool_call.title
@@ -2103,6 +2120,16 @@ Footer {
 
                     def on_tool_complete(tool_name, result):
                         """Called when a tool completes."""
+                        # Handle read tool - check for locked error
+                        if tool_name == "read":
+                            if isinstance(result, dict) and not result.get("success", True):
+                                error = result.get("error", "")
+                                self._print_line(f"✗ read: {error}", Style.TEXT_DANGER)
+                            else:
+                                line_count = len(result.strip().split("\n")) if result else 0
+                                self._print_line(f"✓ read: [{line_count} lines in context]", Style.TOOL_MESSAGE)
+                            return
+
                         # Handle write tool specially - show file path and contents
                         if tool_name == "write":
                             try:

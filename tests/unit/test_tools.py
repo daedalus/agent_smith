@@ -351,11 +351,84 @@ class TestBuiltinTools:
         assert result.metadata["tokens"] >= 1
 
     @pytest.mark.asyncio
-    async def test_write_file(self, temp_dir):
-        """Test write file tool."""
+    async def test_write_file_requires_read_first(self, temp_dir):
+        """Test write tool requires read first."""
         from nanocode.tools.builtin import WriteFileTool
 
-        tool = WriteFileTool(root_dir=temp_dir)
+        unlocked = set()
+        tool = WriteFileTool(root_dir=temp_dir, file_tracker=unlocked)
+
+        result = await tool.execute(path="output.txt", content="Test content")
+
+        assert result.success is False
+        assert "not read yet" in result.error
+
+    @pytest.mark.asyncio
+    async def test_read_unlocks_file(self, temp_dir):
+        """Test read tool unlocks file for writing."""
+        from nanocode.tools.builtin import ReadFileTool
+
+        unlocked = set()
+        tool = ReadFileTool(root_dir=temp_dir, file_tracker=unlocked)
+
+        test_file = Path(temp_dir) / "input.txt"
+        test_file.write_text("original content")
+
+        result = await tool.execute(path="input.txt")
+
+        assert result.success is True
+        assert str(test_file.resolve()) in unlocked
+
+    @pytest.mark.asyncio
+    async def test_write_after_read_succeeds(self, temp_dir):
+        """Test write succeeds after read."""
+        from nanocode.tools.builtin import ReadFileTool, WriteFileTool
+
+        unlocked = set()
+        read_tool = ReadFileTool(root_dir=temp_dir, file_tracker=unlocked)
+        write_tool = WriteFileTool(root_dir=temp_dir, file_tracker=unlocked)
+
+        test_file = Path(temp_dir) / "input.txt"
+        test_file.write_text("original")
+
+        await read_tool.execute(path="input.txt")
+        result = await write_tool.execute(path="input.txt", content="modified")
+
+        assert result.success is True
+        assert test_file.read_text() == "modified"
+
+    @pytest.mark.asyncio
+    async def test_write_consumes_unlock(self, temp_dir):
+        """Test write consumes unlock requiring re-read."""
+        from nanocode.tools.builtin import ReadFileTool, WriteFileTool
+
+        unlocked = set()
+        read_tool = ReadFileTool(root_dir=temp_dir, file_tracker=unlocked)
+        write_tool = WriteFileTool(root_dir=temp_dir, file_tracker=unlocked)
+
+        test_file = Path(temp_dir) / "input.txt"
+        test_file.write_text("original")
+
+        await read_tool.execute(path="input.txt")
+        await write_tool.execute(path="input.txt", content="first write")
+
+        result = await write_tool.execute(path="input.txt", content="second write")
+
+        assert result.success is False
+        assert "not read yet" in result.error
+
+    @pytest.mark.asyncio
+    async def test_write_file(self, temp_dir):
+        """Test write file tool."""
+        from nanocode.tools.builtin import ReadFileTool, WriteFileTool
+
+        unlocked = set()
+        tool = WriteFileTool(root_dir=temp_dir, file_tracker=unlocked)
+        read_tool = ReadFileTool(root_dir=temp_dir, file_tracker=unlocked)
+
+        Path(temp_dir, "output.txt").write_text("placeholder")
+
+        await read_tool.execute(path="output.txt")
         result = await tool.execute(path="output.txt", content="Test content")
 
         assert result.success is True

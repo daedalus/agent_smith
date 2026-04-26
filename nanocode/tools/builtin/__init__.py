@@ -674,7 +674,8 @@ class ReadFileTool(Tool):
             },
         )
         self.root_dir = Path(root_dir) if root_dir else Path.cwd()
-        self.file_tracker = file_tracker
+        self._unlocked: set = file_tracker if isinstance(file_tracker, set) else set()
+        self._cache: dict = {}
 
     async def execute(
         self,
@@ -683,22 +684,27 @@ class ReadFileTool(Tool):
         offset: int = None,
         force_refresh: bool = False,
     ) -> ToolResult:
-        """Read a file."""
+        """Read a file and unlock for writing."""
         try:
+            file_path = self.root_dir / path
+            resolved = str(file_path.resolve())
+            
+            # Add to unlocked set
+            self._unlocked.add(resolved)
             file_path = self.root_dir / path
             if not file_path.exists():
                 return ToolResult(success=False, content=None, error="File not found")
 
             full_path = str(file_path.resolve())
 
-            if self.file_tracker and not force_refresh:
-                content, refreshed = self.file_tracker.get_or_read(full_path)
-                was_cached = not refreshed
+            # Try cache first
+            if full_path in self._cache and not force_refresh:
+                content = self._cache[full_path]
+                was_cached = True
             else:
                 content = file_path.read_text(errors="ignore")
                 was_cached = False
-                if self.file_tracker:
-                    self.file_tracker.set(full_path, content)
+                self._cache[full_path] = content
 
             lines = content.splitlines()
             total_lines = len(lines)
@@ -784,10 +790,10 @@ class WriteFileTool(Tool):
     def __init__(self, root_dir: str = None, file_tracker=None):
         super().__init__(
             name="write",
-            description="Write content to a file. Creates parent directories if needed.",
+            description="Write content to a file. REQUIRES read tool first (read unlocks file for writing). Creates parent directories if needed.",
         )
         self.root_dir = Path(root_dir) if root_dir else Path.cwd()
-        self.file_tracker = file_tracker
+        self._unlocked: set = file_tracker if isinstance(file_tracker, set) else set()
 
     async def execute(
         self, path: str = None, content: str = "", filePath: str = None, mode: str = "w"
@@ -796,11 +802,21 @@ class WriteFileTool(Tool):
         path = path or filePath  # Handle both 'path' and 'filePath'
         try:
             file_path = self.root_dir / path
+            resolved = str(file_path.resolve())
+
+            # Check if file was read first
+            if resolved not in self._unlocked:
+                return ToolResult(
+                    success=False,
+                    content=None,
+                    error=f"File not read yet. Use read tool first to unlock: {path}",
+                )
+
+            # Write content using atomic write
             atomic_write(file_path, content)
 
-            if self.file_tracker:
-                self.file_tracker.invalidate(str(file_path.resolve()))
-
+            # Clear unlocked after write (require re-read)
+            self._unlocked.discard(resolved)
             return ToolResult(
                 success=True,
                 content=f"Written to {file_path}",
@@ -1925,14 +1941,17 @@ def create_builtin_tools(
     from nanocode.tools.builtin.free_search import FreeExaSearchTool, OpenWebSearchTool
 
     exa_config = config.get("exa", {}) if config else {}
+    
+    # Shared unlocked files set - read tool adds, write tool checks
+    unlocked_files: set = set()
 
     tools = [
         BashTool(),
         BashSessionTool(),
         GlobTool(),
         GrepTool(),
-        ReadFileTool(file_tracker=file_tracker),
-        WriteFileTool(file_tracker=file_tracker),
+        ReadFileTool(file_tracker=unlocked_files),
+        WriteFileTool(file_tracker=unlocked_files),
         EditFileTool(),
         ListDirTool(),
         FstatTool(),
