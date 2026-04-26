@@ -644,12 +644,12 @@ class DiffTool(Tool):
 
 
 class ReadFileTool(Tool):
-    """Read file contents with auto-refresh. ALWAYS call fstat first to get file size."""
+    """Read file contents."""
 
-    def __init__(self, root_dir: str = None, file_tracker=None):
+    def __init__(self, root_dir: str = None, read_tracker=None, write_unlock_tracker=None):
         super().__init__(
             name="read",
-            description="Read file content. Supports: read(path) for full file, or read(path, offset, limit) for chunk. UNLOCKS file for writing on FIRST read only. Subsequent reads use cached content. After write, must read again.",
+            description="Read file content. ALWAYS reads fresh content. UNLOCKS file for writing on first read. After write, must READ again.",
             parameters={
                 "type": "object",
                 "properties": {
@@ -662,72 +662,53 @@ class ReadFileTool(Tool):
                         "description": "Line number to start reading from (1-indexed, optional)",
                     },
                     "limit": {
-                        "type": "integer", 
+                        "type": "integer",
                         "description": "Number of lines to read (optional)",
-                    },
-                    "force_refresh": {
-                        "type": "boolean",
-                        "description": "Bypass cache to get fresh content",
                     },
                 },
                 "required": ["path"],
             },
         )
         self.root_dir = Path(root_dir) if root_dir else Path.cwd()
-        self._unlocked: set = file_tracker if isinstance(file_tracker, set) else set()
-        self._cache: dict = {}
+        self._read_tracker: set = read_tracker if isinstance(read_tracker, set) else set()
+        self._write_unlock: set = write_unlock_tracker if isinstance(write_unlock_tracker, set) else set()
 
     async def execute(
         self,
         path: str,
         limit: int = None,
         offset: int = None,
-        force_refresh: bool = False,
     ) -> ToolResult:
-        """Read a file and unlock for writing."""
+        """Read a file. ALWAYS reads fresh content."""
         try:
             file_path = self.root_dir / path
             resolved = str(file_path.resolve())
-            
-            # Unlock on first read only
-            if resolved not in self._unlocked:
-                self._unlocked.add(resolved)
-            
-            # Check if file exists
+
+            self._read_tracker.add(resolved)
+            self._write_unlock.add(resolved)
+
             if not file_path.exists():
-                # Check if parent dir exists or can be created
                 parent_dir = file_path.parent
                 if not parent_dir.exists():
                     try:
                         parent_dir.mkdir(parents=True, exist_ok=True)
                     except Exception:
                         return ToolResult(success=False, content=None, error="Cannot create parent directory")
-                
-                # Return success for new file - unlock succeeded
+
                 return ToolResult(
                     success=True,
-                    content="",  # Empty content for new file
+                    content="",
                     metadata={
                         "path": str(file_path),
                         "lines": 0,
                         "total_lines": 0,
                         "bytes": 0,
                         "tokens_estimate": 0,
-                        "cached": False,
                         "new_file": True,
                     },
-                )
+)
 
-            full_path = str(file_path.resolve())
-
-            # Try cache first
-            if full_path in self._cache and not force_refresh:
-                content = self._cache[full_path]
-                was_cached = True
-            else:
-                content = file_path.read_text(errors="ignore")
-                was_cached = False
-                self._cache[full_path] = content
+            content = file_path.read_text(errors="ignore")
 
             lines = content.splitlines()
             total_lines = len(lines)
@@ -749,7 +730,6 @@ class ReadFileTool(Tool):
                     "total_lines": total_lines,
                     "bytes": bytes_val,
                     "tokens_estimate": tokens_est,
-                    "cached": was_cached,
                 },
             )
         except Exception as e:
@@ -810,36 +790,41 @@ class FstatTool(Tool):
 class WriteFileTool(Tool):
     """Write content to a file."""
 
-    def __init__(self, root_dir: str = None, file_tracker=None):
+    def __init__(self, root_dir: str = None, read_tracker=None, write_unlock_tracker=None):
         super().__init__(
             name="write",
-            description="Write to a file. File must have been READ first (unlocks on first read only). After write, must READ again before next write.",
+            description="Write to a file. File must have been READ first. After write, must READ again before next write.",
         )
         self.root_dir = Path(root_dir) if root_dir else Path.cwd()
-        self._unlocked: set = file_tracker if isinstance(file_tracker, set) else set()
+        self._read_tracker: set = read_tracker if isinstance(read_tracker, set) else set()
+        self._write_unlock: set = write_unlock_tracker if isinstance(write_unlock_tracker, set) else set()
 
     async def execute(
         self, path: str = None, content: str = "", filePath: str = None, mode: str = "w"
     ) -> ToolResult:
         """Write to a file atomically."""
-        path = path or filePath  # Handle both 'path' and 'filePath'
+        path = path or filePath
         try:
             file_path = self.root_dir / path
             resolved = str(file_path.resolve())
 
-            # Check if file was read first
-            if resolved not in self._unlocked:
+            if resolved not in self._read_tracker:
                 return ToolResult(
                     success=False,
                     content=None,
-                    error=f"File not read yet. Use read tool first to unlock: {path}",
+                    error=f"File not read yet. Use read tool first: {path}",
                 )
 
-            # Write content using atomic write
-            atomic_write(file_path, content)
+            if resolved not in self._write_unlock:
+                return ToolResult(
+                    success=False,
+                    content=None,
+                    error=f"File not unlocked for write. Use read tool first: {path}",
+                )
 
-            # Lock after write (require re-read to unlock again)
-            self._unlocked.discard(resolved)
+            atomic_write(file_path, content)
+            self._write_unlock.discard(resolved)
+
             return ToolResult(
                 success=True,
                 content=f"Written to {file_path}",
