@@ -108,6 +108,7 @@ class ProviderConfig:
     base_url: str
     api_key: str | None
     model: str
+    max_tokens: int | None = None
 
 
 class ProviderRouter:
@@ -202,6 +203,7 @@ class ProviderRouter:
                 base_url=model_info.api_endpoint,
                 api_key=api_key,
                 model=parsed.model,
+                max_tokens=model_info.max_output_tokens or None,
             )
 
         # Fall back to defaults
@@ -222,6 +224,7 @@ class ProviderRouter:
             base_url=base_url,
             api_key=api_key,
             model=parsed.model,
+            max_tokens=None,
         )
 
     def _get_api_key(self, provider: str) -> str | None:

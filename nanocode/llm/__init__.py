@@ -61,23 +61,27 @@ async def create_llm_from_model_id(
         llm = AnthropicLLM(
             api_key=provider_config.api_key,
             model=provider_config.model,
+            max_tokens=provider_config.max_tokens,
         )
     elif provider_config.provider == "ollama":
         llm = OllamaLLM(
             base_url=provider_config.base_url,
             model=provider_config.model,
+            max_tokens=provider_config.max_tokens,
         )
     elif provider_config.provider == "lm-studio":
         llm = OpenAILLM(
             base_url=provider_config.base_url,
             api_key=provider_config.api_key or "dummy",
             model=provider_config.model,
+            max_tokens=provider_config.max_tokens,
         )
     else:
         llm = OpenAILLM(
             base_url=provider_config.base_url,
             api_key=provider_config.api_key or "dummy",
             model=provider_config.model,
+            max_tokens=provider_config.max_tokens,
         )
 
     return llm, provider_config

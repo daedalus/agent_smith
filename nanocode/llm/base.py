@@ -141,7 +141,7 @@ class LLMBase(ABC):
         self.api_key = api_key or os.getenv("API_KEY")
         self.base_url = base_url
         self.model = model
-        self.max_tokens = None  # Will be set from config
+        self.max_tokens = kwargs.pop("max_tokens", None)
         self.extra_kwargs = kwargs
         self.retry_config = retry_config or RetryConfig.default()
         self.user_agent = user_agent or "nanocode/1.0"
