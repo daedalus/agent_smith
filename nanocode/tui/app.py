@@ -8,25 +8,9 @@ from dataclasses import dataclass
 from enum import Enum
 
 # Set up TUI logger early for debug statements
-# Default log path - same default as main.py uses
-_DEFAULT_TUI_LOG = "_log_file"
+# Use centralized logging from main.py - just get the logger
 _tui_logger = logging.getLogger("nanocode.tui")
 _tui_logger.setLevel(logging.DEBUG)
-
-# Find log file from existing handlers (set up by main.py) or use default
-_log_file = _DEFAULT_TUI_LOG
-_root_logger = logging.getLogger()
-if _root_logger.handlers:
-    for h in _root_logger.handlers:
-        if hasattr(h, 'baseFilename'):
-            _log_file = h.baseFilename
-            break
-
-if not any(hasattr(h, 'baseFilename') and h.baseFilename == _log_file for h in _tui_logger.handlers):
-    try:
-        _tui_logger.addHandler(logging.FileHandler(_log_file))
-    except Exception:
-        pass
 
 
 class RichColor(Enum):
@@ -220,9 +204,17 @@ class PermissionScreen(ModalScreen):
         super().__init__(*args, **kwargs)
         self.request = request
         self._result = None
+        self._on_dismiss_callback = None
 
     def on_mount(self):
         _tui_logger.debug(f"PermissionScreen mounted: tool={self.request.tool_name}")
+
+    def on_dismiss(self, result):
+        """Called when screen is dismissed."""
+        _tui_logger.debug(f"PermissionScreen on_dismiss: {result}")
+        if self._on_dismiss_callback:
+            self._on_dismiss_callback(result)
+            self._on_dismiss_callback = None
 
     def action_allow_once(self):
         from nanocode.agents.permission import PermissionReply, PermissionReplyType
@@ -1265,6 +1257,13 @@ Footer {
 .error {
     color: #cc241d;
 }
+#permission-dock {
+    dock: top;
+    height: auto;
+    background: #d79921;
+    color: #282828;
+    padding: 0 1;
+}
 /* Role-based colors for conversation */
 .user-message {
     color: #98971f;
@@ -1302,6 +1301,8 @@ Footer {
         Binding("ctrl+m", "message_actions", "Actions", show=True),
         Binding("f2", "model_explorer", "Models", show=True),
         Binding("f3", "agent_permissions", "Agents", show=True),
+        Binding("y", "allow_permission", "Allow", show=False),
+        Binding("n", "deny_permission", "Deny", show=False),
     ]
 
     def on_key(self, event) -> None:
@@ -1313,6 +1314,15 @@ Footer {
                 event.prevent_default()
             elif event.key == "down":
                 self._history_down()
+                event.prevent_default()
+        
+        # Handle permission responses
+        if self._pending_permissions:
+            if event.key == "y":
+                self.action_allow_permission()
+                event.prevent_default()
+            elif event.key == "n":
+                self.action_deny_permission()
                 event.prevent_default()
 
     # CLI commands list (not Textual CommandPalette)
@@ -1349,11 +1359,13 @@ Footer {
         self._history_index = -1
         self._sidebar_visible = True
         self._sidebar_content: list[str] = []
+        self._pending_permissions: list[dict] = []
         self._history_file = self._get_history_file()
         self._load_input_history()
 
     def compose(self) -> ComposeResult:
         yield Header()
+        yield Static("", id="permission-dock")
         with Horizontal(id="main-container"):
             with Vertical(id="content-area"):
                 with OutputArea(id="output-area", auto_scroll=True):
@@ -1377,10 +1389,56 @@ Footer {
 
         if self.agent:
             self._setup_permission_callback()
+            self._setup_permission_bus()
 
         self._status_timer = self.set_interval(1.0, self._update_status_bar)
         self._sidebar_timer = self.set_interval(2.0, self._update_sidebar)
         self._update_sidebar()
+
+    def _setup_permission_bus(self):
+        """Subscribe to permission bus events."""
+        try:
+            from nanocode.agents.permission_bus import (
+                PermissionEventType,
+                get_permission_bus,
+            )
+            bus = get_permission_bus()
+            
+            async def on_permission_asked(event):
+                """Handle permission.asked event from agent."""
+                self._pending_permissions.append({
+                    "tool": event.tool_name,
+                    "metadata": event.metadata,
+                    "id": event.id,
+                })
+                self._update_permission_dock()
+                # Permission bus handles response - don't print here
+                # to avoid duplication with callback
+            
+            async def on_permission_answered(event):
+                """Handle permission.answered event."""
+                self._pending_permissions = [
+                    p for p in self._pending_permissions if p.get("id") != event.id
+                ]
+                self._update_permission_dock()
+            
+            bus.subscribe(PermissionEventType.ASKED, on_permission_asked)
+            bus.subscribe(PermissionEventType.ANSWERED, on_permission_answered)
+            _tui_logger.debug("Permission bus subscribed")
+        except Exception as e:
+            _tui_logger.debug(f"Permission bus setup failed: {e}")
+    
+    def _update_permission_dock(self):
+        """Update the permission dock at the top of the screen."""
+        try:
+            dock = self.query_one("#permission-dock", Static)
+            if self._pending_permissions:
+                tools = ", ".join(p["tool"] for p in self._pending_permissions)
+                dock.update(f"⏳ Permissions pending: {tools} [y=allow n=deny]")
+            else:
+                dock.update("")
+        except Exception:
+            pass
 
     def on_unmount(self) -> None:
         """Save history before exit."""
@@ -1729,19 +1787,64 @@ Footer {
         if not self.agent or not hasattr(self.agent, 'permission_handler'):
             return
 
+        # Track pending permission screens
+        self._pending_permission_screen = None
+
         async def permission_callback(request):
-            """Show permission dialog and return user's choice."""
-            return await self._show_permission_dialog(request)
+            """Permission callback - auto-allows but shows warning."""
+            _tui_logger.debug(f"Permission callback called: tool={request.tool_name}")
+            
+            # Print permission warning to output (non-blocking)
+            self._print_line(f"⚠️ Permission: {request.tool_name}", Style.TEXT_WARNING)
+            self._print_line(f"  Tool: {request.arguments.get('tool', 'unknown')}", Style.TEXT_DIM)
+            self._print_line(f"  Note: Permissions are auto-allowed in TUI mode", Style.TEXT_DIM)
+            
+            # Refresh output to show the warning
+            try:
+                output_area = self.query_one("#output-area", RichLog)
+                output_area.refresh()
+            except Exception:
+                pass
+            
+            # Return True to allow immediately (non-blocking)
+            return True
 
         self.agent.permission_handler.set_callback(permission_callback)
+        _tui_logger.debug("Permission callback set up")
 
-    async def _show_permission_dialog(self, request) -> "PermissionReply":
-        """Show permission request dialog with y/N/a options."""
-        from nanocode.agents.permission import PermissionReply
-
-        # Push as modal - returns result when dismissed
-        result = await self.push_screen(PermissionScreen(request))
-        return result
+    def action_deny_permission(self) -> None:
+        """Deny the first pending permission."""
+        if not self._pending_permissions:
+            return
+        
+        perm = self._pending_permissions[0]
+        try:
+            from nanocode.agents.permission_bus import get_permission_bus
+            bus = get_permission_bus()
+            bus.reply_permission(perm["id"], "deny")
+            self._print_line(f"❌ Denied permission: {perm['tool']}", Style.TEXT_DANGER)
+        except Exception as e:
+            _tui_logger.error(f"Failed to deny permission: {e}")
+        
+        self._pending_permissions.pop(0)
+        self._update_permission_dock()
+    
+    def action_allow_permission(self) -> None:
+        """Allow the first pending permission."""
+        if not self._pending_permissions:
+            return
+        
+        perm = self._pending_permissions[0]
+        try:
+            from nanocode.agents.permission_bus import get_permission_bus
+            bus = get_permission_bus()
+            bus.reply_permission(perm["id"], "allow")
+            self._print_line(f"✅ Allowed permission: {perm['tool']}", Style.TEXT_SUCCESS)
+        except Exception as e:
+            _tui_logger.error(f"Failed to allow permission: {e}")
+        
+        self._pending_permissions.pop(0)
+        self._update_permission_dock()
 
     def _print_tool(self, tool_call: ToolCall):
         """Print a tool call matching opencode style."""
@@ -2166,25 +2269,8 @@ Footer {
                 # Suppress ALL logging BEFORE touching stdout/stderr
                 # This prevents any library from writing to stderr before we capture it
                 root_logger = logging.getLogger()
+                old_level = root_logger.level
                 root_logger.setLevel(logging.CRITICAL + 1)  # Above CRITICAL = no output
-
-                # Disable all handlers first (before any output)
-                for h in root_logger.handlers[:]:
-                    root_logger.removeHandler(h)
-
-                # Save original stdout/stderr
-                self._saved_stdout = sys.stdout
-                self._saved_stderr = sys.stderr
-
-                # Create capture buffers
-                stdout_capture = io.StringIO()
-                stderr_capture = io.StringIO()
-                sys.stdout = stdout_capture
-                sys.stderr = stderr_capture
-
-                # Restore root logger to DEBUG but with all output going to file only
-                root_logger.setLevel(logging.DEBUG)
-                root_logger.addHandler(logging.FileHandler(_log_file))
 
                 try:
                     # Streaming buffer for real-time display
@@ -2288,12 +2374,8 @@ Footer {
                     sys.stdout = self._saved_stdout
                     sys.stderr = self._saved_stderr
 
-                    # Restore root logger level
-                    root_logger.setLevel(logging.WARNING)  # Default level
-
-                    # Remove file handler
-                    for h in root_logger.handlers[:]:
-                        root_logger.removeHandler(h)
+                    # Restore root logger level - handlers stay intact
+                    root_logger.setLevel(old_level)
 
                 # Restore stdout/stderr (but don't restore - keep them captured!)
                 # Actually, keep them captured permanently to prevent any print from showing
@@ -2369,6 +2451,8 @@ Footer {
                         _tui_logger.debug(f"Output area found, adding line...")
                         output_area.add_line(result, "assistant")
                         _tui_logger.debug(f"Output line added successfully")
+                        # Refresh output area immediately to ensure display
+                        output_area.refresh()
                     except Exception as e:
                         _tui_logger.debug(f"Output area error: {e}")
                         self._print_line(result, Style.ASSISTANT_MESSAGE)
@@ -2405,6 +2489,18 @@ Footer {
                         self._print_line(f"│ {summary_str}", Style.TEXT_DIM)
             else:
                 self._print_error("No agent configured")
+            
+            # Refresh output area after all output is done
+            try:
+                output_area = self.query_one("#output-area", RichLog)
+                _tui_logger.debug("Post-output refresh: refreshing output_area")
+                output_area.refresh()
+                _tui_logger.debug("Post-output refresh: refreshing self")
+                self.refresh()
+                # Scroll to bottom to ensure all content is visible
+                output_area.scroll_end(animate=False)
+            except Exception as e:
+                _tui_logger.debug(f"Post-output refresh error: {e}")
         except asyncio.CancelledError as e:
             import traceback
             _tui_logger.error(f"OUTER_CANCELLED_ERROR: {e}")
@@ -2459,7 +2555,7 @@ Footer {
 
             # Force screen refresh using call_later to ensure it happens after render cycle
             has_app = hasattr(self, 'app') and self.app
-            _tui_logger.debug(f"Pre-refresh: has_app={has_app}, screen={type(self.screen).name if hasattr(self, 'screen') and self.screen else 'None'}, output_rows={getattr(self.query_one('#output-area', RichLog), 'rows', 'N/A')}")
+            _tui_logger.debug(f"Pre-refresh: has_app={has_app}")
 
             def do_refresh():
                 _tui_logger.debug("do_refresh: starting")
@@ -2488,7 +2584,6 @@ Footer {
                     _tui_logger.debug("SYNC refresh attempt")
                     # Verify output_area exists first
                     output_area = self.query_one("#output-area", RichLog)
-                    _tui_logger.debug(f"OutputArea: visible={output_area.display}, rows={output_area.rows}, height={output_area.size}")
                     output_area.refresh()
                     self.refresh()
                     self.screen.refresh()
@@ -2510,8 +2605,28 @@ Footer {
                 except Exception as e:
                     _tui_logger.debug(f"Screen refresh failed: {e}")
 
-            input_widget.disabled = False
             input_widget.focus()
+            _tui_logger.debug(f"Post-focus: focused={self.focused}, screen_visible={self.screen.visible}")
+            input_widget.disabled = False
+            
+            # Refresh AFTER enabling input
+            try:
+                self.refresh()
+                self.screen.refresh()
+                if hasattr(self, 'layout') and self.layout:
+                    self.layout.refresh()
+            except Exception as e:
+                _tui_logger.debug(f"Post-focus refresh error: {e}")
+            
+            # Force an additional refresh using call_later if app is available
+            def force_repaint():
+                try:
+                    self.refresh(repaint_children=True)
+                except Exception:
+                    pass
+            if hasattr(self, 'app') and self.app:
+                self.app.call_later(force_repaint)
+            
             _tui_logger.debug("Input re-enabled after refresh")
             _tui_logger.debug("Finally block part 2 complete - all cleanup done")
 

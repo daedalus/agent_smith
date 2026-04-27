@@ -148,6 +148,31 @@ class PermissionHandler:
                 f"Permission denied for tool '{tool_name}'", agent.permission
             )
 
+        # Try to use permission bus (event-driven approach like OpenCode)
+        try:
+            from nanocode.agents.permission_bus import get_permission_bus
+            bus = get_permission_bus()
+            session_id = getattr(agent, "session_id", "default")
+            
+            logger.info(f"[{agent.name}] Using permission bus for '{tool_name}'")
+            reply = await bus.request_permission(
+                session_id=session_id,
+                tool_name=tool_name,
+                permission=tool_name,
+                metadata=arguments,
+            )
+            
+            if reply in ("allow", "always"):
+                logger.debug(f"[{agent.name}] Permission ALLOWED via bus for '{tool_name}'")
+                return True
+            else:
+                logger.warning(f"[{agent.name}] Permission DENIED via bus for '{tool_name}'")
+                raise PermissionDeniedError(
+                    f"Permission denied for tool '{tool_name}'", agent.permission
+                )
+        except ImportError:
+            pass  # Fall back to callback approach
+
         if self._callback is None:
             # In TUI mode with no callback, auto-allow (permissions handled via UI)
             logger.debug(
@@ -178,6 +203,19 @@ class PermissionHandler:
 
         try:
             reply = await self._callback(request)
+
+            if reply is None or reply is False:
+                logger.warning(
+                    f"[{agent.name}] Permission callback returned {reply} for '{tool_name}'"
+                )
+                return False
+
+            # Handle boolean return (True = allow once)
+            if isinstance(reply, bool):
+                logger.debug(
+                    f"[{agent.name}] Permission callback returned bool={reply} for '{tool_name}'"
+                )
+                return reply
 
             if reply.reply == PermissionReplyType.REJECT:
                 logger.warning(

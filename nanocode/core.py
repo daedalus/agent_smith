@@ -17,6 +17,11 @@ from nanocode.agents import AgentInfo, PermissionAction, get_agent_registry
 from nanocode.agents.permission import (
     PermissionHandler,
 )
+from nanocode.agents.permission_bus import (
+    PermissionBus,
+    PermissionEventType,
+    get_permission_bus,
+)
 
 
 class RichColor(Enum):
@@ -1063,6 +1068,8 @@ Conversation:
                         logger.info(
                             f"[{agent_name}] Requesting permission to break doom loop for '{tool_name}'"
                         )
+                        # In TUI mode, doom_loop permission is handled by callback
+                        # If callback exists, it will show dialog and return response
                         try:
                             await self.permission_handler.request_permission(
                                 self.current_agent,
