@@ -647,6 +647,79 @@ class AgentPermissionsScreen(ModalScreen):
             self._update_list()
 
 
+class DoomPermissionsScreen(ModalScreen):
+    """Screen for viewing doom loop approved permissions."""
+    from nanocode.agents import PermissionAction
+    
+    CSS = """
+    DoomPermissionsScreen {
+        align: center middle;
+    }
+    
+    DoomPermissionsScreen > #doom-dialog {
+        width: 50;
+        height: auto;
+        max-height: 60%;
+        border: solid #d79921;
+        background: #282828;
+        padding: 1 2;
+    }
+    
+    #doom-title {
+        text-align: center;
+        text-style: bold;
+        color: #d79921;
+    }
+    
+    #doom-list {
+        height: auto;
+    }
+    
+    Static {
+        color: #ebdbb2;
+    }
+    
+    #empty-message {
+        color: #928374;
+        text-align: center;
+    }
+    """
+
+    BINDINGS = [
+        Binding("escape", "cancel", "Cancel"),
+        Binding("delete", "clear_all", "Clear All"),
+    ]
+
+    def __init__(self, permission_handler=None, **kwargs):
+        super().__init__(**kwargs)
+        self.permission_handler = permission_handler
+
+    def compose(self):
+        handler = self.permission_handler
+        approved = handler._approved if handler else []
+        
+        # Filter for tools that matter for doom_loop
+        tools = [r.permission for r in approved if r.action == PermissionAction.ALLOW]
+        
+        yield Container(
+            Static("⟳ Doom Loop Permissions", id="doom-title"),
+            id="doom-dialog",
+        )
+        
+        if tools:
+            for tool in tools:
+                yield Static(f"✓ {tool} - Always allowed", id="doom-list")
+        else:
+            yield Static("No permissions granted yet.\n\nWhen doom_loop triggers, select 'Always' to auto-approve.", id="empty-message", justify="center")
+
+    def action_clear_all(self):
+        """Clear all doom loop permissions."""
+        if self.permission_handler:
+            self.permission_handler._approved.clear()
+            self.notify("Doom permissions cleared", severity="info")
+        self.dismiss(True)
+
+
 class AgentRulesScreen(ModalScreen):
     """Screen for managing individual permission rules of an agent."""
 
@@ -1337,6 +1410,7 @@ Footer {
         Binding("ctrl+m", "message_actions", "Actions", show=True),
         Binding("f2", "model_explorer", "Models", show=True),
         Binding("f3", "agent_permissions", "Agents", show=True),
+        Binding("f4", "doom_permissions", "Doom Perms", show=True),
         Binding("y", "allow_permission", "Allow", show=False),
         Binding("n", "deny_permission", "Deny", show=False),
     ]
@@ -2126,6 +2200,15 @@ Footer {
         result = await self.push_screen_wait(screen)
         if result:
             self.notify("Agent permissions updated", severity="success")
+
+    @work()
+    async def action_doom_permissions(self):
+        """Show doom loop permissions (Always granted tools)."""
+        if self.agent and hasattr(self.agent, 'permission_handler'):
+            screen = DoomPermissionsScreen(self.agent.permission_handler)
+            result = await self.push_screen_wait(screen)
+        else:
+            self.notify("No agent connected", severity="warning")
 
     @work()
     async def action_message_actions(self):
