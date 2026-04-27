@@ -710,7 +710,7 @@ class DoomPermissionsScreen(ModalScreen):
             for tool in tools:
                 yield Static(f"✓ {tool} - Always allowed", id="doom-list")
         else:
-            yield Static("No permissions granted yet.\n\nWhen doom_loop triggers, select 'Always' to auto-approve.", id="empty-message", justify="center")
+            yield Static("No permissions granted yet.\n\nWhen doom_loop triggers, select 'Always' to auto-approve.", id="empty-message")
 
     def action_clear_all(self):
         """Clear all doom loop permissions."""
