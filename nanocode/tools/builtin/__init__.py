@@ -863,7 +863,21 @@ class WriteFileTool(Tool):
     def __init__(self, root_dir: str = None, read_tracker=None, write_unlock_tracker=None):
         super().__init__(
             name="write",
-            description="Write to a file. File must have been READ first. After write, must READ again before next write.",
+            description="Write content to a file. REQUIRED parameters: path (file name), content (what to write). For new files: just use write with path and content. For existing files: must read first.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File path to write to (REQUIRED)",
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "Content to write to file (REQUIRED)",
+                    },
+                },
+                "required": ["path", "content"],
+            },
         )
         self.root_dir = Path(root_dir) if root_dir else Path.cwd()
         self._read_tracker: set = read_tracker if isinstance(read_tracker, set) else set()
@@ -878,22 +892,29 @@ class WriteFileTool(Tool):
             file_path = self.root_dir / path
             resolved = str(file_path.resolve())
 
-            if resolved not in self._read_tracker:
-                return ToolResult(
-                    success=False,
-                    content=None,
-                    error=f"File not read yet. Use read tool first: {path}",
-                )
+            # For new files (doesn't exist yet), allow write without read
+            # For existing files, require read first
+            if file_path.exists():
+                if resolved not in self._read_tracker:
+                    return ToolResult(
+                        success=False,
+                        content=None,
+                        error=f"File not read yet. Use read tool first: {path}",
+                    )
 
-            if resolved not in self._write_unlock:
-                return ToolResult(
-                    success=False,
-                    content=None,
-                    error=f"File not unlocked for write. Use read tool first: {path}",
-                )
+                if resolved not in self._write_unlock:
+                    return ToolResult(
+                        success=False,
+                        content=None,
+                        error=f"File not unlocked for write. Use read tool first: {path}",
+                    )
 
+            # Write the file
             atomic_write(file_path, content)
-            self._write_unlock.discard(resolved)
+            
+            # Update trackers - file is now "read" and "unlocked" for next write
+            self._read_tracker.add(resolved)
+            self._write_unlock.add(resolved)
 
             lines = content.split("\n")
             preview = "\n".join(lines[:20])
@@ -1145,7 +1166,7 @@ class TodoTool(Tool):
             stats = self.todo_service.get_stats(session_id)
             return ToolResult(
                 success=True,
-                content=f"{stats['pending']} pending, {stats['in_progress']} in progress, {stats['completed']} done",
+                content=f"ok, {stats['pending']} pending, {stats['in_progress']} in progress, {stats['completed']} done",
                 metadata={"todos": todos_list, "stats": stats},
             )
         elif action == "write" and todos is not None:
@@ -1157,7 +1178,7 @@ class TodoTool(Tool):
             completed = sum(1 for t in todos if t.get("status") == "completed")
             return ToolResult(
                 success=True,
-                content=f"Updated todo list: {pending} pending, {completed} done",
+                content=f"ok, updated: {pending} pending, {completed} done",
                 metadata={"todos": todos},
             )
         else:

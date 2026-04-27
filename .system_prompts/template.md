@@ -64,6 +64,7 @@ If user says "read AND X", "fetch AND Y", or "do A then B":
 - After glob finds files → read them, don't call glob again
 - ALWAYS write complete content to files - NEVER create empty files
 - Use write tool for all file creation, not bash touch/mkdir commands
+- When using write tool, you MUST include the 'content' parameter with the file contents
 
 # Skills
 Skills provide specialized capabilities. When a skill is relevant to the user's request:
