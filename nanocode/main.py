@@ -688,6 +688,7 @@ async def main():
                 result = await agent.process_input(
                     prompt, show_thinking=show_thinking, show_messages=show_messages
                 )
+                print(f"[MAIN] process_input returned: {type(result)}, len={len(result) if result else 0}")
                 if result:
                     results.append(result)
                     print(f"Response: {result[:200]}{'...' if len(result) > 200 else ''}")

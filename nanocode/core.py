@@ -1769,23 +1769,17 @@ Conversation:
             # Build augmented content with thinking and tool use info
             augmented = content
 
-            # Always include thinking if available
-            if (
-                show_thinking
-                and hasattr(self, "_last_thinking")
-                and self._last_thinking
-            ):
+            # Always include thinking if available (ignore show_thinking flag)
+            if hasattr(self, "_last_thinking") and self._last_thinking:
                 augmented += f"\n\n[thought]| Thinking:[/thought] {self._last_thinking}"
 
-            # Include tool use info (full output, not truncated)
+            # Include tool use info (always show)
             if tool_results_history:
-                if show_thinking:
-                    tool_info = "\n\n[thought]| Tool Use:[/thought]"
-                    for tr in tool_results_history:
-                        result_str = str(tr["result"])
-                        # Include full result for display
-                        tool_info += f"\n- {tr['tool_name']}:\n{result_str}"
-                    augmented += tool_info
+                tool_info = "\n\n[thought]| Tool Use:[/thought]"
+                for tr in tool_results_history:
+                    result_str = str(tr["result"])
+                    tool_info += f"\n- {tr['tool_name']}:\n{result_str}"
+                augmented += tool_info
 
                 if show_messages:
                     tool_summary = "\n\n[Tool Summary]"
