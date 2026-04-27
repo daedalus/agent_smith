@@ -2578,22 +2578,21 @@ Footer {
                         )
 
                 # Display thinking (with left border styling like opencode)
-                # Only show if not already in the result to avoid duplication
-                if self.show_thinking and hasattr(self.agent, "_last_thinking"):
-                    thinking = getattr(self.agent, "_last_thinking", None)
-                    if thinking and thinking not in (result or ""):
-                        self._print_line(f"| Thinking: {thinking}", Style.THINKING)
-                        self._print_empty()
+                # Show all thinking parts like opencode's reasoning parts
+                if self.show_thinking and hasattr(self.agent, "_all_thinking"):
+                    all_thinking = getattr(self.agent, "_all_thinking", [])
+                    for thinking in all_thinking:
+                        if thinking and thinking not in (result or ""):
+                            self._print_line(f"| Thinking: {thinking}", Style.THINKING)
+                            self._print_empty()
 
                 # Display final response with role coloring and syntax highlighting
                 _tui_logger.debug(f"Result check: result={result is not None}, len={len(result) if result else 0}")
                 print(f"[TUI DEBUG] result={result is not None}, len={len(result) if result else 0}", file=sys.stderr)
 
-                # Show thinking first
-                thinking = getattr(self.agent, "_last_thinking", None)
-                print(f"[TUI DEBUG] thinking={thinking is not None}, len={len(thinking) if thinking else 0}", file=sys.stderr)
-                if thinking:
-                    print(f"[TUI DEBUG] Thinking: {thinking[:200]}...", file=sys.stderr)
+                # Show thinking first (all parts like opencode)
+                all_thinking = getattr(self.agent, "_all_thinking", [])
+                for thinking in all_thinking:
                     self._print_line(f"| Thinking: {thinking}", Style.THINKING)
                     self._print_empty()
 

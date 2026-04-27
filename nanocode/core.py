@@ -48,7 +48,7 @@ custom_theme = Theme(
     }
 )
 
-console = Console(theme=custom_theme)
+console = Console(theme=custom_theme, _environ=dict(os.environ), force_terminal=True)
 from nanocode.config import get_config
 from nanocode.context import ContextManager, ContextStrategy, MessagePartType
 from nanocode.hooks import HookManager
@@ -1296,7 +1296,7 @@ Conversation:
         self,
         user_input: str,
         show_thinking: bool = True,
-        show_messages: bool = False,
+        show_messages: bool = True,
         on_token: callable = None,
         on_tool_start: callable = None,
         on_tool_complete: callable = None,
@@ -1327,7 +1327,7 @@ Conversation:
         self,
         user_input: str,
         show_thinking: bool = True,
-        show_messages: bool = False,
+        show_messages: bool = True,
         on_token: callable = None,
         on_tool_start: callable = None,
         on_tool_complete: callable = None,
@@ -1401,7 +1401,7 @@ Conversation:
 
             # Track for show_thinking/show_messages output
             self._last_tool_results = []
-            self._last_thinking = None
+            self._all_thinking = []  # Accumulate all thinking like opencode's reasoning parts
 
             logger.debug(f"[{agent_name}] Sending request to LLM...")
 
@@ -1428,9 +1428,9 @@ Conversation:
                 logger.info(f"[{agent_name}] LLM response received")
                 logger.info(f"[{agent_name}] Thinking: {response.thinking[:100] if response.thinking else 'None'}...")
 
-            # Track thinking for output (always store)
+            # Track thinking (like opencode's reasoning parts)
             if response.thinking:
-                self._last_thinking = response.thinking
+                self._all_thinking.append(response.thinking)
 
             if self.debug:
                 console.print("\n[debug][DEBUG] LLM Response:[/debug]")
@@ -1558,9 +1558,10 @@ Conversation:
                 final_response = await self._chat_with_retry(messages, tools)
 
                 # Track thinking from second response
-                if final_response.thinking and show_thinking and self.debug:
-                    self._last_thinking = final_response.thinking
-                    console.print(self._format_thinking(final_response.thinking))
+                if final_response.thinking:
+                    self._all_thinking.append(final_response.thinking)
+                    if show_thinking and self.debug:
+                        console.print(self._format_thinking(final_response.thinking))
 
                 # Continue handling tool calls in a loop until no more are requested
                 max_agent_steps = (
@@ -1621,7 +1622,7 @@ Conversation:
 
                     # Track thinking from each iteration
                     if final_response.thinking:
-                        self._last_thinking = final_response.thinking
+                        self._all_thinking.append(final_response.thinking)
                         if show_thinking and self.debug:
                             console.print(
                                 self._format_thinking(final_response.thinking)
@@ -1725,6 +1726,9 @@ Conversation:
                 else:
                     content = final_response.content
             else:
+                # No tool calls - store thinking
+                if response.thinking:
+                    self._all_thinking.append(response.thinking)
                 content = response.content
 
             # Text-to-Tool Detection: Handle model outputs text that looks like commands
@@ -1769,9 +1773,10 @@ Conversation:
             # Build augmented content with thinking and tool use info
             augmented = content
 
-            # Always include thinking if available (ignore show_thinking flag)
-            if hasattr(self, "_last_thinking") and self._last_thinking:
-                augmented += f"\n\n[thought]| Thinking:[/thought] {self._last_thinking}"
+            # Always include all thinking if available (like opencode's reasoning parts)
+            if hasattr(self, "_all_thinking") and self._all_thinking:
+                for thinking in self._all_thinking:
+                    augmented += f"\n\n[thought]| Thinking:[/thought] {thinking}"
 
             # Include tool use info (always show)
             if tool_results_history:
@@ -1814,8 +1819,9 @@ Conversation:
             self.state.state = AgentState.ERROR
             # If we have tool results but got cancelled, return them as partial output
             partial = ""
-            if hasattr(self, "_last_thinking") and self._last_thinking:
-                partial += f"[thought]| Thinking:[/thought] {self._last_thinking}\n\n"
+            if hasattr(self, "_all_thinking") and self._all_thinking:
+                for thinking in self._all_thinking:
+                    partial += f"[thought]| Thinking:[/thought] {thinking}\n\n"
             if tool_results_history:
                 partial += "Tool results (partial - request cancelled):\n"
                 for tr in tool_results_history:
@@ -1913,7 +1919,7 @@ Conversation:
         self,
         max_retries: int = 2,
         show_thinking: bool = True,
-        show_messages: bool = False,
+        show_messages: bool = True,
     ) -> str:
         """Re-prompt the model to use tools when it didn't.
 
