@@ -273,7 +273,7 @@ def parse_args():
 
 async def run_cli(
     agent,
-    show_thinking: bool = False,
+    show_thinking: bool = True,
     show_messages: bool = False,
     enable_spinner: bool = True,
 ):
