@@ -95,7 +95,7 @@ class TestPermissionHandler:
     @pytest.mark.asyncio
     async def test_request_permission_ask_no_callback(self, plan_agent):
         """Test asking permission with no callback allows by default (TUI mode)."""
-        handler = PermissionHandler()
+        handler = PermissionHandler(use_bus=False)
 
         result = await handler.request_permission(plan_agent, "bash", {})
 
@@ -111,7 +111,7 @@ class TestPermissionHandler:
                 reply=PermissionReplyType.ONCE,
             )
 
-        handler = PermissionHandler(callback)
+        handler = PermissionHandler(callback, use_bus=False)
 
         result = await handler.request_permission(plan_agent, "bash", {})
 
@@ -128,7 +128,7 @@ class TestPermissionHandler:
                 message="Not allowed",
             )
 
-        handler = PermissionHandler(callback)
+        handler = PermissionHandler(callback, use_bus=False)
 
         with pytest.raises(PermissionRejectedError) as exc:
             await handler.request_permission(plan_agent, "bash", {})
@@ -145,7 +145,7 @@ class TestPermissionHandler:
                 reply=PermissionReplyType.ALWAYS,
             )
 
-        handler = PermissionHandler(callback)
+        handler = PermissionHandler(callback, use_bus=False)
 
         result = await handler.request_permission(plan_agent, "bash", {})
 

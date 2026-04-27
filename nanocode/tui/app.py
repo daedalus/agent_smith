@@ -2309,27 +2309,29 @@ Footer {
                         # Handle write tool specially - show file path and contents
                         if tool_name == "write":
                             try:
-                                # Get path and content from result
-                                if isinstance(result, dict):
-                                    metadata = result.get("metadata", {})
-                                    path = metadata.get("path", "unknown")
-                                    content = metadata.get("content", "")
+                                result_str = str(result)
+                                if result_str.startswith("Written to "):
+                                    path_part = result_str.split("\n")[0].replace("Written to ", "").rstrip(":")
+                                    self._print_line(f"✓ write: {path_part}", Style.TOOL_MESSAGE)
+                                    lines = result_str.split("\n")[1:]
+                                    for line in lines:
+                                        if line.strip():
+                                            self._print_line(f"  {line}", Style.TOOL_MESSAGE)
+                                    return
+                                self._print_line(f"✓ write: (completed)", Style.TOOL_MESSAGE)
+                                return
+                            except Exception:
+                                pass
+
+                        # Handle todowrite tool
+                        if tool_name == "todowrite":
+                            try:
+                                result_str = str(result)
+                                # Count tasks added/updated
+                                if "added" in result_str.lower() or "updated" in result_str.lower():
+                                    self._print_line(f"✓ todos: {result_str[:100]}", Style.TOOL_MESSAGE)
                                 else:
-                                    content = str(result)
-                                    path = "unknown"
-                                    metadata = {}
-                                
-                                # Show file path with ✓
-                                self._print_line(
-                                    f"✓ write: {path}", Style.TOOL_MESSAGE
-                                )
-                                # Show first 50 lines of content
-                                lines = content.split('\n')[:50]
-                                for line in lines:
-                                    if line.strip():
-                                        self._print_line(f"  {line}", Style.TOOL_MESSAGE)
-                                if len(lines) >= 50:
-                                    self._print_line("  ...", Style.TOOL_MESSAGE)
+                                    self._print_line(f"✓ todos updated", Style.TOOL_MESSAGE)
                                 return
                             except Exception:
                                 pass

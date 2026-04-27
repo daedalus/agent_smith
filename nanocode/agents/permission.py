@@ -76,11 +76,12 @@ PermissionCallback = Callable[[PermissionRequest], Awaitable[PermissionReply]]
 class PermissionHandler:
     """Handles permission evaluation and user prompts."""
 
-    def __init__(self, callback: PermissionCallback | None = None):
+    def __init__(self, callback: PermissionCallback | None = None, use_bus: bool = True):
         self._pending: dict[str, PermissionRequest] = {}
         self._approved: list[PermissionRule] = []
         self._callback = callback
         self._default_deny = False
+        self._use_bus = use_bus
         logger.debug("PermissionHandler initialized")
 
     def set_callback(self, callback: PermissionCallback):
@@ -149,29 +150,30 @@ class PermissionHandler:
             )
 
         # Try to use permission bus (event-driven approach like OpenCode)
-        try:
-            from nanocode.agents.permission_bus import get_permission_bus
-            bus = get_permission_bus()
-            session_id = getattr(agent, "session_id", "default")
-            
-            logger.info(f"[{agent.name}] Using permission bus for '{tool_name}'")
-            reply = await bus.request_permission(
-                session_id=session_id,
-                tool_name=tool_name,
-                permission=tool_name,
-                metadata=arguments,
-            )
-            
-            if reply in ("allow", "always"):
-                logger.debug(f"[{agent.name}] Permission ALLOWED via bus for '{tool_name}'")
-                return True
-            else:
-                logger.warning(f"[{agent.name}] Permission DENIED via bus for '{tool_name}'")
-                raise PermissionDeniedError(
-                    f"Permission denied for tool '{tool_name}'", agent.permission
+        if self._use_bus:
+            try:
+                from nanocode.agents.permission_bus import get_permission_bus
+                bus = get_permission_bus()
+                session_id = getattr(agent, "session_id", "default")
+                
+                logger.info(f"[{agent.name}] Using permission bus for '{tool_name}'")
+                reply = await bus.request_permission(
+                    session_id=session_id,
+                    tool_name=tool_name,
+                    permission=tool_name,
+                    metadata=arguments,
                 )
-        except ImportError:
-            pass  # Fall back to callback approach
+                
+                if reply in ("allow", "always"):
+                    logger.debug(f"[{agent.name}] Permission ALLOWED via bus for '{tool_name}'")
+                    return True
+                else:
+                    logger.warning(f"[{agent.name}] Permission DENIED via bus for '{tool_name}'")
+                    raise PermissionDeniedError(
+                        f"Permission denied for tool '{tool_name}'", agent.permission
+                    )
+            except ImportError:
+                pass  # Fall back to callback approach
 
         if self._callback is None:
             # In TUI mode with no callback, auto-allow (permissions handled via UI)

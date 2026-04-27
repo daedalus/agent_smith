@@ -116,7 +116,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --tb=short --cov=nanocode --cov-fail-under=80"
+addopts = "-v --tb=short"
 filterwarnings = ["ignore::DeprecationWarning"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"

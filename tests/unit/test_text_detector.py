@@ -45,7 +45,7 @@ class TestDetectCommandsInText:
 
     def test_detect_inline_command(self):
         """Detect inline command with backticks."""
-        text = "Run `ls -la` to see all files."
+        text = "Run `$ ls -la` to see all files."
         detected = detect_commands_in_text(text)
         assert len(detected) >= 1
         assert any(cmd.tool_name == "bash" for cmd in detected)

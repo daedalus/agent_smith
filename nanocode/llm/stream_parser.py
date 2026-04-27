@@ -106,7 +106,7 @@ async def parse_sse_stream(
                 tc_name = tc_delta.get("function", {}).get("name", "")
 
                 if tc_id and tc_name:
-                    tool_calls[index] = ToolCall(id=tc_id, name=tc_name)
+                    tool_calls[index] = ToolCall(id=tc_id, name=tc_name, arguments={})
                     yield StreamChunk(tool_call_start=(tc_id, tc_name))
 
                     # Check if arguments already started (complete in one chunk)

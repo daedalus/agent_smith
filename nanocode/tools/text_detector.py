@@ -52,9 +52,11 @@ COMMAND_PATTERNS = {
 
 # Common shell commands that should be detected
 SHELL_COMMANDS = {
+    "$",  # Shell prompt prefix
     "find",
     "grep",
     "cd",
+    "ls",
     "python",
     "npm",
     "git",
@@ -71,6 +73,8 @@ SHELL_COMMANDS = {
     "tail",
     "chmod",
     "chown",
+    "echo",
+    "pwd",
 }
 
 
