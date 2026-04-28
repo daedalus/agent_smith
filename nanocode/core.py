@@ -29,6 +29,7 @@ from nanocode.agents.permission_bus import (
 from nanocode.session.message import Message, PartType, ReasoningPart, TextPart
 from nanocode.session.processor import SessionProcessor, ProcessorHandle
 from nanocode.llm.events import StreamEvent, EventType
+from nanocode.agent_pipeline import AgentPipeline
 
 
 class RichColor(Enum):
@@ -280,6 +281,7 @@ class AutonomousAgent:
         self._init_mcp()
         self._init_modified_files()
         self._init_context()
+        self._init_pipeline()  # After context_manager is initialized
         self._init_planning()
         self._init_multimodal()
         self._init_snapshot()
@@ -556,6 +558,19 @@ class AutonomousAgent:
                     proxy=proxy,
                     debug=self.debug,
                 )
+
+    def _init_pipeline(self):
+        """Initialize the event-based agent pipeline (matching opencode).
+        
+        Must be called after _init_tools (for tool_registry) and _init_context (for context_manager).
+        """
+        self.pipeline = AgentPipeline(
+            llm=self.llm,
+            processor=SessionProcessor(headless=True),
+            context_manager=self.context_manager,
+            tool_registry=self.tool_registry,
+        )
+        logger.debug("Agent pipeline initialized (headless mode)")
 
     def _init_hooks(self):
         """Initialize hook system."""

@@ -11,7 +11,7 @@ This replaces the old: LLM.chat() → LLMResponse approach.
 import asyncio
 import logging
 import time
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, AsyncGenerator
 
 from nanocode.llm.base import LLMBase
 from nanocode.llm.events import (
@@ -24,6 +24,7 @@ from nanocode.session.message import (
     TextPart, ReasoningPart, ToolPart,
 )
 from nanocode.session.processor import SessionProcessor, ProcessorContext
+from nanocode.tools import ToolCall
 
 logger = logging.getLogger("nanocode.agent_pipeline")
 
@@ -32,29 +33,41 @@ class AgentPipeline:
     """Opencode-matching LLM → Agent pipeline.
 
     Flow: user_input → LLM stream → Processor → Message with Parts
+    
+    Supports two modes:
+    1. Full pipeline: Process everything including tool calls
+    2. Stream only: Just process LLM stream into Message parts (for hybrid approach)
     """
 
     def __init__(
         self,
         llm: LLMBase,
-        processor: SessionProcessor,
+        processor: SessionProcessor = None,
         context_manager=None,
         tool_registry=None,
     ):
         self.llm = llm
-        self.processor = processor
+        # Create headless processor if not provided
+        self.processor = processor or SessionProcessor(headless=True)
         self.context_manager = context_manager
         self.tool_registry = tool_registry
 
-    async def process(
+    async def process_stream(
         self,
         session_id: str,
-        user_input: str,
+        messages: List,
         tools: List[dict] = None,
-        show_thinking: bool = True,
     ) -> Message:
-        """Process user input through the pipeline (matches opencode's flow).
-
+        """Process LLM stream into Message with Parts (matches opencode).
+        
+        This is the core streaming function - takes messages and tools,
+        streams from LLM, and builds a Message with all parts.
+        
+        Args:
+            session_id: The session ID
+            messages: Prepared messages to send to LLM
+            tools: Tool schemas
+            
         Returns:
             Message with parts (text, reasoning, tool calls)
         """
@@ -67,28 +80,16 @@ class AgentPipeline:
             time_created=time.time(),
         )
 
-        # Create processor context (matches opencode's ctx)
+        # Create processor context
         ctx = ProcessorContext(
             assistant_message=assistant_msg,
             session_id=session_id,
-            model=None,  # TODO: get from LLM
+            model=None,
         )
-
-        # Prepare messages for LLM
-        messages = []
-        if self.context_manager:
-            messages = self.context_manager.prepare_messages()
-
-        # Get stream from LLM
-        stream_input = {
-            "messages": messages,
-            "tools": tools or [],
-            "model": None,
-        }
 
         logger.info(f"Starting LLM stream for session {session_id}")
 
-        # Process stream events (matches opencode's process())
+        # Process stream events using the processor's event handler
         final_result = "continue"
         try:
             async for event in self.llm.chat_stream(messages, tools):
@@ -114,9 +115,34 @@ class AgentPipeline:
         ]
 
         assistant_msg.time_completed = time.time()
-        logger.info(f"Pipeline complete: {final_result}")
+        logger.info(f"Pipeline stream complete: {final_result}")
 
         return assistant_msg
+
+    async def process(
+        self,
+        session_id: str,
+        user_input: str,
+        tools: List[dict] = None,
+        show_thinking: bool = True,
+    ) -> Message:
+        """Process user input through the full pipeline.
+        
+        Note: For full tool execution support, use process_stream() separately
+        and handle tool execution in the caller. This method just handles
+        the LLM streaming part.
+        
+        Returns:
+            Message with parts (text, reasoning, tool calls)
+        """
+        # Prepare messages for LLM
+        messages = []
+        if self.context_manager:
+            # Add user input to context first
+            self.context_manager.add_message("user", user_input)
+            messages = self.context_manager.prepare_messages()
+
+        return await self.process_stream(session_id, messages, tools)
 
     def get_all_thinking(self, message: Message) -> List[str]:
         """Extract all thinking from message parts."""
@@ -131,3 +157,17 @@ class AgentPipeline:
             part.text for part in message.parts
             if isinstance(part, TextPart)
         )
+
+    def get_tool_calls(self, message: Message) -> List[ToolCall]:
+        """Extract tool calls from message parts."""
+        tool_calls = []
+        for part in message.parts:
+            if isinstance(part, ToolPart):
+                state = part.state or {}
+                if state.get("status") == "running" or state.get("status") == "pending":
+                    tool_calls.append(ToolCall(
+                        name=part.tool,
+                        arguments=state.get("input", {}),
+                        id=part.call_id,
+                    ))
+        return tool_calls
