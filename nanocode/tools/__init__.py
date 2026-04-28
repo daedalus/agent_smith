@@ -388,6 +388,25 @@ class ToolExecutor:
             logger.debug(f"Executing tool '{tool_name}'")
             import time
             start = time.monotonic()
+            # Validate arguments before executing
+            if isinstance(arguments, str):
+                try:
+                    import json
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Tool '{tool_name}' has invalid JSON arguments: {arguments}")
+                    result_obj = ToolResult(
+                        success=False,
+                        error=f"Invalid JSON arguments for tool '{tool_name}': {e}",
+                    )
+                    return result_obj
+            # Check required arguments
+            if hasattr(tool, 'validate_args'):
+                is_valid, error_msg = tool.validate_args(arguments)
+                if not is_valid:
+                    logger.warning(f"Tool '{tool_name}' missing required arguments: {error_msg}")
+                    result_obj = ToolResult(success=False, error=error_msg)
+                    return result_obj
             result_obj = await tool.execute(**arguments)
             elapsed = time.monotonic() - start
             logger.debug(f"Tool '{tool_name}' executed in {elapsed:.2f}s")

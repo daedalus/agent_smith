@@ -1862,11 +1862,13 @@ class TestToolRegistryIntegration:
                 """
 from nanocode.tools import Tool, ToolResult
 
-
 class EchoTool(Tool):
     name = "echo"
     description = "Echo back the input"
-
+    
+    def __init__(self):
+        super().__init__(name=self.name, description=self.description)
+    
     async def execute(self, text: str = "") -> ToolResult:
         return ToolResult(success=True, content=text)
 """

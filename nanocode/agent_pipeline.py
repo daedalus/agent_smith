@@ -57,6 +57,7 @@ class AgentPipeline:
         session_id: str,
         messages: List,
         tools: List[dict] = None,
+        on_token: callable = None,
     ) -> Message:
         """Process LLM stream into Message with Parts (matches opencode).
         
@@ -67,6 +68,7 @@ class AgentPipeline:
             session_id: The session ID
             messages: Prepared messages to send to LLM
             tools: Tool schemas
+            on_token: Callback for streaming text tokens (optional)
             
         Returns:
             Message with parts (text, reasoning, tool calls)
@@ -84,7 +86,7 @@ class AgentPipeline:
         ctx = ProcessorContext(
             assistant_message=assistant_msg,
             session_id=session_id,
-            model=None,
+            model=self.llm.model,
         )
 
         logger.info(f"Starting LLM stream for session {session_id}")
@@ -94,6 +96,11 @@ class AgentPipeline:
         try:
             async for event in self.llm.chat_stream(messages, tools):
                 await self.processor._handle_event(ctx, event)
+
+                # Stream text tokens to callback (like opencode's onToken)
+                if on_token and event.type == EventType.TEXT_DELTA:
+                    if isinstance(event, TextDeltaEvent) and event.text:
+                        on_token(event.text)
 
                 # Check if we need to stop (compact, error, etc.)
                 if ctx.needs_compaction:
@@ -125,13 +132,20 @@ class AgentPipeline:
         user_input: str,
         tools: List[dict] = None,
         show_thinking: bool = True,
+        on_token: callable = None,
     ) -> Message:
         """Process user input through the full pipeline.
         
-        Note: For full tool execution support, use process_stream() separately
-        and handle tool execution in the caller. This method just handles
-        the LLM streaming part.
+        This method handles context management and streams the LLM response.
+        For tool execution, use process_stream() and handle tool calls in the caller.
         
+        Args:
+            session_id: The session ID
+            user_input: User's input text
+            tools: Tool schemas
+            show_thinking: Whether to include thinking in response
+            on_token: Callback for streaming text tokens
+            
         Returns:
             Message with parts (text, reasoning, tool calls)
         """
@@ -142,7 +156,9 @@ class AgentPipeline:
             self.context_manager.add_message("user", user_input)
             messages = self.context_manager.prepare_messages()
 
-        return await self.process_stream(session_id, messages, tools)
+        return await self.process_stream(
+            session_id, messages, tools, on_token=on_token
+        )
 
     def get_all_thinking(self, message: Message) -> List[str]:
         """Extract all thinking from message parts."""
@@ -171,3 +187,18 @@ class AgentPipeline:
                         id=part.call_id,
                     ))
         return tool_calls
+
+    def to_llm_response(self, message: Message) -> "LLMResponse":
+        """Convert pipeline Message to LLMResponse for backward compatibility."""
+        from nanocode.llm.base import LLMResponse
+        
+        content = self.get_text_content(message)
+        thinking = "\n\n".join(self.get_all_thinking(message))
+        tool_calls = self.get_tool_calls(message)
+        
+        return LLMResponse(
+            content=content,
+            tool_calls=tool_calls,
+            thinking=thinking,
+            finish_reason=getattr(message, "finish", "stop"),
+        )

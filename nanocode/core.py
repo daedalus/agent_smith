@@ -1265,7 +1265,7 @@ Conversation:
 
     def _check_cache(
         self, messages: list, tools: list[dict] | None
-    ) -> LLMResponse | None:
+    ):
         """Check if we have a cached response for these messages."""
         if not self.prompt_cache:
             return None
@@ -1277,41 +1277,72 @@ Conversation:
             cache_logger.info(
                 f"Cache HIT: {len(messages)} messages, {len(cached.content)} chars"
             )
+            # Convert cached response to LLMResponse
+            tool_calls = []
+            if cached.tool_calls:
+                from nanocode.tools import ToolCall
+                for tc in cached.tool_calls:
+                    tool_calls.append(
+                        ToolCall(name=tc.get("name", ""), arguments=tc.get("arguments", {}))
+                    )
+            
+            from nanocode.llm.base import LLMResponse
             return LLMResponse(
                 content=cached.content,
                 thinking=cached.thinking,
-                tool_calls=[
-                    type("ToolCall", (), tc)() for tc in (cached.tool_calls or [])
-                ]
-                if cached.tool_calls
-                else [],
+                tool_calls=tool_calls,
             )
         return None
 
     def _put_cache(
-        self, messages: list, tools: list[dict] | None, response: LLMResponse
+        self, messages: list, tools: list[dict] | None, response
     ) -> None:
-        """Store the response in cache."""
+        """Store the response in cache.
+        
+        Accepts either LLMResponse or pipeline Message objects.
+        """
         if not self.prompt_cache:
             return
 
         cache_key = self._get_cache_key(messages, tools)
 
-        cached = CachedResponse(
-            content=response.content,
-            thinking=response.thinking,
-            tool_calls=[
+        # Handle both LLMResponse and pipeline Message objects
+        if hasattr(response, "content"):
+            # LLMResponse object
+            content = response.content
+            thinking = getattr(response, "thinking", None)
+            tool_calls = getattr(response, "tool_calls", [])
+            tool_calls_data = []
+            if tool_calls:
+                tool_calls_data = [
+                    {"name": tc.name, "arguments": tc.arguments}
+                    for tc in tool_calls
+                ]
+        elif hasattr(response, "parts"):
+            # Pipeline Message object
+            from nanocode.agent_pipeline import AgentPipeline
+            pipeline = AgentPipeline(llm=None)
+            content = pipeline.get_text_content(response)
+            thinking = "\n\n".join(pipeline.get_all_thinking(response))
+            tool_calls = pipeline.get_tool_calls(response)
+            tool_calls_data = [
                 {"name": tc.name, "arguments": tc.arguments}
-                for tc in response.tool_calls
+                for tc in tool_calls
             ]
-            if response.tool_calls
-            else [],
+        else:
+            logger.warning("Unknown response type for caching")
+            return
+
+        cached = CachedResponse(
+            content=content,
+            thinking=thinking,
+            tool_calls=tool_calls_data,
             model=getattr(self.llm, "model", None),
         )
 
         self.prompt_cache.put(cache_key, cached)
         cache_logger.info(
-            f"Cached: {len(messages)} messages, {len(response.content) if response.content else 0} chars"
+            f"Cached: {len(messages)} messages, {len(content) if content else 0} chars"
         )
 
     async def process_input(
@@ -1442,11 +1473,27 @@ Conversation:
                         "\n[warning][WARN] CACHE HIT - Previous response reused![/warning]"
                     )
                 response = cached_response
+                # Get cached Message object if available
+                self._last_message = None
             else:
-                response = await self._chat_with_retry(
-                    messages, tools, on_token=self._on_token
+                # Use pipeline for LLM streaming (matches opencode architecture)
+                session_id = getattr(self.context_manager, "session_id", "default")
+                message = await self.pipeline.process_stream(
+                    session_id=session_id,
+                    messages=messages,
+                    tools=tools,
+                    on_token=self._on_token,
                 )
-                self._put_cache(messages, tools, response)
+                
+                # Store Message object for later use
+                self._last_message = message
+                
+                # Store in cache (Message object)
+                self._put_cache(messages, tools, message)
+                
+                # Convert to LLMResponse for backward compatibility
+                response = self.pipeline.to_llm_response(message)
+                
                 logger.info(f"[{agent_name}] LLM response received")
                 logger.info(f"[{agent_name}] Thinking: {response.thinking[:100] if response.thinking else 'None'}...")
 
@@ -1577,7 +1624,7 @@ Conversation:
                         # Re-prepare messages after pruning
                         messages = self.context_manager.prepare_messages()
 
-                final_response = await self._chat_with_retry(messages, tools)
+                final_response = await self._chat_with_pipeline(messages, tools)
 
                 # Track thinking from second response
                 if final_response.thinking:
@@ -1656,11 +1703,11 @@ Conversation:
                         logger.debug(
                             f"[{agent_name}] Forcing text-only response (max steps reached)"
                         )
-                        final_response = await self._chat_with_retry(
+                        final_response = await self._chat_with_pipeline(
                             messages, None, on_token=self._on_token
                         )
                     else:
-                        final_response = await self._chat_with_retry(
+                        final_response = await self._chat_with_pipeline(
                             messages, tools, on_token=self._on_token
                         )
 
@@ -1675,7 +1722,7 @@ Conversation:
                         f"[{agent_name}] Auto-continue: injected continue message"
                     )
                     messages = self.context_manager.prepare_messages()
-                    final_response = await self._chat_with_retry(
+                    final_response = await self._chat_with_pipeline(
                         messages, tools, on_token=self._on_token
                     )
                     if not final_response.has_tool_calls:
@@ -1703,7 +1750,7 @@ Conversation:
                 iteration = 0
                 while iteration < max_agent_steps:
                     iteration += 1
-                    final_response = await self._chat_with_retry(
+                    final_response = await self._chat_with_pipeline(
                         messages, tools, on_token=self._on_token
                     )
                     if not final_response.has_tool_calls:
@@ -1824,7 +1871,7 @@ Conversation:
                     "content": f"You have {len(pending_todos)} pending todo(s). Please complete them before responding:\n" +
                               "\n".join(f"- {t}" for t in pending_todos)
                 })
-                continuation = await self._chat_with_retry(messages, tools)
+                continuation = await self._chat_with_pipeline(messages, tools)
                 if continuation and continuation.content:
                     self.context_manager.add_message("assistant", continuation.content)
                     augmented += f"\n\n{continuation.content}"
@@ -1855,6 +1902,34 @@ Conversation:
             self.state.error = str(e)
             self.state.last_traceback = traceback.format_exc()
             return f"Error: {str(e)}"
+
+    async def _chat_with_pipeline(
+        self,
+        messages: list,
+        tools: list = None,
+        on_token: callable = None,
+    ):
+        """Use the event pipeline to get LLM response (matches opencode architecture).
+        
+        This replaces _chat_with_retry() with the new pipeline approach.
+        Returns LLMResponse for backward compatibility.
+        """
+        if not hasattr(self, "pipeline") or not self.pipeline:
+            # Pipeline not initialized - this shouldn't happen in normal operation
+            logger.error("Pipeline not initialized! Cannot process LLM request.")
+            raise RuntimeError("Pipeline not initialized. Call _init_pipeline() first.")
+        
+        # Use pipeline to process stream
+        session_id = getattr(self.context_manager, "session_id", "default")
+        message = await self.pipeline.process_stream(
+            session_id=session_id,
+            messages=messages,
+            tools=tools,
+            on_token=on_token,
+        )
+        
+        # Convert Message to LLMResponse for backward compatibility
+        return self.pipeline.to_llm_response(message)
 
     async def execute_task(self, task: str) -> dict:
         """Execute a long-horizon task with planning."""
@@ -2001,7 +2076,7 @@ Conversation:
 
             # Process the re-prompt
             messages = self.context_manager.prepare_messages()
-            response = await self._chat_with_retry(
+            response = await self._chat_with_pipeline(
                 messages, tools, on_token=self._on_token
             )
 
