@@ -31,11 +31,11 @@ file_watcher:
   - venv
 github: null
 llm:
-  default_model: opencode/big-pickle
+  default_model: big-pickle
   default_connector: openai
   connectors:
-    openai: # sdk type
-      - name: lm-studio # openai compatible endpoints
+    openai:
+      - name: lm-studio
         base_url: http://localhost:1234/v1
         model: local-model
       - name: ollama
@@ -44,7 +44,7 @@ llm:
       - name: opencode
         api_key: public
         base_url: https://opencode.ai/zen/v1
-        model: opencode/big-pickle
+        model: big-pickle
       - name: openrouter
         api_key: ${OPENROUTER_API_KEY}
         base_url: https://openrouter.ai/api/v1
