@@ -462,35 +462,54 @@ class AutonomousAgent:
         if default_connector:
             connectors = self.config.connectors
             if default_connector in connectors:
-                provider_config = connectors[default_connector].copy()
-                model = provider_config.pop("model", default_model)
-                explicit_max_tokens = provider_config.pop("max_tokens", None)
-                logger.info(
-                    f"Using default_connector: {default_connector}, model: {model}"
-                )
-                logger.info(f"URL: {provider_config.get('base_url')}")
+                # connectors[default_connector] is a list of endpoint configs
+                endpoint_list = connectors[default_connector]
+                if not isinstance(endpoint_list, list):
+                    endpoint_list = [endpoint_list]
 
-                # Try to get max_tokens from registry if not explicitly set
-                if not explicit_max_tokens:
-                    from nanocode.llm.router import OUTPUT_TOKEN_MAX
-                    model_id = model if "/" in model else f"{default_connector}/{model}"
-                    registry_model_info = registry.get_model_by_full_id(model_id)
-                    if registry_model_info and registry_model_info.max_output_tokens > 0:
-                        explicit_max_tokens = max(registry_model_info.max_output_tokens, OUTPUT_TOKEN_MAX)
+                # Find the endpoint matching default_model or use first
+                provider_config = None
+                for endpoint in endpoint_list:
+                    if isinstance(endpoint, dict) and endpoint.get("name") == default_connector:
+                        provider_config = endpoint.copy()
+                        break
 
-                from nanocode.llm import create_llm
+                if provider_config is None and endpoint_list:
+                    provider_config = endpoint_list[0].copy()
 
-                llm = create_llm(
-                    default_connector,
-                    model=model,
-                    user_agent=user_agent,
-                    proxy=proxy,
-                    debug=self.debug,
-                    max_tokens=explicit_max_tokens,
-                    **provider_config,
-                )
-                self.llm = llm
-                return
+                if provider_config:
+                    model = provider_config.pop("model", default_model)
+                    explicit_max_tokens = provider_config.pop("max_tokens", None)
+                    logger.info(
+                        f"Using default_connector: {default_connector}, model: {model}"
+                    )
+                    logger.info(f"URL: {provider_config.get('base_url')}")
+
+                    # Try to get max_tokens from registry if not explicitly set
+                    if not explicit_max_tokens:
+                        from nanocode.llm.router import OUTPUT_TOKEN_MAX
+                        model_id = model if "/" in model else f"{default_connector}/{model}"
+                        registry_model_info = registry.get_model_by_full_id(model_id)
+                        if registry_model_info and registry_model_info.max_output_tokens > 0:
+                            explicit_max_tokens = max(registry_model_info.max_output_tokens, OUTPUT_TOKEN_MAX)
+
+                    from nanocode.llm import create_llm
+
+                    llm = create_llm(
+                        default_connector,
+                        model=model,
+                        user_agent=user_agent,
+                        proxy=proxy,
+                        debug=self.debug,
+                        max_tokens=explicit_max_tokens,
+                        **provider_config,
+                    )
+                    self.llm = llm
+                    return
+                else:
+                    logger.warning(
+                        f"Connector {default_connector} has no endpoint config"
+                    )
             else:
                 logger.warning(
                     f"Connector {default_connector} not in connectors: {list(connectors.keys())}"
