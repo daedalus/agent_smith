@@ -467,10 +467,13 @@ class AutonomousAgent:
                 if not isinstance(endpoint_list, list):
                     endpoint_list = [endpoint_list]
 
-                # Find the endpoint matching default_model or use first
+                # Find the endpoint matching default_model
                 provider_config = None
+                # Extract the connector name from default_model (e.g., "opencode/big-pickle" -> "opencode")
+                model_connector = default_model.split("/")[0] if "/" in default_model else default_connector
+
                 for endpoint in endpoint_list:
-                    if isinstance(endpoint, dict) and endpoint.get("name") == default_connector:
+                    if isinstance(endpoint, dict) and endpoint.get("name") == model_connector:
                         provider_config = endpoint.copy()
                         break
 
